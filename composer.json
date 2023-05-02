@@ -1,5 +1,10 @@
 {
     "require": {
-        "react/socket": "^1.12"
+        "react/http": "^1.9"
+    },
+    "autoload": {
+        "psr-4": {
+            "Wpjscc\\Penetation\\": "src/"
+        }
     }
 }
