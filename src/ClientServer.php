@@ -32,7 +32,9 @@ class ClientServer
             $buffer = '';
             $that = $this;
             $connection->on('data', $fn = function ($chunk) use ($connection, &$buffer, &$fn, $that) {
+                
                 $buffer .= $chunk;
+
                 $pos = strpos($buffer, "\r\n\r\n");
                 if ($pos !== false) {
                     $connection->removeListener('data', $fn);
@@ -48,7 +50,7 @@ class ClientServer
                         return;
                     }
 
-                    $buffer = '';
+                    $buffer = substr($buffer, $pos+4);
 
                     $state =  $that->validate($request);
 
@@ -61,6 +63,7 @@ class ClientServer
                         $connection->end();
                         return ;
                     }
+
                     $headers = [
                         'HTTP/1.1 200 OK',
                         'Server: ReactPHP/1',
@@ -70,14 +73,12 @@ class ClientServer
                     $request = $request->withoutHeader('Uri');
                     $request = $request->withHeader('Uri', $state['uri']);
 
-                    ClientManager::addClientConnection($connection, $request);
-
-
+                    ClientManager::addClientConnection($connection, $request, $buffer);
                 }
+
                 
 
             });
-            
 
         });
 

@@ -97,7 +97,7 @@ class ClientManager
     {
         $uri = $response->getHeaderLine('Uri');
         echo ('local tunnel success '.$uri."\n");
-
+        var_dump($connection->getLocalAddress());
         if (!isset(static::$localTunnelConnections[$uri])) {
             static::$localTunnelConnections[$uri] = new \SplObjectStorage;
         }
@@ -117,7 +117,7 @@ class ClientManager
             static::$localDynamicConnections[$uri] = new \SplObjectStorage;
         }
 
-        $connection->tunnelConnection = static::$localDynamicConnections[$uri]->current();
+        $connection->tunnelConnection = static::$localTunnelConnections[$uri]->current();
 
         static::$localDynamicConnections[$uri]->attach($connection);
 
@@ -209,17 +209,20 @@ class ClientManager
             $connection->pipe($localConnection);
             $localConnection->pipe($connection, ['end' => false]);
             $localConnection->on('close', function () use ($connection, $config) {
-                echo 'local connection end'."\n";
                 // localConnection 是主动关闭的，告诉远程
                 if (isset(static::$localConnections[$connection->getLocalAddress()])) {
+                    echo 'local connection end'."\n";
                     unset(static::$localConnections[$connection->getLocalAddress()]);
                     $headers = [
-                        'POST /close HTTP/1.1',
-                        'Host: 127.0.0.1:8080',
+                        'POST / HTTP/1.1',
                         'User-Agent: ReactPHP',
                         'Authorization: '. $config['token'],
+                        'Remote-Uniqid: '.$connection->getLocalAddress(),
                     ];
+                    var_dump('tunnelConnection',$connection->tunnelConnection->getLocalAddress());
                     $connection->tunnelConnection->write(implode("\r\n", $headers)."\r\n\r\n");
+                } else {
+                    echo 'local connection end-111'."\n";
                 }
                 // 继续监听后面的连接
                 ClientManager::handleLocalDynamicConnection($connection, $config);
@@ -237,11 +240,11 @@ class ClientManager
     public function removeLocalConnection($connection, $response)
     {
         $uniqid = $response->getHeaderLine('Remote-Uniqid');
-
         if (isset(static::$localConnections[$uniqid])) {
             echo 'remove local connection'."\n";
-            static::$localConnections[$uniqid]->end();
+            $localConnection = static::$localConnections[$uniqid];
             unset(static::$localConnections[$uniqid]);
+            $localConnection->end();
         }
         
     }
@@ -284,7 +287,9 @@ class ClientManager
         if (!isset(static::$remoteDynamicConnections[$uri])) {
             static::$remoteDynamicConnections[$uri] = new \SplObjectStorage;
         }
-        static::$remoteDynamicConnections[$uri]->attach($deferred, static::$remoteTunnelConnections[$uri]->current());
+        $tunnelConnection = static::$remoteTunnelConnections[$uri]->current();
+        var_dump('tunnelConnection' ,$tunnelConnection->getRemoteAddress());
+        static::$remoteDynamicConnections[$uri]->attach($deferred, $tunnelConnection);
 
         return \React\Promise\Timer\timeout($deferred->promise(), 3)->then(null, function ($e) use ($uri, $deferred) {
             
@@ -300,7 +305,7 @@ class ClientManager
         });
     }
 
-    public static function addClientConnection($connection, $request)
+    public static function addClientConnection($connection, $request, &$buffer)
     {
 
         $uri = $request->getHeaderLine('Uri');
@@ -321,6 +326,16 @@ class ClientManager
                     echo ("tunnel connection close\n");
                     unset(static::$remoteTunnelConnections[$uri]);
                 }
+            });
+
+            static::handleTunnelIncomingBuffer($connection, $buffer);
+            
+
+            // 通道连接监听
+            $connection->on('data', function ($chunk) use (&$buffer, $connection) {
+                $buffer .= $chunk;
+                var_dump($buffer);
+                static::handleTunnelIncomingBuffer($connection, $buffer);
             });
 
             // 初始化一个 dynamic connection
@@ -386,5 +401,37 @@ class ClientManager
 
         // 最后空闲
         ProxyManager::getProxyConnection($uri)->addIdleConnection($connection);
+    }
+
+
+    public static function handleTunnelIncomingBuffer($connection, &$buffer)
+    {
+        // 避免buffer 没有使用干净
+        while ($buffer) {
+            $pos = strpos($buffer, "\r\n\r\n");
+            if ($pos !== false) {
+                try {
+                    $request = Psr7\parse_request(substr($buffer, 0, $pos));
+                } catch (\Exception $e) {
+                    // invalid request message, close connection
+                    $buffer = '';
+                    $connection->write($e->getMessage());
+                    $connection->close();
+                    return;
+                }
+                // 只有一种情况 local 主动关闭
+                if ($request->getMethod() == "POST") {
+                    if (isset(ProxyManager::$userConnections[$request->getHeaderLine('Remote-Uniqid')])) {
+                        $userConnection = ProxyManager::$userConnections[$request->getHeaderLine('Remote-Uniqid')];
+                        unset(ProxyManager::$userConnections[$request->getHeaderLine('Remote-Uniqid')]);
+                        $userConnection->end();
+                    }
+                }
+
+                $buffer = (string) substr($buffer, $pos + 4);
+            } else {
+                break;
+            }
+        }
     }
 }

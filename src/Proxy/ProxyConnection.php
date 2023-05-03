@@ -72,7 +72,7 @@ class ProxyConnection
                 // 还没有被关闭，发送一个消息主动关闭
                 if (isset(ProxyManager::$userConnections[$clientConnection->getRemoteAddress()])) {
                     unset(ProxyManager::$userConnections[$clientConnection->getRemoteAddress()]);
-                    echo "user connection close \n";
+                    echo "user connection end 111\n";
                     $headers = [
                         'HTTP/1.1 204 No Content',
                         'Server: ReactPHP/1',
@@ -80,6 +80,9 @@ class ProxyConnection
                     ];
                     // 告诉clientConnection 关闭连接了(通过tunnelConnection 发送)
                     $clientConnection->tunnelConnection->write(implode("\r\n", $headers)."\r\n\r\n");
+                } else {
+                    // 客户端发送信息关闭的
+                    echo "user connection close\n";
                 }
                 $this->releaseConnection($clientConnection);
             });
