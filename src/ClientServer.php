@@ -13,10 +13,7 @@ class ClientServer
 {
     public $port = 8081;
 
-    public $proxyConnection;
-    public $proxyManager;
-
-    public function __construct($port)
+    public function __construct($port = null)
     {
         if ($port) {
             $this->port = $port;
@@ -30,6 +27,7 @@ class ClientServer
         $socket = new SocketServer('0.0.0.0:'.$this->port);
 
         $socket->on('connection', function (ConnectionInterface $connection) {
+            echo 'user: '.$connection->getRemoteAddress().' is connected'."\n";
             
             $buffer = '';
             $that = $this;
@@ -55,16 +53,22 @@ class ClientServer
                     $state =  $that->validate($request);
 
                     if (!$state) {
-                        $connection->write('Auth failed');
-                        $connection->close();
+                        $headers = [
+                            'HTTP/1.1 401 Unauthorized',
+                            'Server: ReactPHP/1',
+                        ];
+                        $connection->write(implode("\r\n", $headers)."\r\n\r\n");
+                        $connection->end();
                         return ;
                     }
                     $headers = [
                         'HTTP/1.1 200 OK',
                         'Server: ReactPHP/1',
-                        'Uri: 127.0.0.1:8080'
+                        'Uri: '.$state['uri'],
                     ];
                     $connection->write(implode("\r\n", $headers)."\r\n\r\n");
+                    $request = $request->withoutHeader('Uri');
+                    $request = $request->withHeader('Uri', $state['uri']);
 
                     ClientManager::addClientConnection($connection, $request);
 
@@ -77,13 +81,13 @@ class ClientServer
 
         });
 
-        echo "Server is running at {$this->port}...\n";
+        echo "Client Server is running at {$this->port}...\n";
     }
 
     public function validate($request)
     {
         return [
-            'uri' => '127.0.0.1:8080'
+            'uri' => '10.8.0.9:8080'
         ];
     }
 }

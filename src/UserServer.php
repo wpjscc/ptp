@@ -8,12 +8,13 @@ use Wpjscc\Penetration\Proxy\ProxyManager;
 use RingCentral\Psr7;
 use Psr\Http\Message\ServerRequestInterface;
 use React\Http\HttpServer;
+use Wpjscc\Penetration\Helper;
 
 class UserServer
 {
     public $port = 8080;
 
-    public function __construct($port)
+    public function __construct($port = null)
     {
         if ($port) {
             $this->port = $port;
@@ -57,10 +58,18 @@ class UserServer
                     $proxyConnection = ProxyManager::getProxyConnection($uri, true);
                     if ($proxyConnection === false) {
                         $buffer = '';
-                        $userConnection->write('no proxy connection');
-                        $userConnection->close();
+                        $content = "no proxy connection\n";
+                        $headers = [
+                            'HTTP/1.1 200 OK',
+                            'Server: ReactPHP/1',
+                            'Content-Type: text/html; charset=UTF-8',
+                            'Content-Length: '.strlen($content),
+                        ];
+                        $userConnection->write(implode("\r\n", $headers)."\r\n\r\n".$content);
+                        $userConnection->end();
                     } else {
-                        $proxyConnection->pipe($uri, $userConnection, $buffer);
+                        echo 'user: '.$uri.' is arive'."\n";
+                        $proxyConnection->pipe($userConnection, $buffer);
                     }
 
                 }
@@ -71,7 +80,7 @@ class UserServer
 
         });
 
-        echo "Server is running at {$this->port}...\n";
+        echo "User Server is running at {$this->port}...\n";
     }
 
     public function getProxyConnection()

@@ -11,15 +11,16 @@ use Wpjscc\Penetration\Client\ClientManager;
 use Wpjscc\Penetration\Client\ProxyClientManager;
 use React\Promise\Deferred;
 use React\Promise\Timer\TimeoutException;
+use RingCentral\Psr7;
 
 class ProxyConnection
 {
-    private $max_connections;
-    private $max_wait_queue;
-    private $current_connections = 0;
+    public $max_connections;
+    public $max_wait_queue;
+    public $current_connections = 0;
     private $wait_timeout = 0;
-    private $idle_connections;
-    private $wait_queue;
+    public $idle_connections;
+    public $wait_queue;
     private $loop;
     private $uri;
 
@@ -42,13 +43,20 @@ class ProxyConnection
 
     public function pipe($userConnection, &$buffer)
     {
-       
-        $this->getIdleConnection($this->uri)->then(function (ConnectionInterface $clientConnection) use ($userConnection, &$buffer) {
-            
+
+        $userConnection->on('data', $fn =function($chunk) use (&$buffer) {
+            $buffer .= $chunk;
+        });
+        $this->getIdleConnection($this->uri)->then(function (ConnectionInterface $clientConnection) use ($userConnection, &$buffer, $fn) {
+            ProxyManager::$userConnections[$clientConnection->getRemoteAddress()] = $userConnection;
+            $userConnection->removeListener('data', $fn);
+            $fn = null;
+            echo "get dynamic connection success \n";
             $headers = [
                 'HTTP/1.1 201 OK',
                 'Server: ReactPHP/1'
             ];
+
             // 告诉clientConnection 开始连接了
             $clientConnection->write(implode("\r\n", $headers)."\r\n\r\n");
 
@@ -56,9 +64,23 @@ class ProxyConnection
                 'end' => false
             ]);
 
+
             $clientConnection->pipe($userConnection);
 
-            $userConnection->once('close', function () use ($clientConnection) {
+
+            $userConnection->on('close', function () use ($clientConnection) {
+                // 还没有被关闭，发送一个消息主动关闭
+                if (isset(ProxyManager::$userConnections[$clientConnection->getRemoteAddress()])) {
+                    unset(ProxyManager::$userConnections[$clientConnection->getRemoteAddress()]);
+                    echo "user connection close \n";
+                    $headers = [
+                        'HTTP/1.1 204 No Content',
+                        'Server: ReactPHP/1',
+                        'Remote-Uniqid: '.$clientConnection->getRemoteAddress(),
+                    ];
+                    // 告诉clientConnection 关闭连接了(通过tunnelConnection 发送)
+                    $clientConnection->tunnelConnection->write(implode("\r\n", $headers)."\r\n\r\n");
+                }
                 $this->releaseConnection($clientConnection);
             });
 
@@ -66,8 +88,10 @@ class ProxyConnection
                 $clientConnection->write($buffer);
                 $buffer = '';
             }
+            $clientConnection->resume();
 
         }, function ($e) use ($userConnection) {
+            echo $e->getMessage()."\n";
             $userConnection->write($e->getMessage());
             $userConnection->close();
         });
@@ -85,7 +109,7 @@ class ProxyConnection
         if ($this->current_connections < $this->max_connections) {
             $this->current_connections++;
             // todo 链接关闭
-            return \React\Promise\resolve(ClientManager::createConnection($this->uri));
+            return \React\Promise\resolve(ClientManager::createRemoteDynamicConnection($this->uri));
         }
 
         if ($this->max_wait_queue && $this->wait_queue->count() >= $this->max_wait_queue) {
@@ -119,29 +143,21 @@ class ProxyConnection
     {
 
         if (!$connection->isWritable()) {
+            echo "connection is not writable \n";
             $this->current_connections--;
             $this->idle_connections->detach($connection);
             return;
         }
 
         if ($this->wait_queue->count()>0) {
+            echo "wait queue has connection ".$this->wait_queue->count()."\n";
             $deferred = $this->wait_queue->current();
-            $deferred->resolve($connection);
             $this->wait_queue->detach($deferred);
+            $deferred->resolve($connection);
+
             return;
         }
-
+        echo "release idle connection \n";
         $this->idle_connections->attach($connection);
-    }
-
-    public function addIdleConnection($connection)
-    {
-        $this->idle_connections->attach($connection);
-        $this->current_connections++;
-
-        $connection->on('close', function () use ($connection) {
-            $this->current_connections--;
-            $this->idle_connections->detach($connection);
-        });
     }
 }
