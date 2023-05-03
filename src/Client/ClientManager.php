@@ -349,7 +349,6 @@ class ClientManager
             // 通道连接监听
             $connection->on('data', function ($chunk) use (&$buffer, $connection) {
                 $buffer .= $chunk;
-                var_dump($buffer);
                 static::handleTunnelIncomingBuffer($connection, $buffer);
             });
 
