@@ -48,6 +48,7 @@ class ProxyConnection
             $buffer .= $chunk;
         });
         $this->getIdleConnection($this->uri)->then(function (ConnectionInterface $clientConnection) use ($userConnection, &$buffer, $fn) {
+            var_dump($clientConnection->getRemoteAddress());
             ProxyManager::$userConnections[$clientConnection->getRemoteAddress()] = $userConnection;
             $userConnection->removeListener('data', $fn);
             $fn = null;

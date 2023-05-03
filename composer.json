@@ -1,4 +1,5 @@
 {
+    "name": "wpjscc/reactphp-intranet-penetration",
     "require": {
         "react/http": "^1.9"
     },

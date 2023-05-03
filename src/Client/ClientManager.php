@@ -27,8 +27,8 @@ class ClientManager
             'local_port' => '8088',
     
             // 链接的地址
-            'remote_host' => '127.0.0.1',
-            'remote_port' => '8081',
+            'remote_host' => 'reactphp-intranet-penetration.xiaofuwu.wpjs.cc',
+            'remote_port' => '80',
 
             'token' => 'xxxxxx'
         ]
@@ -40,8 +40,8 @@ class ClientManager
             $function = function($config) use(&$function) {
                 (new Connector(array('timeout' => $config['timeout'])))->connect("tcp://".$config['remote_host'].":".$config['remote_port'])->then(function ($connection) use ($function, $config) {
                     $headers = [
-                        'GET / HTTP/1.1',
-                        'Host: 127.0.0.1:8080',
+                        'GET /client HTTP/1.1',
+                        'Host: reactphp-intranet-penetration.xiaofuwu.wpjs.cc',
                         'User-Agent: ReactPHP',
                         'Tunnel: 1',
                         'Authorization: '. $config['token'],
@@ -76,9 +76,14 @@ class ClientManager
     public static function handleLocalTunnelBuffer($connection, &$buffer, $config, $fn = null)
     {
         $pos = strpos($buffer, "\r\n\r\n");
+        var_dump($buffer);
         if ($pos !== false) {
+            $httpPos = strpos($buffer, "HTTP/1.1");
+            if ($httpPos === false) {
+                $httpPos = 0;
+            }
             try {
-                $response = Psr7\parse_response(substr($buffer, 0, $pos));
+                $response = Psr7\parse_response(substr($buffer, $httpPos, $pos-$httpPos));
             } catch (\Exception $e) {
                 // invalid response message, close connection
                 echo $e->getMessage();
@@ -147,7 +152,8 @@ class ClientManager
     {
         (new Connector(array('timeout' => $config['timeout'])))->connect("tcp://".$config['remote_host'].":".$config['remote_port'])->then(function ($connection) use ($config) {
             $headers = [
-                'GET / HTTP/1.1',
+                'GET /client HTTP/1.1',
+                'Host: reactphp-intranet-penetration.xiaofuwu.wpjs.cc',
                 'User-Agent: ReactPHP',
                 'Authorization: '. $config['token'],
             ];
@@ -170,8 +176,12 @@ class ClientManager
             while ($buffer) {
                 $pos = strpos($buffer, "\r\n\r\n");
                 if ($pos !== false) {
+                    $httpPos = strpos($buffer, "HTTP/1.1");
+                    if ($httpPos === false) {
+                        $httpPos = 0;
+                    }
                     try {
-                        $response = Psr7\parse_response(substr($buffer, 0, $pos));
+                        $response = Psr7\parse_response(substr($buffer, $httpPos, $pos));
                     } catch (\Exception $e) {
                         // invalid response message, close connection
                         echo $e->getMessage();
@@ -217,6 +227,7 @@ class ClientManager
         echo ('start handleLocalConnection'."\n");
 
         (new Connector(array('timeout' => $config['timeout'])))->connect("tcp://".$config['local_host'].":".$config['local_port'])->then(function ($localConnection) use ($connection, $config, &$fn, &$buffer) {
+            var_dump($connection->getRemoteAddress());
             static::$localConnections[$connection->getLocalAddress()] = $localConnection;
             $connection->removeListener('data', $fn);
             $fn = null;
