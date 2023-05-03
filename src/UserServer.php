@@ -39,7 +39,7 @@ class UserServer
                     $fn = null;
                     // try to parse headers as request message
                     try {
-                        $request = Psr7\parse_request(substr($buffer, 0, $pos+2));
+                        $request = Psr7\parse_request(substr($buffer, 0, $pos));
                     } catch (\Exception $e) {
                         // invalid request message, close connection
                         $buffer = '';
@@ -48,6 +48,7 @@ class UserServer
                         return;
                     }
 
+
                     $host = $request->getUri()->getHost();
                     $port = $request->getUri()->getPort();
                     $uri = $host;
@@ -55,7 +56,7 @@ class UserServer
                         $uri = $uri.':'.$port;
                     }
 
-                    $proxyConnection = ProxyManager::getProxyConnection($uri, true);
+                    $proxyConnection = ProxyManager::getProxyConnection($uri);
                     if ($proxyConnection === false) {
                         $buffer = '';
                         $content = "no proxy connection\n";
@@ -69,7 +70,7 @@ class UserServer
                         $userConnection->end();
                     } else {
                         echo 'user: '.$uri.' is arive'."\n";
-                        $proxyConnection->pipe($userConnection, $buffer);
+                        $proxyConnection->pipe($userConnection, $buffer, $request);
                     }
 
                 }

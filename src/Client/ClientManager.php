@@ -45,6 +45,7 @@ class ClientManager
                         'User-Agent: ReactPHP',
                         'Tunnel: 1',
                         'Authorization: '. $config['token'],
+                        'Local-Host: '.$config['local_host'].':'.$config['local_port'],
                     ];
                     $connection->write(implode("\r\n", $headers)."\r\n\r\n");
                     
@@ -76,7 +77,6 @@ class ClientManager
     public static function handleLocalTunnelBuffer($connection, &$buffer, $config, $fn = null)
     {
         $pos = strpos($buffer, "\r\n\r\n");
-        var_dump($buffer);
         if ($pos !== false) {
             $httpPos = strpos($buffer, "HTTP/1.1");
             if ($httpPos === false) {
@@ -156,6 +156,7 @@ class ClientManager
                 'Host: reactphp-intranet-penetration.xiaofuwu.wpjs.cc',
                 'User-Agent: ReactPHP',
                 'Authorization: '. $config['token'],
+                'Local-Host: '.$config['local_host'].':'.$config['local_port'],
             ];
             $connection->write(implode("\r\n", $headers)."\r\n\r\n");
             $connection->on('close', function () use ($connection) {
@@ -198,7 +199,7 @@ class ClientManager
                     } elseif ($response->getStatusCode() === 201) {
                         $connection->removeListener('data', $fn);
                         $fn = null;
-                        ClientManager::handleLocalConnection($connection, $config, $buffer);
+                        ClientManager::handleLocalConnection($connection, $config, $buffer, $response);
                         break;
                     }else {
                         echo 'error'."\n";
@@ -219,31 +220,42 @@ class ClientManager
 
     }
 
-    public static function handleLocalConnection($connection, $config, &$buffer)
+    public static function handleLocalConnection($connection, $config, &$buffer, $response)
     {
         $connection->on('data', $fn = function ($chunk) use (&$buffer) {
             $buffer .= $chunk;
         });
         echo ('start handleLocalConnection'."\n");
 
-        (new Connector(array('timeout' => $config['timeout'])))->connect("tcp://".$config['local_host'].":".$config['local_port'])->then(function ($localConnection) use ($connection, $config, &$fn, &$buffer) {
+        (new Connector(array('timeout' => $config['timeout'])))->connect("tcp://".$config['local_host'].":".$config['local_port'])->then(function ($localConnection) use ($connection, $config, &$fn, &$buffer, $response) {
             var_dump($connection->getRemoteAddress());
-            static::$localConnections[$connection->getLocalAddress()] = $localConnection;
+            static::$localConnections[$response->getHeaderLine('Remote-Uniqid')] = $localConnection;
+
             $connection->removeListener('data', $fn);
             $fn = null;
+            var_dump($buffer);
             echo 'local connection success'."\n";
             $connection->pipe($localConnection);
             $localConnection->pipe($connection, ['end' => false]);
-            $localConnection->on('close', function () use ($connection, $config) {
+            $localConnection->on('data', function ($chunk) use ($connection, $config, &$buffer, $response) {
+                echo 'local connection data'."\n";
+                // var_dump($chunk);
+                $connection->write($chunk);
+            });
+            $connection->on('data', function ($chunk) use ($connection, $config, &$buffer, $response) {
+                echo 'local connection data111111111'."\n";
+                var_dump($chunk);
+            });
+            $localConnection->on('close', function () use ($connection, $config, $response) {
                 // localConnection 是主动关闭的，告诉远程
-                if (isset(static::$localConnections[$connection->getLocalAddress()])) {
+                if (isset(static::$localConnections[$response->getHeaderLine('Remote-Uniqid')])) {
                     echo 'local connection end'."\n";
-                    unset(static::$localConnections[$connection->getLocalAddress()]);
+                    unset(static::$localConnections[$response->getHeaderLine('Remote-Uniqid')]);
                     $headers = [
                         'POST / HTTP/1.1',
                         'User-Agent: ReactPHP',
                         'Authorization: '. $config['token'],
-                        'Remote-Uniqid: '.$connection->getLocalAddress(),
+                        'Remote-Uniqid: '. $response->getHeaderLine('Remote-Uniqid'),
                     ];
                     var_dump('tunnelConnection',$connection->tunnelConnection->getLocalAddress());
                     $connection->tunnelConnection->write(implode("\r\n", $headers)."\r\n\r\n");
@@ -254,7 +266,9 @@ class ClientManager
                 ClientManager::handleLocalDynamicConnection($connection, $config);
             });
             
-            
+            $connection->resume();
+            $localConnection->resume();
+
             if ($buffer) {
                 $localConnection->write($buffer);
                 $buffer = '';
@@ -266,6 +280,7 @@ class ClientManager
     public function removeLocalConnection($connection, $response)
     {
         $uniqid = $response->getHeaderLine('Remote-Uniqid');
+        var_dump($uniqid, 2321432423432423);
         if (isset(static::$localConnections[$uniqid])) {
             echo 'remove local connection'."\n";
             $localConnection = static::$localConnections[$uniqid];
@@ -345,7 +360,7 @@ class ClientManager
             }
 
             // todo 最大数量限制
-            static::$remoteTunnelConnections[$uri]->attach($connection);
+            static::$remoteTunnelConnections[$uri]->attach($connection, $request->getHeaderLine('Local-Host'));
             $connection->on('close', function () use ($uri, $connection) {
                 static::$remoteTunnelConnections[$uri]->detach($connection);
                 if (static::$remoteTunnelConnections[$uri]->count() == 0) {

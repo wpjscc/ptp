@@ -12,6 +12,7 @@ use Wpjscc\Penetration\Client\ProxyClientManager;
 use React\Promise\Deferred;
 use React\Promise\Timer\TimeoutException;
 use RingCentral\Psr7;
+use Wpjscc\Penetration\Helper;
 
 class ProxyConnection
 {
@@ -41,21 +42,33 @@ class ProxyConnection
         $this->loop = $loop ?: Loop::get();
     }
 
-    public function pipe($userConnection, &$buffer)
+    public function pipe($userConnection, &$buffer, $request)
     {
+
 
         $userConnection->on('data', $fn =function($chunk) use (&$buffer) {
             $buffer .= $chunk;
         });
-        $this->getIdleConnection($this->uri)->then(function (ConnectionInterface $clientConnection) use ($userConnection, &$buffer, $fn) {
+        $this->getIdleConnection($this->uri)->then(function (ConnectionInterface $clientConnection) use ($userConnection, &$buffer, $fn, $request) {
+
+            // $tunnel = ClientManager::$remoteTunnelConnections[$this->uri]->current();
+            // $localHost = ClientManager::$remoteTunnelConnections[$this->uri][$tunnel];
+            // var_dump($localHost);
+            // $request = $request->withoutHeader('Host');
+            // $request = $request->withHeader('Host', $localHost);
+
+            // $buffer = Helper::toString($request).$buffer;
+
             var_dump($clientConnection->getRemoteAddress());
+            var_dump($clientConnection->getLocalAddress());
             ProxyManager::$userConnections[$clientConnection->getRemoteAddress()] = $userConnection;
             $userConnection->removeListener('data', $fn);
             $fn = null;
             echo "get dynamic connection success \n";
             $headers = [
                 'HTTP/1.1 201 OK',
-                'Server: ReactPHP/1'
+                'Server: ReactPHP/1',
+                'Remote-Uniqid: '.$clientConnection->getRemoteAddress(),
             ];
 
             // 告诉clientConnection 开始连接了
