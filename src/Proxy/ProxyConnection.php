@@ -95,8 +95,8 @@ class ProxyConnection
 
         }, function ($e) use ($userConnection) {
             echo $e->getMessage()."\n";
-            $userConnection->write($e->getMessage());
-            $userConnection->close();
+            $userConnection->write("http/1.1 500 Internal Server Error\r\n\r\n");
+            $userConnection->end();
         });
 
     }
@@ -112,7 +112,25 @@ class ProxyConnection
         if ($this->current_connections < $this->max_connections) {
             $this->current_connections++;
             // todo 链接关闭
-            return \React\Promise\resolve(ClientManager::createRemoteDynamicConnection($this->uri));
+            return \React\Promise\Timer\timeout(ClientManager::createRemoteDynamicConnection($this->uri)->then(function (ConnectionInterface $connection) {
+                
+                $connection->on('close', function () use ($connection) {
+                    $this->current_connections--;
+                    if ($this->idle_connections->contains($connection)) {
+                        $this->idle_connections->detach($connection);
+                    }
+                });
+                return $connection;
+            }), $this->wait_timeout, $this->loop)->then(null, function ($e) {
+                $this->current_connections--;
+                if ($e instanceof TimeoutException) {
+                    throw new \RuntimeException(
+                        'wait timed out after ' . $e->getTimeout() . ' seconds (ETIMEDOUT)'. 'and wait queue '.$this->wait_queue->count().' count',
+                        \defined('SOCKET_ETIMEDOUT') ? \SOCKET_ETIMEDOUT : 110
+                    );
+                }
+                throw $e;
+            });
         }
 
         if ($this->max_wait_queue && $this->wait_queue->count() >= $this->max_wait_queue) {
@@ -146,9 +164,17 @@ class ProxyConnection
     {
 
         if (!$connection->isWritable()) {
-            echo "connection is not writable \n";
-            $this->current_connections--;
-            $this->idle_connections->detach($connection);
+            $this->current_connections++;
+            // 重新申请一个连接
+            ClientManager::createRemoteDynamicConnection($this->uri)->then(function (ConnectionInterface $connection) {
+                $connection->on('close', function () use ($connection) {
+                    $this->current_connections--;
+                    if ($this->idle_connections->contains($connection)) {
+                        $this->idle_connections->detach($connection);
+                    }
+                });
+                 $this->releaseConnection($connection);
+            });
             return;
         }
 
@@ -162,5 +188,16 @@ class ProxyConnection
         }
         echo "release idle connection \n";
         $this->idle_connections->attach($connection);
+    }
+
+    public function addIdleConnection(ConnectionInterface $connection)
+    {
+
+        $this->idle_connections->attach($connection);
+        $this->current_connections++;
+        $connection->on('close', function () use ($connection) {
+            $this->current_connections--;
+            $this->idle_connections->detach($connection);
+        });
     }
 }

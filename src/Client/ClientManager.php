@@ -37,24 +37,39 @@ class ClientManager
     public static function createLocalTunnelConnection()
     {
         foreach (static::$configs as $config) {
-            (new Connector(array('timeout' => $config['timeout'])))->connect("tcp://".$config['remote_host'].":".$config['remote_port'])->then(function ($connection) use ($config) {
-                $headers = [
-                    'GET / HTTP/1.1',
-                    'Host: 127.0.0.1:8080',
-                    'User-Agent: ReactPHP',
-                    'Tunnel: 1',
-                    'Authorization: '. $config['token'],
-                ];
-                $connection->write(implode("\r\n", $headers)."\r\n\r\n");
-                
-                $buffer = '';
-                $connection->on('data', $fn = function ($chunk) use ($connection, $config, &$buffer, &$fn) {
-                    $buffer .= $chunk;
-                    ClientManager::handleLocalTunnelBuffer($connection, $buffer, $config, $fn);
+            $function = function($config) use(&$function) {
+                (new Connector(array('timeout' => $config['timeout'])))->connect("tcp://".$config['remote_host'].":".$config['remote_port'])->then(function ($connection) use ($function, $config) {
+                    $headers = [
+                        'GET / HTTP/1.1',
+                        'Host: 127.0.0.1:8080',
+                        'User-Agent: ReactPHP',
+                        'Tunnel: 1',
+                        'Authorization: '. $config['token'],
+                    ];
+                    $connection->write(implode("\r\n", $headers)."\r\n\r\n");
+                    
+                    $buffer = '';
+                    $connection->on('data', $fn = function ($chunk) use ($connection, $config, &$buffer, &$fn) {
+                        $buffer .= $chunk;
+                        ClientManager::handleLocalTunnelBuffer($connection, $buffer, $config, $fn);
+                    });
+
+                    $connection->on('close', function () use ($function, $config) {
+                        \React\EventLoop\Loop::get()->addTimer(3, function() use ($function, $config){
+                            $function($config);
+                        });
+                    });
+                }, function ($e) use ($config, $function) {
+                    echo 'Connection failed: ' . $e->getMessage() . PHP_EOL;
+                    \React\EventLoop\Loop::get()->addTimer(3, function() use ($function, $config){
+                        $function($config);
+                    });
+
                 });
-            }, function ($e) {
-                echo 'Connection failed: ' . $e->getMessage() . PHP_EOL;
-            });
+            };
+
+            $function($config);
+            
         }
     }
 
@@ -338,20 +353,21 @@ class ClientManager
                 static::handleTunnelIncomingBuffer($connection, $buffer);
             });
 
-            // 初始化一个 dynamic connection
-            if (!isset(static::$remoteDynamicConnections[$uri]) || static::$remoteDynamicConnections[$uri]->count() == 0) {
-                echo ("start create dynamic connection\n");
 
-                static::createRemoteDynamicConnection($uri)->then(function ($connection) use ($uri) {
-                    echo ("dynamic connection create success\n");
-                    ProxyManager::getProxyConnection($uri)->addIdleConnection($connection);
-                }, function ($e) use ($uri) {
-                    echo ("dynamic connection create failed\n");
-                    echo ($e->getMessage());
-                    $deferred = static::$remoteDynamicConnections[$uri]->current();
-                    static::$remoteDynamicConnections[$uri]->detach($deferred);
-                });
-            }
+            // 初始化一个 dynamic connection
+            // if (!isset(static::$remoteDynamicConnections[$uri]) || static::$remoteDynamicConnections[$uri]->count() == 0) {
+            //     echo ("start create dynamic connection\n");
+
+            //     static::createRemoteDynamicConnection($uri)->then(function ($connection) use ($uri) {
+            //         echo ("dynamic connection create success\n");
+            //         ProxyManager::getProxyConnection($uri)->addIdleConnection($connection);
+            //     }, function ($e) use ($uri) {
+            //         echo ("dynamic connection create failed\n");
+            //         echo ($e->getMessage());
+            //         $deferred = static::$remoteDynamicConnections[$uri]->current();
+            //         static::$remoteDynamicConnections[$uri]->detach($deferred);
+            //     });
+            // }
             return ;
         }
 

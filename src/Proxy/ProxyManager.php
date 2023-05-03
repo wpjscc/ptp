@@ -17,13 +17,10 @@ class ProxyManager
        ]); 
     }
 
-    public static function getProxyConnection($uri, $force = false)
+    public static function getProxyConnection($uri)
     {
         if (isset(static::$proxyConnections[$uri])) {
             return static::$proxyConnections[$uri];
-        }
-        if ($force) {
-            return  false;
         }
         return static::$proxyConnections[$uri] = static::createConnection($uri);
     }
