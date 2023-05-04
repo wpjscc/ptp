@@ -88,7 +88,7 @@ class ClientServer
     public function validate($request)
     {
         return [
-            'uri' => 'reactphp-intranet-penetration.xiaofuwu.wpjs.cc',
+            'uri' => 'reactphp-intranet-penetration.xiaofuwu.wpjs.cc:8080',
         ];
     }
 }

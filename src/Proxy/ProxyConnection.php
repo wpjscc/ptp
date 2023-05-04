@@ -109,7 +109,8 @@ class ProxyConnection
 
         }, function ($e) use ($userConnection) {
             echo $e->getMessage()."\n";
-            $userConnection->write("http/1.1 500 Internal Server Error\r\n\r\n");
+            
+            $userConnection->write("http/1.1 500 Internal Server Error\r\n\r\n".$e->getMessage());
             $userConnection->end();
         });
 
@@ -118,6 +119,7 @@ class ProxyConnection
     public function getIdleConnection()
     {
         if ($this->idle_connections->count()>0) {
+            $this->idle_connections->rewind();
             $connection = $this->idle_connections->current();
             $this->idle_connections->detach($connection);
             return \React\Promise\resolve($connection);
@@ -178,6 +180,7 @@ class ProxyConnection
     {
 
         if (!$connection->isWritable()) {
+            var_dump('not writable');
             $this->current_connections++;
             // 重新申请一个连接
             ClientManager::createRemoteDynamicConnection($this->uri)->then(function (ConnectionInterface $connection) {

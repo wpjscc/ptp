@@ -311,7 +311,7 @@ class ClientManager
     {
 
         $deferred = new Deferred();
-        
+        echo 'start create dynamic connection'. $uri."\n";
         if (isset(static::$remoteTunnelConnections[$uri]) && static::$remoteTunnelConnections[$uri]->count() > 0) {
             echo ('create dynamic connection'."\n");
             $headers = [
