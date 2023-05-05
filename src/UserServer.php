@@ -53,7 +53,6 @@ class UserServer
                         $uri = $uri.':'.$port;
                     }
                     
-                    $buffer = str_replace('Host: '.$uri, 'Host: jc91715.top:80', $buffer);
 
                     $proxyConnection = ProxyManager::getProxyConnection($uri);
                     if ($proxyConnection === false) {
