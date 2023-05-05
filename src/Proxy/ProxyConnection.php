@@ -62,12 +62,12 @@ class ProxyConnection
             // 交换数据
             $userConnection->pipe($clientConnection);
             $clientConnection->pipe($userConnection);
+            var_dump($buffer);
 
             if ($buffer) {
                 $clientConnection->write($buffer);
                 $buffer = '';
             }
-            $clientConnection->resume();
 
         }, function ($e) use ($userConnection) {
             echo $e->getMessage()."\n";
