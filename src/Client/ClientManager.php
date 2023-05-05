@@ -22,8 +22,8 @@ class ClientManager
         [
             'timeout' => 3,
             // 本地的地址
-            'local_host' => '127.0.0.1',
-            'local_port' => '8088',
+            'local_host' => 'jc91715.top',
+            'local_port' => '443',
     
             // 链接的地址
             'remote_host' => 'reactphp-intranet-penetration.xiaofuwu.wpjs.cc',
@@ -111,7 +111,7 @@ class ClientManager
     {
         $uri = $response->getHeaderLine('Uri');
         echo ('local tunnel success '.$uri."\n");
-        echo ($connection->getRemoteAddress().'=>'. $connection->getLocalAddress());
+        echo ($connection->getRemoteAddress().'=>'. $connection->getLocalAddress())."\n";
 
         if (!isset(static::$localTunnelConnections[$uri])) {
             static::$localTunnelConnections[$uri] = new \SplObjectStorage;
