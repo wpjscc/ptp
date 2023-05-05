@@ -47,7 +47,7 @@ class ProxyConnection
         $userConnection->on('data', $fn =function($chunk) use (&$buffer) {
             $buffer .= $chunk;
         });
-        $this->getIdleConnection($this->uri)->then(function (ConnectionInterface $clientConnection) use ($userConnection, &$buffer, $fn, $request) {
+        $this->getIdleConnection($this->uri)->then(function (ConnectionInterface $clientConnection) use ($userConnection, &$buffer, $fn) {
 
             $userConnection->removeListener('data', $fn);
             $fn = null;
@@ -62,12 +62,12 @@ class ProxyConnection
             // 交换数据
             $userConnection->pipe($clientConnection);
             $clientConnection->pipe($userConnection);
+            var_dump($buffer);
 
             if ($buffer) {
                 $clientConnection->write($buffer);
                 $buffer = '';
             }
-            $clientConnection->resume();
 
         }, function ($e) use ($userConnection) {
             echo $e->getMessage()."\n";
