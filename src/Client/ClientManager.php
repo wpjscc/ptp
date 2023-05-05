@@ -17,7 +17,6 @@ class ClientManager
     public static $localTunnelConnections = [];
     public static $localDynamicConnections = [];
 
-    public static $localConnections = [];
 
     static $configs = [
         [
@@ -132,12 +131,10 @@ class ClientManager
             static::$localDynamicConnections[$uri] = new \SplObjectStorage;
         }
 
-        $connection->tunnelConnection = static::$localTunnelConnections[$uri]->current();
-
         static::$localDynamicConnections[$uri]->attach($connection);
 
         $connection->on('close', function () use ($uri, $connection) {
-            echo 'local dynamic connection closed-1111'."\n";
+            echo 'local dynamic connection closed'."\n";
             static::$localDynamicConnections[$uri]->detach($connection);
         });
        
@@ -150,14 +147,9 @@ class ClientManager
                 'GET /client HTTP/1.1',
                 'Host: reactphp-intranet-penetration.xiaofuwu.wpjs.cc',
                 'User-Agent: ReactPHP',
-                'Authorization: '. $config['token'],
-                'Local-Host: '.$config['local_host'].':'.$config['local_port'],
+                'Authorization: '. $config['token']
             ];
             $connection->write(implode("\r\n", $headers)."\r\n\r\n");
-            $connection->on('close', function () use ($connection) {
-                echo 'local dynamic connection closed'."\n";
-            });
-
             ClientManager::handleLocalDynamicConnection($connection, $config);
         });
     }
@@ -221,18 +213,16 @@ class ClientManager
             $buffer .= $chunk;
         });
         echo ('start handleLocalConnection'."\n");
-        var_dump($response->getHeaderLine('Remote-Uniqid'));
-
-        static::$localConnections[$response->getHeaderLine('Remote-Uniqid')] = $connection;
 
         (new Connector(array('timeout' => $config['timeout'])))->connect("tcp://".$config['local_host'].":".$config['local_port'])->then(function ($localConnection) use ($connection, $config, &$fn, &$buffer, $response) {
             var_dump($connection->getRemoteAddress());
-            static::$localConnections[$response->getHeaderLine('Remote-Uniqid')] = $localConnection;
 
             $connection->removeListener('data', $fn);
             $fn = null;
-            var_dump($buffer);
+
             echo 'local connection success'."\n";
+
+            // 交换数据
             $connection->pipe($localConnection);
             $localConnection->pipe($connection);
 
@@ -244,7 +234,7 @@ class ClientManager
                 $buffer = '';
             }
 
-        }, function($e) use ($connection, $config, $response) {
+        }, function($e) use ($connection) {
             $content = $e->getMessage();
             $headers = [
                 'HTTP/1.0 404 OK',
@@ -287,9 +277,8 @@ class ClientManager
         if (!isset(static::$remoteDynamicConnections[$uri])) {
             static::$remoteDynamicConnections[$uri] = new \SplObjectStorage;
         }
-        $tunnelConnection = static::$remoteTunnelConnections[$uri]->current();
-        var_dump('tunnelConnection' ,$tunnelConnection->getRemoteAddress());
-        static::$remoteDynamicConnections[$uri]->attach($deferred, $tunnelConnection);
+
+        static::$remoteDynamicConnections[$uri]->attach($deferred);
 
         return \React\Promise\Timer\timeout($deferred->promise(), 3)->then(null, function ($e) use ($uri, $deferred) {
             
@@ -305,7 +294,7 @@ class ClientManager
         });
     }
 
-    public static function addClientConnection($connection, $request)
+    public static function handleClientConnection($connection, $request)
     {
 
         $uri = $request->getHeaderLine('Uri');
@@ -336,10 +325,8 @@ class ClientManager
         // 其次请求
         if (isset(static::$remoteDynamicConnections[$uri]) && static::$remoteDynamicConnections[$uri]->count() > 0) {
             $deferred = static::$remoteDynamicConnections[$uri]->current();
-            $tunnelConnection = static::$remoteDynamicConnections[$uri][$deferred];
             static::$remoteDynamicConnections[$uri]->detach($deferred);
             echo ('deferred dynamic connection'."\n");
-            $connection->tunnelConnection = $tunnelConnection;
             $deferred->resolve($connection);
             return ;
         }

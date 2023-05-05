@@ -73,7 +73,7 @@ class ClientServer
                     $request = $request->withoutHeader('Uri');
                     $request = $request->withHeader('Uri', $state['uri']);
 
-                    ClientManager::addClientConnection($connection, $request);
+                    ClientManager::handleClientConnection($connection, $request);
                 }
 
                 

@@ -55,17 +55,13 @@ class ProxyConnection
             $headers = [
                 'HTTP/1.1 201 OK',
                 'Server: ReactPHP/1',
-                'Remote-Uniqid: '.$clientConnection->getRemoteAddress(),
             ];
-
             // 告诉clientConnection 开始连接了
             $clientConnection->write(implode("\r\n", $headers)."\r\n\r\n");
-
+            
+            // 交换数据
             $userConnection->pipe($clientConnection);
-
-
             $clientConnection->pipe($userConnection);
-
 
             if ($buffer) {
                 $clientConnection->write($buffer);
