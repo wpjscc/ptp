@@ -13,6 +13,7 @@ use React\Promise\Deferred;
 use React\Promise\Timer\TimeoutException;
 use RingCentral\Psr7;
 use Wpjscc\Penetration\Helper;
+use React\Stream\ThroughStream;
 
 class ProxyConnection
 {
@@ -60,11 +61,15 @@ class ProxyConnection
             $clientConnection->write(implode("\r\n", $headers)."\r\n\r\n");
             
             // 交换数据
-            $userConnection->pipe($clientConnection);
+            $userConnection->pipe(new ThroughStream(function($data){
+                //todo 
+                return str_replace('Host: '.$this->uri, 'Host: jc91715.top:80', $data);
+            }))->pipe($clientConnection);
             $clientConnection->pipe($userConnection);
-            var_dump($buffer);
 
             if ($buffer) {
+                //todo 
+                $buffer = str_replace('Host: '.$this->uri, 'Host: jc91715.top:80', $buffer);
                 $clientConnection->write($buffer);
                 $buffer = '';
             }
