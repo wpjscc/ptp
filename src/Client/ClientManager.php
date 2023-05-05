@@ -128,7 +128,7 @@ class ClientManager
     {
         $uri = $response->getHeaderLine('Uri');
         echo ('local proxy success '.$uri."\n");
-        echo ($connection->getRemoteAddress().'=>'. $connection->getLocalAddress());
+        echo ($connection->getRemoteAddress().'=>'. $connection->getLocalAddress())."\n";
 
         if (!isset(static::$localDynamicConnections[$uri])) {
             static::$localDynamicConnections[$uri] = new \SplObjectStorage;
