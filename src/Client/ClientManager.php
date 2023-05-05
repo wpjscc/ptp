@@ -214,8 +214,7 @@ class ClientManager
         });
         echo ('start handleLocalConnection'."\n");
 
-        (new Connector(array('timeout' => $config['timeout'])))->connect("tcp://".$config['local_host'].":".$config['local_port'])->then(function ($localConnection) use ($connection, $config, &$fn, &$buffer, $response) {
-            var_dump($connection->getRemoteAddress());
+        (new Connector(array('timeout' => $config['timeout'])))->connect("tcp://".$config['local_host'].":".$config['local_port'])->then(function ($localConnection) use ($connection, &$fn, &$buffer) {
 
             $connection->removeListener('data', $fn);
             $fn = null;
@@ -324,6 +323,7 @@ class ClientManager
         // todo 最大数量限制
         // 其次请求
         if (isset(static::$remoteDynamicConnections[$uri]) && static::$remoteDynamicConnections[$uri]->count() > 0) {
+            static::$remoteDynamicConnections[$uri]->rewind();
             $deferred = static::$remoteDynamicConnections[$uri]->current();
             static::$remoteDynamicConnections[$uri]->detach($deferred);
             echo ('deferred dynamic connection'."\n");
