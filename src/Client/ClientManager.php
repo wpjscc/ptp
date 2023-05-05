@@ -111,7 +111,8 @@ class ClientManager
     {
         $uri = $response->getHeaderLine('Uri');
         echo ('local tunnel success '.$uri."\n");
-        var_dump($connection->getLocalAddress());
+        echo ($connection->getRemoteAddress().'=>'. $connection->getLocalAddress());
+
         if (!isset(static::$localTunnelConnections[$uri])) {
             static::$localTunnelConnections[$uri] = new \SplObjectStorage;
         }
@@ -126,6 +127,8 @@ class ClientManager
     public static function addLocalDynamicConnection($connection, $response)
     {
         $uri = $response->getHeaderLine('Uri');
+        echo ('local proxy success '.$uri."\n");
+        echo ($connection->getRemoteAddress().'=>'. $connection->getLocalAddress());
 
         if (!isset(static::$localDynamicConnections[$uri])) {
             static::$localDynamicConnections[$uri] = new \SplObjectStorage;
@@ -157,7 +160,7 @@ class ClientManager
     public static function handleLocalDynamicConnection($connection, $config)
     {
         echo '开始监听请求...'."\n";
-        echo $connection->getLocalAddress()."\n";
+        echo $connection->getRemoteAddress()."\n";
         $buffer = '';
         $connection->on('data', $fn = function ($chunk) use ($connection, $config, &$buffer, &$fn) {
             $buffer .= $chunk;
