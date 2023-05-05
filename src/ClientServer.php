@@ -50,7 +50,7 @@ class ClientServer
                         return;
                     }
 
-                    $buffer = substr($buffer, $pos+4);
+                    $buffer = '';
 
                     $state =  $that->validate($request);
 
@@ -73,7 +73,7 @@ class ClientServer
                     $request = $request->withoutHeader('Uri');
                     $request = $request->withHeader('Uri', $state['uri']);
 
-                    ClientManager::addClientConnection($connection, $request, $buffer);
+                    ClientManager::addClientConnection($connection, $request);
                 }
 
                 

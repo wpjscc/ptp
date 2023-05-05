@@ -6,9 +6,6 @@ use React\Socket\SocketServer;
 use React\Socket\ConnectionInterface;
 use Wpjscc\Penetration\Proxy\ProxyManager;
 use RingCentral\Psr7;
-use Psr\Http\Message\ServerRequestInterface;
-use React\Http\HttpServer;
-use Wpjscc\Penetration\Helper;
 
 class UserServer
 {
@@ -70,7 +67,7 @@ class UserServer
                         $userConnection->end();
                     } else {
                         echo 'user: '.$uri.' is arive'."\n";
-                        $proxyConnection->pipe($userConnection, $buffer, $request);
+                        $proxyConnection->pipe($userConnection, $buffer);
                     }
 
                 }
@@ -82,10 +79,5 @@ class UserServer
         });
 
         echo "User Server is running at {$this->port}...\n";
-    }
-
-    public function getProxyConnection()
-    {
-
     }
 }

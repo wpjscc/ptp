@@ -40,7 +40,7 @@ class ProxyConnection
         $this->loop = $loop ?: Loop::get();
     }
 
-    public function pipe($userConnection, &$buffer, $request)
+    public function pipe($userConnection, &$buffer)
     {
 
 

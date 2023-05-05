@@ -259,11 +259,6 @@ class ClientManager
 
 
 
-
-
-
-
-
     // 以下服务端相关
 
     public static $remoteTunnelConnections = [];
@@ -310,7 +305,7 @@ class ClientManager
         });
     }
 
-    public static function addClientConnection($connection, $request, &$buffer)
+    public static function addClientConnection($connection, $request)
     {
 
         $uri = $request->getHeaderLine('Uri');
@@ -332,31 +327,6 @@ class ClientManager
                     unset(static::$remoteTunnelConnections[$uri]);
                 }
             });
-
-            static::handleTunnelIncomingBuffer($connection, $buffer);
-            
-
-            // 通道连接监听
-            $connection->on('data', function ($chunk) use (&$buffer, $connection) {
-                $buffer .= $chunk;
-                static::handleTunnelIncomingBuffer($connection, $buffer);
-            });
-
-
-            // 初始化一个 dynamic connection
-            // if (!isset(static::$remoteDynamicConnections[$uri]) || static::$remoteDynamicConnections[$uri]->count() == 0) {
-            //     echo ("start create dynamic connection\n");
-
-            //     static::createRemoteDynamicConnection($uri)->then(function ($connection) use ($uri) {
-            //         echo ("dynamic connection create success\n");
-            //         ProxyManager::getProxyConnection($uri)->addIdleConnection($connection);
-            //     }, function ($e) use ($uri) {
-            //         echo ("dynamic connection create failed\n");
-            //         echo ($e->getMessage());
-            //         $deferred = static::$remoteDynamicConnections[$uri]->current();
-            //         static::$remoteDynamicConnections[$uri]->detach($deferred);
-            //     });
-            // }
             return ;
         }
 
@@ -373,70 +343,7 @@ class ClientManager
             $deferred->resolve($connection);
             return ;
         }
-
         $connection->write("HTTP/1.1 205 Not Support Created\r\n\r\n");
         $connection->end();
-        return ;
-
-        // 不支持主动创建，服务端发起创建
-
-        // 给$connection设置一个tunnelConnection
-        foreach (static::$remoteTunnelConnections[$uri] as $tunnelConnection) {
-            if ($tunnelConnection->getRemoteAddress() === $connection->getRemoteAddress){
-                echo ('dynamic connection'."\n");
-                $connection->tunnelConnection = $tunnelConnection;
-                break;
-            }
-        }
-
-        if (empty($connection->tunnelConnection)) {
-            echo ('no tunnel connection'."\n");
-            $connection->write("HTTP/1.1 404 Not Found tunnel connection\r\n\r\n");
-            $connection->end();
-            return ;
-        }
-
-        $headers = [
-            'HTTP/1.1 201 OK',
-            'Server: ReactPHP/1',
-            'Dynamic: true',
-            'Uri: '.$uri
-        ];
-        $connection->write(implode("\r\n", $headers)."\r\n\r\n");
-
-        // 最后空闲
-        ProxyManager::getProxyConnection($uri)->addIdleConnection($connection);
-    }
-
-
-    public static function handleTunnelIncomingBuffer($connection, &$buffer)
-    {
-        // 避免buffer 没有使用干净
-        while ($buffer) {
-            $pos = strpos($buffer, "\r\n\r\n");
-            if ($pos !== false) {
-                try {
-                    $request = Psr7\parse_request(substr($buffer, 0, $pos));
-                } catch (\Exception $e) {
-                    // invalid request message, close connection
-                    $buffer = '';
-                    $connection->write($e->getMessage());
-                    $connection->close();
-                    return;
-                }
-                // 只有一种情况 local 主动关闭
-                if ($request->getMethod() == "POST") {
-                    if (isset(ProxyManager::$userConnections[$request->getHeaderLine('Remote-Uniqid')])) {
-                        $userConnection = ProxyManager::$userConnections[$request->getHeaderLine('Remote-Uniqid')];
-                        unset(ProxyManager::$userConnections[$request->getHeaderLine('Remote-Uniqid')]);
-                        $userConnection->end();
-                    }
-                }
-
-                $buffer = (string) substr($buffer, $pos + 4);
-            } else {
-                break;
-            }
-        }
     }
 }
