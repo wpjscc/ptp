@@ -24,7 +24,6 @@ $startTime = time();
     echo sprintf('%s-%s-%s-%s', Helper::formatTime(time() - $startTime),'after_memory',Helper::formatMemory(memory_get_usage(true)), $numBytes)."\n";
     
     foreach (ProxyManager::$proxyConnections as $uri => $proxyConnection) {
-        echo sprintf("%s-%s-%s", 'remote:dynamic:connection', $uri, $proxyConnection->idle_connections->count())."\n";
         echo sprintf("%s-%s-%s", 'max_connections', $uri, $proxyConnection->max_connections)."\n";
         echo sprintf("%s-%s-%s", 'current_connections', $uri, $proxyConnection->current_connections)."\n";
         echo sprintf("%s-%s-%s", 'max_wait_queue', $uri, $proxyConnection->max_wait_queue)."\n";
