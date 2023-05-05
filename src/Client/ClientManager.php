@@ -73,7 +73,7 @@ class ClientManager
         }
     }
 
-    public static function handleLocalTunnelBuffer($connection, &$buffer, $config, $fn = null)
+    public static function handleLocalTunnelBuffer($connection, &$buffer, $config)
     {
         $pos = strpos($buffer, "\r\n\r\n");
         if ($pos !== false) {
