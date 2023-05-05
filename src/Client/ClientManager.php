@@ -98,11 +98,6 @@ class ClientManager
             // 请求创建代理连接
             elseif ($response->getStatusCode() === 201) {
                 static::createLocalDynamicConnections($config);
-            } 
-            // 代理连接用户端关闭
-            elseif ($response->getStatusCode() === 204) {
-                static::removeLocalConnection($connection, $response);
-                return ;
             } else {
                 echo $response->getStatusCode();
                 echo $response->getReasonPhrase();
@@ -239,36 +234,8 @@ class ClientManager
             var_dump($buffer);
             echo 'local connection success'."\n";
             $connection->pipe($localConnection);
-            $localConnection->pipe($connection, ['end' => false]);
-            // $localConnection->on('data', function ($chunk) use ($connection, $config, &$buffer, $response) {
-            //     echo 'local connection data'."\n";
-            //     // var_dump($chunk);
-            //     $connection->write($chunk);
-            // });
-            // $connection->on('data', function ($chunk) use ($connection, $config, &$buffer, $response) {
-            //     echo 'local connection data111111111'."\n";
-            //     var_dump($chunk);
-            // });
-            $localConnection->on('close', function () use ($connection, $config, $response) {
-                // localConnection 是主动关闭的，告诉远程
-                if (isset(static::$localConnections[$response->getHeaderLine('Remote-Uniqid')])) {
-                    echo 'local connection end'."\n";
-                    unset(static::$localConnections[$response->getHeaderLine('Remote-Uniqid')]);
-                    $headers = [
-                        'POST / HTTP/1.1',
-                        'User-Agent: ReactPHP',
-                        'Authorization: '. $config['token'],
-                        'Remote-Uniqid: '. $response->getHeaderLine('Remote-Uniqid'),
-                    ];
-                    var_dump('tunnelConnection',$connection->tunnelConnection->getLocalAddress());
-                    $connection->tunnelConnection->write(implode("\r\n", $headers)."\r\n\r\n");
-                } else {
-                    echo 'local connection end-111'."\n";
-                }
-                // 继续监听后面的连接
-                ClientManager::handleLocalDynamicConnection($connection, $config);
-            });
-            
+            $localConnection->pipe($connection);
+
             $connection->resume();
             $localConnection->resume();
 
@@ -286,31 +253,8 @@ class ClientManager
                 'Content-Length: '.strlen($content),
             ];
             $connection->write(implode("\r\n", $headers)."\r\n\r\n".$content);
-            $headers = [
-                'POST / HTTP/1.1',
-                'User-Agent: ReactPHP',
-                'Authorization: '. $config['token'],
-                'Remote-Uniqid: '. $response->getHeaderLine('Remote-Uniqid'),
-            ];
-            var_dump('tunnelConnection',$connection->tunnelConnection->getLocalAddress());
-            $connection->tunnelConnection->write(implode("\r\n", $headers)."\r\n\r\n");
         });
     }
-
-    public function removeLocalConnection($connection, $response)
-    {
-        $uniqid = $response->getHeaderLine('Remote-Uniqid');
-        var_dump($uniqid, 2321432423432423);
-        if (isset(static::$localConnections[$uniqid])) {
-            echo 'remove local connection'."\n";
-            $localConnection = static::$localConnections[$uniqid];
-            unset(static::$localConnections[$uniqid]);
-            $localConnection->end();
-        }
-        
-    }
-
-
 
 
 

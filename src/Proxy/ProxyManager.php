@@ -6,8 +6,6 @@ class ProxyManager
 {
     public static $proxyConnections = [];
 
-    public static $userConnections = [];
-
     public static function createConnection($uri)
     {
        return new ProxyConnection($uri, [
