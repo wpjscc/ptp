@@ -50,19 +50,19 @@ class ProxyConnection
 
             $tunnel = ClientManager::$remoteTunnelConnections[$this->uri]->current();
             $localHost = ClientManager::$remoteTunnelConnections[$this->uri][$tunnel];
-            var_dump($localHost);
-            $proxyReplace = "Host: $localHost\r\n";
 
-            if (!$request->hasHeader('x-forwarded-host')) {
+            $proxyReplace = "\r\nHost: $localHost\r\n";
+
+            if (!$request->hasHeader('X-Forwarded-Host')) {
                 $host = $request->getUri()->getHost();
                 $port = $request->getUri()->getPort();
                 $scheme = $request->getUri()->getScheme();
                 $x_forwarded_for = '';
-                $proxyReplace .= "x-forwarded-host: $host\r\n";
-                $proxyReplace .= "x-forwarded-port: $port\r\n";
-                $proxyReplace .= "x-forwarded-proto: $scheme\r\n";
+                $proxyReplace .= "X-Forwarded-Host: $host\r\n";
+                $proxyReplace .= "X-Forwarded-Port: $port\r\n";
+                $proxyReplace .= "X-Forwarded-Proto: $scheme\r\n";
                 // $proxyReplace .= "x-forwarded-for: \r\n";
-                $proxyReplace .= "x-forwarded-server: reactphp-intranet-penetration\r\n";
+                $proxyReplace .= "X-Forwarded-Server: reactphp-intranet-penetration\r\n";
             }
 
             $userConnection->removeListener('data', $fn);
@@ -76,7 +76,7 @@ class ProxyConnection
             $clientConnection->write(implode("\r\n", $headers)."\r\n\r\n");
             
             $middle = new ThroughStream(function($data) use ($proxyReplace) {
-                return str_replace('Host: '.$this->uri."\r\n", $proxyReplace, $data);
+                return str_replace('\r\nHost: '.$this->uri."\r\n", $proxyReplace, $data);
             });
 
             // 交换数据
@@ -94,7 +94,7 @@ class ProxyConnection
             });
 
             if ($buffer) {
-                $buffer = str_replace('Host: '.$this->uri."\r\n", $proxyReplace, $buffer);
+                $buffer = str_replace('\r\nHost: '.$this->uri."\r\n", $proxyReplace, $buffer);
                 $clientConnection->write($buffer);
                 $buffer = '';
             }
