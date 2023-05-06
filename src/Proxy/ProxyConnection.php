@@ -46,7 +46,7 @@ class ProxyConnection
         $userConnection->on('data', $fn =function($chunk) use (&$buffer) {
             $buffer .= $chunk;
         });
-        $this->getIdleConnection($this->uri)->then(function (ConnectionInterface $clientConnection) use ($userConnection, &$buffer, $fn, $request) {
+        $this->getIdleConnection()->then(function (ConnectionInterface $clientConnection) use ($userConnection, &$buffer, $fn, $request) {
 
             $tunnel = ClientManager::$remoteTunnelConnections[$this->uri]->current();
             $localHost = ClientManager::$remoteTunnelConnections[$this->uri][$tunnel];
@@ -100,12 +100,13 @@ class ProxyConnection
             }
 
         }, function ($e) use ($userConnection) {
-            echo $e->getMessage()."\n";
-            
+            echo $e->getMessage()."-1\n";
             $userConnection->write("http/1.1 500 Internal Server Error\r\n\r\n".$e->getMessage());
             $userConnection->end();
-        })->otherwise(function ($error) {
-           echo $error->getMessage();
+        })->otherwise(function ($error) use ($userConnection) {
+            echo $error->getMessage()."-2\n";
+            $userConnection->write("http/1.1 500 Internal Server Error\r\n\r\n".$error->getMessage());
+            $userConnection->end();
         });
 
     }
@@ -131,6 +132,7 @@ class ProxyConnection
                     );
                 }
                 throw $e;
+
             });
         }
 
