@@ -23,11 +23,11 @@ class ClientManager
             'timeout' => 3,
             // 本地的地址
             'local_host' => '127.0.0.1',
-            'local_port' => '8088',
+            'local_port' => '9501',
     
             // 链接的地址
             'remote_host' => 'reactphp-intranet-penetration.xiaofuwu.wpjs.cc',
-            'remote_port' => '8081',
+            'remote_port' => '32123',
 
             'token' => 'xxxxxx'
         ]
