@@ -223,13 +223,13 @@ class ClientManager
             $fn = null;
 
             echo 'local connection success'."\n";
-
+            $connection->on('data', function($chunk){
+                var_dump($chunk);
+            });
+            var_dump($buffer);
             // 交换数据
             $connection->pipe($localConnection);
             $localConnection->pipe($connection);
-
-            $connection->resume();
-            $localConnection->resume();
 
             if ($buffer) {
                 $localConnection->write($buffer);
