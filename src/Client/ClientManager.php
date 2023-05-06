@@ -22,8 +22,8 @@ class ClientManager
         [
             'timeout' => 3,
             // 本地的地址
-            'local_host' => 'jc91715.top',
-            'local_port' => '80',
+            'local_host' => '127.0.0.1',
+            'local_port' => '8088',
     
             // 链接的地址
             'remote_host' => 'reactphp-intranet-penetration.xiaofuwu.wpjs.cc',
@@ -223,14 +223,16 @@ class ClientManager
             $fn = null;
 
             echo 'local connection success'."\n";
-            $connection->on('data', function($chunk){
-                var_dump($chunk);
-            });
-            var_dump($buffer);
+            // $connection->on('data', function($chunk){
+            //     var_dump($chunk);
+            // });
+            // var_dump($buffer);
             // 交换数据
             $connection->pipe($localConnection);
             $localConnection->pipe($connection);
-
+            $localConnection->on('end', function(){
+                echo 'local connection end'."\n";
+            });
             if ($buffer) {
                 $localConnection->write($buffer);
                 $buffer = '';
