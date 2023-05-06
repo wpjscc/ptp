@@ -263,6 +263,8 @@ class ClientManager
 
     public static $remoteDynamicConnections = [];
 
+    public static $uriToToken = [];
+
 
     public static function createRemoteDynamicConnection($uri)
     {
@@ -320,6 +322,7 @@ class ClientManager
             static::$remoteTunnelConnections[$uri]->attach($connection, $request->getHeaderLine('Local-Host'));
             $connection->on('close', function () use ($uri, $connection) {
                 static::$remoteTunnelConnections[$uri]->detach($connection);
+                static::$uriToToken[$uri];
                 if (static::$remoteTunnelConnections[$uri]->count() == 0) {
                     echo ("tunnel connection close\n");
                     unset(static::$remoteTunnelConnections[$uri]);

@@ -87,8 +87,19 @@ class ClientServer
 
     public function validate($request)
     {
+        $remoteDomain = $request->getHeaderLine('Remote-Domain');
+
+        if (isset(ClientManager::$uriToToken[$remoteDomain])){
+            if (ClientManager::$uriToToken[$remoteDomain]!=$request->getHeaderLine('Authorization')) {
+                return false;
+            }
+        } else {
+            ClientManager::$uriToToken[$remoteDomain] = $request->getHeaderLine('Authorization');
+        }
+
+
         return [
-            'uri' => $request->getHeaderLine('remote_domain'),
+            'uri' => $request->getHeaderLine('Remote-Domain'),
         ];
     }
 }
