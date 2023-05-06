@@ -4,11 +4,9 @@ namespace Wpjscc\Penetration\Proxy;
 
 use React\EventLoop\Loop;
 use React\EventLoop\LoopInterface;
-use React\Socket\ConnectorInterface;
 use React\Socket\ConnectionInterface;
 
 use Wpjscc\Penetration\Client\ClientManager;
-use Wpjscc\Penetration\Client\ProxyClientManager;
 use React\Promise\Deferred;
 use React\Promise\Timer\TimeoutException;
 use RingCentral\Psr7;
@@ -41,14 +39,31 @@ class ProxyConnection
         $this->loop = $loop ?: Loop::get();
     }
 
-    public function pipe($userConnection, &$buffer)
+    public function pipe($userConnection, &$buffer, $request)
     {
 
 
         $userConnection->on('data', $fn =function($chunk) use (&$buffer) {
             $buffer .= $chunk;
         });
-        $this->getIdleConnection($this->uri)->then(function (ConnectionInterface $clientConnection) use ($userConnection, &$buffer, $fn) {
+        $this->getIdleConnection($this->uri)->then(function (ConnectionInterface $clientConnection) use ($userConnection, &$buffer, $fn, $request) {
+
+            $tunnel = ClientManager::$remoteTunnelConnections[$this->uri]->current();
+            $localHost = ClientManager::$remoteTunnelConnections[$this->uri][$tunnel];
+
+            $proxyReplace = "Host: $localHost\r\n";
+
+            if (!$request->hasHeader('x-forwarded-host')) {
+                $host = $request->getUri()->getHost();
+                $port = $request->getUri()->getPort();
+                $scheme = $request->getScheme();
+                $x_forwarded_for = '';
+                $proxyReplace .= "x-forwarded-host: $host\r\n";
+                $proxyReplace .= "x-forwarded-port: $port\r\n";
+                $proxyReplace .= "x-forwarded-proto: $scheme\r\n";
+                // $proxyReplace .= "x-forwarded-for: \r\n";
+                $proxyReplace .= "x-forwarded-server: reactphp-intranet-penetration\r\n";
+            }
 
             $userConnection->removeListener('data', $fn);
             $fn = null;
@@ -61,15 +76,13 @@ class ProxyConnection
             $clientConnection->write(implode("\r\n", $headers)."\r\n\r\n");
             
             // 交换数据
-            $userConnection->pipe(new ThroughStream(function($data){
-                //todo 
-                return str_replace('Host: '.$this->uri, 'Host: jc91715.top:80', $data);
+            $userConnection->pipe(new ThroughStream(function($data) use ($proxyReplace) {
+                return str_replace('Host: '.$this->uri, $proxyReplace, $data);
             }))->pipe($clientConnection);
             $clientConnection->pipe($userConnection);
 
             if ($buffer) {
-                //todo 
-                $buffer = str_replace('Host: '.$this->uri, 'Host: jc91715.top:80', $buffer);
+                $buffer = str_replace('Host: '.$this->uri, $proxyReplace, $buffer);
                 $clientConnection->write($buffer);
                 $buffer = '';
             }

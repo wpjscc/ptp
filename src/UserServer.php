@@ -68,7 +68,7 @@ class UserServer
                         $userConnection->end();
                     } else {
                         echo 'user: '.$uri.' is arive'."\n";
-                        $proxyConnection->pipe($userConnection, $buffer);
+                        $proxyConnection->pipe($userConnection, $buffer, $request);
                     }
 
                 }
