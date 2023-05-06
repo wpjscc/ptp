@@ -67,7 +67,7 @@ class ProxyConnection
 
             $userConnection->removeListener('data', $fn);
             $fn = null;
-            echo "get dynamic connection success \n";
+            echo "dynamic connection success \n";
             $headers = [
                 'HTTP/1.1 201 OK',
                 'Server: ReactPHP/1',
@@ -75,14 +75,22 @@ class ProxyConnection
             // 告诉clientConnection 开始连接了
             $clientConnection->write(implode("\r\n", $headers)."\r\n\r\n");
             
-            // 交换数据
-            $userConnection->pipe(new ThroughStream(function($data) use ($proxyReplace) {
+            $middle = new ThroughStream(function($data) use ($proxyReplace) {
                 return str_replace('Host: '.$this->uri."\r\n", $proxyReplace, $data);
-            }))->pipe($clientConnection);
+            });
+
+            // 交换数据
+            $userConnection->pipe($middle)->pipe($clientConnection);
             $clientConnection->pipe($userConnection);
-            
+
+            $clientConnection->on('end', function(){
+                echo 'dynamic connection end'."\n";
+            });
             $userConnection->on('end', function(){
                 echo 'user connection end'."\n";
+            });
+            $middle->on('end', function() {
+                echo 'middleware connection end'."\n";
             });
 
             if ($buffer) {
