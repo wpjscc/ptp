@@ -19,7 +19,7 @@ $userServer->run();
 
 $startTime = time();
 
-\React\EventLoop\Loop::get()->addPeriodicTimer(3, function() use ($startTime){
+\React\EventLoop\Loop::get()->addPeriodicTimer(100, function() use ($startTime){
     $numBytes = gc_mem_caches();
     echo sprintf('%s-%s-%s-%s', Helper::formatTime(time() - $startTime),'after_memory',Helper::formatMemory(memory_get_usage(true)), $numBytes)."\n";
     

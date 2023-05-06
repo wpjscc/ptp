@@ -77,14 +77,16 @@ class ProxyConnection
             
             // 交换数据
             $userConnection->pipe(new ThroughStream(function($data) use ($proxyReplace) {
-                var_dump($data);
                 return str_replace('Host: '.$this->uri."\r\n", $proxyReplace, $data);
             }))->pipe($clientConnection);
             $clientConnection->pipe($userConnection);
+            
+            $userConnection->on('end', function(){
+                echo 'user connection end'."\n";
+            });
 
             if ($buffer) {
                 $buffer = str_replace('Host: '.$this->uri."\r\n", $proxyReplace, $buffer);
-                var_dump($buffer);
                 $clientConnection->write($buffer);
                 $buffer = '';
             }
