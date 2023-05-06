@@ -50,13 +50,13 @@ class ProxyConnection
 
             $tunnel = ClientManager::$remoteTunnelConnections[$this->uri]->current();
             $localHost = ClientManager::$remoteTunnelConnections[$this->uri][$tunnel];
-
+            var_dump($localHost);
             $proxyReplace = "Host: $localHost\r\n";
 
             if (!$request->hasHeader('x-forwarded-host')) {
                 $host = $request->getUri()->getHost();
                 $port = $request->getUri()->getPort();
-                $scheme = $request->getScheme();
+                $scheme = $request->getUri()->getScheme();
                 $x_forwarded_for = '';
                 $proxyReplace .= "x-forwarded-host: $host\r\n";
                 $proxyReplace .= "x-forwarded-port: $port\r\n";
@@ -77,12 +77,14 @@ class ProxyConnection
             
             // 交换数据
             $userConnection->pipe(new ThroughStream(function($data) use ($proxyReplace) {
-                return str_replace('Host: '.$this->uri, $proxyReplace, $data);
+                var_dump($data);
+                return str_replace('Host: '.$this->uri."\r\n", $proxyReplace, $data);
             }))->pipe($clientConnection);
             $clientConnection->pipe($userConnection);
 
             if ($buffer) {
-                $buffer = str_replace('Host: '.$this->uri, $proxyReplace, $buffer);
+                $buffer = str_replace('Host: '.$this->uri."\r\n", $proxyReplace, $buffer);
+                var_dump($buffer);
                 $clientConnection->write($buffer);
                 $buffer = '';
             }
@@ -92,6 +94,8 @@ class ProxyConnection
             
             $userConnection->write("http/1.1 500 Internal Server Error\r\n\r\n".$e->getMessage());
             $userConnection->end();
+        })->otherwise(function ($error) {
+           echo $error->getMessage();
         });
 
     }
