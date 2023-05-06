@@ -29,6 +29,8 @@ class ClientManager
             'remote_host' => 'reactphp-intranet-penetration.xiaofuwu.wpjs.cc',
             'remote_port' => '32123',
 
+            'remote_domain' => 'reactphp-intranet-penetration.xiaofuwu.wpjs.cc',
+
             'token' => 'xxxxxx'
         ]
     ];
@@ -45,6 +47,7 @@ class ClientManager
                         'Tunnel: 1',
                         'Authorization: '. $config['token'],
                         'Local-Host: '.$config['local_host'].':'.$config['local_port'],
+                        'Remote-Domain: '.$config['remote_domain'],
                     ];
                     $connection->write(implode("\r\n", $headers)."\r\n\r\n");
                     
@@ -150,7 +153,8 @@ class ClientManager
                 'GET /client HTTP/1.1',
                 'Host: reactphp-intranet-penetration.xiaofuwu.wpjs.cc',
                 'User-Agent: ReactPHP',
-                'Authorization: '. $config['token']
+                'Authorization: '. $config['token'],
+                'Remote-Domain: '.$config['remote_domain'],
             ];
             $connection->write(implode("\r\n", $headers)."\r\n\r\n");
             ClientManager::handleLocalDynamicConnection($connection, $config);
