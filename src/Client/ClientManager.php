@@ -275,7 +275,8 @@ class ClientManager
             // 发送一个创建链接的请求(给他通道发送)
             static::$remoteTunnelConnections[$uri]->current()->write(implode("\r\n", $headers)."\r\n\r\n");
         } else {
-            return \React\Promise\reject('no tunnel connection');
+            echo "no tunnel connection\r\n";
+            return \React\Promise\reject(new \Exception('no tunnel connection'));
         }
 
         if (!isset(static::$remoteDynamicConnections[$uri])) {

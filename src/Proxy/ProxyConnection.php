@@ -46,7 +46,7 @@ class ProxyConnection
         $userConnection->on('data', $fn =function($chunk) use (&$buffer) {
             $buffer .= $chunk;
         });
-        $this->getIdleConnection($this->uri)->then(function (ConnectionInterface $clientConnection) use ($userConnection, &$buffer, $fn, $request) {
+        $this->getIdleConnection()->then(function (ConnectionInterface $clientConnection) use ($userConnection, &$buffer, $fn, $request) {
 
             $tunnel = ClientManager::$remoteTunnelConnections[$this->uri]->current();
             $localHost = ClientManager::$remoteTunnelConnections[$this->uri][$tunnel];
@@ -67,7 +67,7 @@ class ProxyConnection
 
             $userConnection->removeListener('data', $fn);
             $fn = null;
-            echo "get dynamic connection success \n";
+            echo "dynamic connection success \n";
             $headers = [
                 'HTTP/1.1 201 OK',
                 'Server: ReactPHP/1',
@@ -75,14 +75,22 @@ class ProxyConnection
             // 告诉clientConnection 开始连接了
             $clientConnection->write(implode("\r\n", $headers)."\r\n\r\n");
             
-            // 交换数据
-            $userConnection->pipe(new ThroughStream(function($data) use ($proxyReplace) {
+            $middle = new ThroughStream(function($data) use ($proxyReplace) {
                 return str_replace('Host: '.$this->uri."\r\n", $proxyReplace, $data);
-            }))->pipe($clientConnection);
+            });
+
+            // 交换数据
+            $userConnection->pipe($middle)->pipe($clientConnection);
             $clientConnection->pipe($userConnection);
-            
+
+            $clientConnection->on('end', function(){
+                echo 'dynamic connection end'."\n";
+            });
             $userConnection->on('end', function(){
                 echo 'user connection end'."\n";
+            });
+            $middle->on('end', function() {
+                echo 'middleware connection end'."\n";
             });
 
             if ($buffer) {
@@ -92,12 +100,13 @@ class ProxyConnection
             }
 
         }, function ($e) use ($userConnection) {
-            echo $e->getMessage()."\n";
-            
+            echo $e->getMessage()."-1\n";
             $userConnection->write("http/1.1 500 Internal Server Error\r\n\r\n".$e->getMessage());
             $userConnection->end();
-        })->otherwise(function ($error) {
-           echo $error->getMessage();
+        })->otherwise(function ($error) use ($userConnection) {
+            echo $error->getMessage()."-2\n";
+            $userConnection->write("http/1.1 500 Internal Server Error\r\n\r\n".$error->getMessage());
+            $userConnection->end();
         });
 
     }
@@ -123,6 +132,7 @@ class ProxyConnection
                     );
                 }
                 throw $e;
+
             });
         }
 
