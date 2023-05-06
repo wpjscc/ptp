@@ -51,8 +51,12 @@ class ClientServer
                     }
 
                     $buffer = '';
-
-                    $state =  $that->validate($request);
+                    $state = false;
+                    try {
+                        $state =  $that->validate($request);
+                    } catch (\Throwable $th) {
+                        echo $th->getMessage();
+                    }
 
                     if (!$state) {
                         $headers = [
@@ -89,7 +93,7 @@ class ClientServer
     {
         $remoteDomain = $request->getHeaderLine('Remote-Domain');
 
-        if (isset(ClientManager::$uriToToken[$remoteDomain])){
+        if (isset(ClientManager::$uriToToken[$remoteDomain])) {
             if (ClientManager::$uriToToken[$remoteDomain]!=$request->getHeaderLine('Authorization')) {
                 return false;
             }

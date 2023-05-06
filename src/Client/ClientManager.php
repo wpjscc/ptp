@@ -23,7 +23,7 @@ class ClientManager
             'timeout' => 3,
             // 本地的地址
             'local_host' => '127.0.0.1',
-            'local_port' => '9501',
+            'local_port' => '8088',
     
             // 链接的地址
             'remote_host' => 'reactphp-intranet-penetration.xiaofuwu.wpjs.cc',
@@ -48,6 +48,7 @@ class ClientManager
                         'Authorization: '. $config['token'],
                         'Local-Host: '.$config['local_host'].':'.$config['local_port'],
                         'Remote-Domain: '.$config['remote_domain'],
+                        'Local-Tunnel-Address: '.$connection->getLocalAddress(),
                     ];
                     $connection->write(implode("\r\n", $headers)."\r\n\r\n");
                     
@@ -99,7 +100,7 @@ class ClientManager
             } 
             // 请求创建代理连接
             elseif ($response->getStatusCode() === 201) {
-                static::createLocalDynamicConnections($config);
+                static::createLocalDynamicConnections($connection, $config);
             } else {
                 echo $response->getStatusCode();
                 echo $response->getReasonPhrase();
@@ -146,15 +147,16 @@ class ClientManager
        
     }
 
-    public static function createLocalDynamicConnections($config)
+    public static function createLocalDynamicConnections($tunnelConnection,$config)
     {
-        (new Connector(array('timeout' => $config['timeout'])))->connect("tcp://".$config['remote_host'].":".$config['remote_port'])->then(function ($connection) use ($config) {
+        (new Connector(array('timeout' => $config['timeout'])))->connect("tcp://".$config['remote_host'].":".$config['remote_port'])->then(function ($connection) use ($tunnelConnection, $config) {
             $headers = [
                 'GET /client HTTP/1.1',
                 'Host: reactphp-intranet-penetration.xiaofuwu.wpjs.cc',
                 'User-Agent: ReactPHP',
                 'Authorization: '. $config['token'],
                 'Remote-Domain: '.$config['remote_domain'],
+                'Local-Tunnel-Address: '.$tunnelConnection->getLocalAddress(),
             ];
             $connection->write(implode("\r\n", $headers)."\r\n\r\n");
             ClientManager::handleLocalDynamicConnection($connection, $config);
@@ -278,8 +280,14 @@ class ClientManager
                 'Server: ReactPHP/1',
                 'Uri: '.$uri
             ];
-            // 发送一个创建链接的请求(给他通道发送)
-            static::$remoteTunnelConnections[$uri]->current()->write(implode("\r\n", $headers)."\r\n\r\n");
+            // 随机发送一个创建链接的请求(给他通道发送)
+            $index = rand(0, static::$remoteTunnelConnections[$uri]->count()-1);
+            foreach (static::$remoteTunnelConnections[$uri] as $key=>$tunnelConnection) {
+                if ($key === $index){
+                    $tunnelConnection->write(implode("\r\n", $headers)."\r\n\r\n");
+                    break;
+                }
+            }
         } else {
             echo "no tunnel connection\r\n";
             return \React\Promise\reject(new \Exception('no tunnel connection'));
@@ -319,13 +327,16 @@ class ClientManager
             }
 
             // todo 最大数量限制
-            static::$remoteTunnelConnections[$uri]->attach($connection, $request->getHeaderLine('Local-Host'));
+            static::$remoteTunnelConnections[$uri]->attach($connection, [
+                'Local-host' => $request->getHeaderLine('Local-Host'),
+                'Local-Tunnel-Address' => $request->getHeaderLine('Local-Tunnel-Address'),
+            ]);
             $connection->on('close', function () use ($uri, $connection) {
                 static::$remoteTunnelConnections[$uri]->detach($connection);
-                static::$uriToToken[$uri];
                 if (static::$remoteTunnelConnections[$uri]->count() == 0) {
                     echo ("tunnel connection close\n");
                     unset(static::$remoteTunnelConnections[$uri]);
+                    unset(static::$uriToToken[$uri]);
                 }
             });
             return ;
@@ -336,10 +347,21 @@ class ClientManager
         // todo 最大数量限制
         // 其次请求
         if (isset(static::$remoteDynamicConnections[$uri]) && static::$remoteDynamicConnections[$uri]->count() > 0) {
+            $localTunnelAddress = $request->getHeaderLine('Local-Tunnel-Address');
+            $remoteTunnelConnection = null;
+            foreach (static::$remoteTunnelConnections[$uri] as $tunnelConnection) {
+                var_dump(static::$remoteTunnelConnections[$uri][$tunnelConnection]['Local-Tunnel-Address']);
+                if (static::$remoteTunnelConnections[$uri][$tunnelConnection]['Local-Tunnel-Address'] == $localTunnelAddress) {
+                    $remoteTunnelConnection = $tunnelConnection;
+                    break;
+                }
+            }
+            var_dump($localTunnelAddress);
             static::$remoteDynamicConnections[$uri]->rewind();
             $deferred = static::$remoteDynamicConnections[$uri]->current();
             static::$remoteDynamicConnections[$uri]->detach($deferred);
             echo ('deferred dynamic connection'."\n");
+            $connection->tunnelConnection = $remoteTunnelConnection;
             $deferred->resolve($connection);
             return ;
         }

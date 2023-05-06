@@ -48,8 +48,8 @@ class ProxyConnection
         });
         $this->getIdleConnection()->then(function (ConnectionInterface $clientConnection) use ($userConnection, &$buffer, $fn, $request) {
 
-            $tunnel = ClientManager::$remoteTunnelConnections[$this->uri]->current();
-            $localHost = ClientManager::$remoteTunnelConnections[$this->uri][$tunnel];
+
+            $localHost = ClientManager::$remoteTunnelConnections[$this->uri][$clientConnection->tunnelConnection]['Local-Host'];
 
             $proxyReplace = "\r\nHost: $localHost\r\n";
 
