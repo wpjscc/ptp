@@ -68,7 +68,7 @@ php client.php --local-host=127.0.0.1 --local-port=80 --domain=yourdomain.com --
 
 
 ```
-docker build -t wpjscc/reactphp-intranet-penetration  -f Dockerfile
+docker build -t wpjscc/reactphp-intranet-penetration . -f Dockerfile
 docker push wpjscc/reactphp-intranet-penetration
 ```
 
