@@ -17,32 +17,32 @@ composer create-project wpjscc/reactphp-intranet-penetration -vvv
 ### 免费域名1
 
 ```
-php client.php --local-host=127.0.0.1 --local-port=80--domain=https://pszwunktoi.xiaofuwu.wpjs.cc	 --token=123456
+php client.php --local-host=127.0.0.1 --local-port=80 --domain=https://pszwunktoi.xiaofuwu.wpjs.cc	 --token=123456
 
 ```
 ### 免费域名2
 
 ```
-php client.php --local-host=127.0.0.1 --local-port=80--domain=https://zpoijsyhnk.xiaofuwu.wpjs.cc --token=123456
+php client.php --local-host=127.0.0.1 --local-port=80 --domain=https://zpoijsyhnk.xiaofuwu.wpjs.cc --token=123456
 
 ```
 ### 免费域名3
 
 ```
-php client.php --local-host=127.0.0.1 --local-port=80--domain=https://wkcpzoetjr.xiaofuwu.wpjs.cc --token=123456
+php client.php --local-host=127.0.0.1 --local-port=80 --domain=https://wkcpzoetjr.xiaofuwu.wpjs.cc --token=123456
 
 ```
 ### 免费域名4
 
 ```
-php client.php --local-host=127.0.0.1 --local-port=80--domain=https://dpjkmfrqox.xiaofuwu.wpjs.cc --token=123456
+php client.php --local-host=127.0.0.1 --local-port=80 --domain=https://dpjkmfrqox.xiaofuwu.wpjs.cc --token=123456
 
 ```
 
 ### 免费域名5
 
 ```
-php client.php --local-host=127.0.0.1 --local-port=80--domain=https://zlcpmkidyt.xiaofuwu.wpjs.cc --token=123456
+php client.php --local-host=127.0.0.1 --local-port=80 --domain=https://zlcpmkidyt.xiaofuwu.wpjs.cc --token=123456
 
 ```
 

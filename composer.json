@@ -1,5 +1,6 @@
 {
     "name": "wpjscc/reactphp-intranet-penetration",
+    "type": "project",
     "require": {
         "react/http": "^1.9"
     },
