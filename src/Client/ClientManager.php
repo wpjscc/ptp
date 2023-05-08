@@ -31,18 +31,39 @@ class ClientManager
 
             'remote_domain' => 'reactphp-intranet-penetration.xiaofuwu.wpjs.cc',
 
-            'token' => 'xxxxxx'
+            'token' => 'xxxxxx',
         ]
     ];
 
-    public static function createLocalTunnelConnection()
+    public static function createLocalTunnelConnection(
+        $localHost,
+        $localPort,
+        $domain,
+        $token,
+        $remoteHost = null,
+        $remotePort = null
+    )
     {
         foreach (static::$configs as $config) {
+            $config['local_host'] = $localHost;
+            $config['local_port'] = $localPort;
+            $config['remote_domain'] = $domain;
+            $config['token'] = $token;
+            if ($remoteHost) {
+                $config['remote_host'] = $remoteHost;
+            }
+            
+            if ($remotePort) {
+                $config['remote_port'] = $remotePort;
+            }
+
+
+
             $function = function($config) use(&$function) {
                 (new Connector(array('timeout' => $config['timeout'])))->connect("tcp://".$config['remote_host'].":".$config['remote_port'])->then(function ($connection) use ($function, $config) {
                     $headers = [
                         'GET /client HTTP/1.1',
-                        'Host: reactphp-intranet-penetration.xiaofuwu.wpjs.cc',
+                        'Host: '.$config['remote_host'],
                         'User-Agent: ReactPHP',
                         'Tunnel: 1',
                         'Authorization: '. $config['token'],
@@ -152,7 +173,7 @@ class ClientManager
         (new Connector(array('timeout' => $config['timeout'])))->connect("tcp://".$config['remote_host'].":".$config['remote_port'])->then(function ($connection) use ($tunnelConnection, $config) {
             $headers = [
                 'GET /client HTTP/1.1',
-                'Host: reactphp-intranet-penetration.xiaofuwu.wpjs.cc',
+                'Host: '.$config['remote_host'],
                 'User-Agent: ReactPHP',
                 'Authorization: '. $config['token'],
                 'Remote-Domain: '.$config['remote_domain'],
@@ -222,7 +243,7 @@ class ClientManager
             $buffer .= $chunk;
         });
         echo ('start handleLocalConnection'."\n");
-
+        // todo proxy 
         (new Connector(array('timeout' => $config['timeout'])))->connect("tcp://".$config['local_host'].":".$config['local_port'])->then(function ($localConnection) use ($connection, &$fn, &$buffer) {
 
             $connection->removeListener('data', $fn);

@@ -10,8 +10,8 @@ use Wpjscc\Penetration\Proxy\ProxyManager;
 use Wpjscc\Penetration\Helper;
 
 
-$clientServer = new ClientServer();
-$userServer = new UserServer();
+$clientServer = new ClientServer(getParam('--server-port', 32123));
+$userServer = new UserServer(getParam('--http-port', 8080));
 
 
 $clientServer->run();
@@ -39,3 +39,13 @@ $startTime = time();
     }
     echo "\n";
 });
+
+
+function getParam($key, $default = null){
+    foreach ($GLOBALS['argv'] as $arg) {
+        if (strpos($arg, $key) !==false){
+            return explode('=', $arg)[1];
+        }
+    }
+    return $default;
+}
