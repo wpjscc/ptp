@@ -46,6 +46,29 @@ php client.php --local-host=127.0.0.1 --local-port=80 --domain=zlcpmkidyt.xiaofu
 
 ```
 
+## docker运行客户端
+
+在上方例子前统一加个docker run -it wpjscc/reactphp-intranet-penetration 
+
+例如免费域名1
+
+```
+docker run -it wpjscc/reactphp-intranet-penetration php client.php --local-host=127.0.0.1 --local-port=80 --domain=pszwunktoi.xiaofuwu.wpjs.cc	--token=123456
+```
+
+注意替换掉 127.0.0.1 80端口 和 token 123456
+
+停止运行docker
+
+```
+docker ps | grep reactphp-intranet-penetration
+```
+
+找到输出的container id
+
+```
+docker stop id
+```
 
 ## 自己搭建服务端
 
@@ -71,4 +94,5 @@ php client.php --local-host=127.0.0.1 --local-port=80 --domain=yourdomain.com --
 docker build -t wpjscc/reactphp-intranet-penetration . -f Dockerfile
 docker push wpjscc/reactphp-intranet-penetration
 ```
+
 
