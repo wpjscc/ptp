@@ -38,8 +38,8 @@ class ClientManager
             'remote_port' => '32123',
             'remote_tls' => false,
             
-            // 暂时没用-为了自定义域名使用，该域名需指向服务器ip
-            'remote_domain' => 'reactphp-intranet-penetration.xiaofuwu.wpjs.cc',
+            // 为了自定义域名使用，该域名需指向服务器ip
+            'domain' => 'reactphp-intranet-penetration.xiaofuwu.wpjs.cc',
 
             'token' => 'xxxxxx',
         ]
@@ -63,7 +63,7 @@ class ClientManager
             $config['local_tls'] = $localTls;
             $config['local_host'] = $localHost;
             $config['local_port'] = $localPort;
-            $config['remote_domain'] = $domain;
+            $config['domain'] = $domain;
             $config['token'] = $token;
 
             if ($localproxy) {
@@ -95,7 +95,7 @@ class ClientManager
                         'Tunnel: 1',
                         'Authorization: '. $config['token'],
                         'Local-Host: '.$config['local_host'].':'.$config['local_port'],
-                        'Remote-Domain: '.$config['remote_domain'],
+                        'Remote-Domain: '.$config['domain'],
                         'Local-Tunnel-Address: '.$connection->getLocalAddress(),
                     ];
                     $connection->write(implode("\r\n", $headers)."\r\n\r\n");
@@ -199,13 +199,13 @@ class ClientManager
 
     public static function createLocalDynamicConnections($tunnelConnection, &$config)
     {
-        (new Connector(array('timeout' => $config['timeout'])))->connect("tcp://".$config['remote_host'].":".$config['remote_port'])->then(function ($connection) use ($tunnelConnection, $config) {
+        (new Connector(array('timeout' => $config['timeout'])))->connect(($config['remote_tls'] ? 'tls' : 'tcp')."://".$config['remote_host'].":".$config['remote_port'])->then(function ($connection) use ($tunnelConnection, $config) {
             $headers = [
                 'GET /client HTTP/1.1',
                 'Host: '.$config['remote_host'],
                 'User-Agent: ReactPHP',
                 'Authorization: '. $config['token'],
-                'Remote-Domain: '.$config['remote_domain'],
+                'Remote-Domain: '.$config['domain'],
                 'Local-Tunnel-Address: '.$tunnelConnection->getLocalAddress(),
             ];
             $connection->write(implode("\r\n", $headers)."\r\n\r\n");
