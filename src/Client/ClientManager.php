@@ -20,18 +20,25 @@ class ClientManager
 
     static $configs = [
         [
-            'timeout' => 20,
+            'timeout' => 6,
             // 本地的地址
+            // local ssl
             'local_tls' => false,
+            // domain or ip
             'local_host' => '127.0.0.1',
             'local_port' => '8088',
+            // local_proxy->local_host
+            // see https://github.com/clue/reactphp-http-proxy#proxyconnector
             'local_proxy' => '',
+            // 当local_host 指向的域名没有控制权时，将 request header 中的HOST 替换成 local_host 并把 xff 头去掉，这对于代理第三方api 很有用
             'local_replace_host' => false,
     
-            // 链接的地址
+            // 服务器的地址
             'remote_host' => 'reactphp-intranet-penetration.xiaofuwu.wpjs.cc',
             'remote_port' => '32123',
-
+            'remote_tls' => false,
+            
+            // 暂时没用-为了自定义域名使用，该域名需指向服务器ip
             'remote_domain' => 'reactphp-intranet-penetration.xiaofuwu.wpjs.cc',
 
             'token' => 'xxxxxx',
@@ -45,12 +52,14 @@ class ClientManager
         $token,
         $remoteHost = null,
         $remotePort = null,
+        $remoteTls = false,
         $localTls = false,
         $localproxy = null,
         $localReplaceHost = false
         )
     {
         foreach (static::$configs as $config) {
+            $config['remote_tls'] = $remoteTls;
             $config['local_tls'] = $localTls;
             $config['local_host'] = $localHost;
             $config['local_port'] = $localPort;
@@ -75,8 +84,10 @@ class ClientManager
 
 
 
-            $function = function($config) use(&$function) {
-                (new Connector(array('timeout' => $config['timeout'])))->connect("tcp://".$config['remote_host'].":".$config['remote_port'])->then(function ($connection) use ($function, &$config) {
+            $function = function ($config) use (&$function) {
+
+                (new Connector(array('timeout' => $config['timeout'])))->connect(($config['remote_tls'] ? 'tls' : 'tcp') .  "://".$config['remote_host'].":".$config['remote_port'])->then(function ($connection) use ($function, &$config) {
+                    echo 'Connection established to: ' . $connection->getRemoteAddress() . "\n";
                     $headers = [
                         'GET /client HTTP/1.1',
                         'Host: '.$config['remote_host'],
@@ -96,6 +107,7 @@ class ClientManager
                     });
 
                     $connection->on('close', function () use ($function, $config) {
+                        echo 'Connection closed'."\n";
                         \React\EventLoop\Loop::get()->addTimer(3, function() use ($function, $config){
                             $function($config);
                         });

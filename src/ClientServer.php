@@ -12,26 +12,28 @@ use RingCentral\Psr7;
 class ClientServer
 {
     public $port = 32123;
-    public $certPath = '';
+    public $certPem = '';
+    public $certKey = '';
 
-    public function __construct($port = null, $certPath = '')
+    public function __construct($port = null, $certPem = '', $certKey = '')
     {
         if ($port) {
             $this->port = $port;
         }
-        if ($certPath) {
-            $this->certPath = $certPath;
-        }
+
+        $this->certPem = $certPem;
+        $this->certKey = $certKey;
 
     }
 
     public function run()
     {
         
-        if ($this->certPath) {
+        if ($this->certPem) {
             $socket = new SocketServer('tls://0.0.0.0:'.$this->port, [
                 'tls' => array(
-                    'local_cert' => $this->certPath
+                    'local_cert' => $this->certPem,
+                    'local_pk' => $this->certKey,
                 )
             ]);
         } else {
