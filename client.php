@@ -11,7 +11,10 @@ ClientManager::createLocalTunnelConnection(
     $domain = getParam('--domain'),
     $token = getParam('--token'),
     $remoteHost = getParam('--remote-host'),
-    $remotePort = getParam('--remote-port')
+    $remotePort = getParam('--remote-port'),
+    $localTls = getParam('--local-tls') ? true : false,
+    $localProxy = getParam('--local-proxy'),
+    $localReplaceHost = getParam('--local-replace-host') ? true : false,
 );
 
 function getParam($key, $default = null){

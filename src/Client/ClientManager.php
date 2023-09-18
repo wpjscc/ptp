@@ -20,10 +20,13 @@ class ClientManager
 
     static $configs = [
         [
-            'timeout' => 3,
+            'timeout' => 20,
             // 本地的地址
+            'local_tls' => false,
             'local_host' => '127.0.0.1',
             'local_port' => '8088',
+            'local_proxy' => '',
+            'local_replace_host' => false,
     
             // 链接的地址
             'remote_host' => 'reactphp-intranet-penetration.xiaofuwu.wpjs.cc',
@@ -41,14 +44,27 @@ class ClientManager
         $domain,
         $token,
         $remoteHost = null,
-        $remotePort = null
-    )
+        $remotePort = null,
+        $localTls = false,
+        $localproxy = null,
+        $localReplaceHost = false
+        )
     {
         foreach (static::$configs as $config) {
+            $config['local_tls'] = $localTls;
             $config['local_host'] = $localHost;
             $config['local_port'] = $localPort;
             $config['remote_domain'] = $domain;
             $config['token'] = $token;
+
+            if ($localproxy) {
+                $config['local_proxy'] = $localproxy;
+            }
+
+            if ($localReplaceHost) {
+                $config['local_replace_host'] = $localReplaceHost;
+            }
+
             if ($remoteHost) {
                 $config['remote_host'] = $remoteHost;
             }
@@ -60,7 +76,7 @@ class ClientManager
 
 
             $function = function($config) use(&$function) {
-                (new Connector(array('timeout' => $config['timeout'])))->connect("tcp://".$config['remote_host'].":".$config['remote_port'])->then(function ($connection) use ($function, $config) {
+                (new Connector(array('timeout' => $config['timeout'])))->connect("tcp://".$config['remote_host'].":".$config['remote_port'])->then(function ($connection) use ($function, &$config) {
                     $headers = [
                         'GET /client HTTP/1.1',
                         'Host: '.$config['remote_host'],
@@ -74,7 +90,7 @@ class ClientManager
                     $connection->write(implode("\r\n", $headers)."\r\n\r\n");
                     
                     $buffer = '';
-                    $connection->on('data', $fn = function ($chunk) use ($connection, $config, &$buffer, &$fn) {
+                    $connection->on('data', $fn = function ($chunk) use ($connection, &$config, &$buffer, &$fn) {
                         $buffer .= $chunk;
                         ClientManager::handleLocalTunnelBuffer($connection, $buffer, $config, $fn);
                     });
@@ -98,7 +114,7 @@ class ClientManager
         }
     }
 
-    public static function handleLocalTunnelBuffer($connection, &$buffer, $config)
+    public static function handleLocalTunnelBuffer($connection, &$buffer, &$config)
     {
         $pos = strpos($buffer, "\r\n\r\n");
         if ($pos !== false) {
@@ -117,7 +133,7 @@ class ClientManager
             $buffer = substr($buffer, $pos + 4);
             // 创建通道成功
             if ($response->getStatusCode() === 200) {
-                static::addLocalTunnelConnection($connection, $response);
+                static::addLocalTunnelConnection($connection, $response, $config);
             } 
             // 请求创建代理连接
             elseif ($response->getStatusCode() === 201) {
@@ -132,10 +148,11 @@ class ClientManager
         }
     }
 
-    public static function addLocalTunnelConnection($connection, $response)
+    public static function addLocalTunnelConnection($connection, $response, &$config)
     {
         $uri = $response->getHeaderLine('Uri');
         echo ('local tunnel success '.$uri."\n");
+        $config['uri'] = $uri;
         echo ($connection->getRemoteAddress().'=>'. $connection->getLocalAddress())."\n";
 
         if (!isset(static::$localTunnelConnections[$uri])) {
@@ -168,7 +185,7 @@ class ClientManager
        
     }
 
-    public static function createLocalDynamicConnections($tunnelConnection,$config)
+    public static function createLocalDynamicConnections($tunnelConnection, &$config)
     {
         (new Connector(array('timeout' => $config['timeout'])))->connect("tcp://".$config['remote_host'].":".$config['remote_port'])->then(function ($connection) use ($tunnelConnection, $config) {
             $headers = [
@@ -243,8 +260,18 @@ class ClientManager
             $buffer .= $chunk;
         });
         echo ('start handleLocalConnection'."\n");
-        // todo proxy 
-        (new Connector(array('timeout' => $config['timeout'])))->connect("tcp://".$config['local_host'].":".$config['local_port'])->then(function ($localConnection) use ($connection, &$fn, &$buffer) {
+        $proxy = null;
+
+        if ($config['local_proxy']) {
+            $proxy = new \Clue\React\HttpProxy\ProxyConnector($config['local_proxy']);
+        }
+
+        (new Connector(array_merge(array(
+            'timeout' => $config['timeout'],
+        ), ($proxy ? [
+            'tcp' => $proxy,
+            'dns' => false,
+        ] : []))))->connect(($config['local_tls'] ? 'tls' : 'tcp') .  "://".$config['local_host'].":".$config['local_port'])->then(function ($localConnection) use ($connection, &$fn, &$buffer, $config) {
 
             $connection->removeListener('data', $fn);
             $fn = null;
@@ -255,12 +282,24 @@ class ClientManager
             // });
             // var_dump($buffer);
             // 交换数据
-            $connection->pipe($localConnection);
+            $connection->pipe(new \React\Stream\ThroughStream(function($buffer) use ($config) {
+                if ($config['local_replace_host']) {
+                    $buffer = preg_replace('/^X-Forwarded.*/m', '', $buffer);
+                    $buffer = preg_replace('/^X-Real-Ip.*/m', '', $buffer);
+                    $buffer = str_replace('Host: ' .$config['uri'], 'Host: '.$config['local_host'].':'.$config['local_port'], $buffer);
+                }
+                return $buffer;
+            }))->pipe($localConnection);
             $localConnection->pipe($connection);
             $localConnection->on('end', function(){
                 echo 'local connection end'."\n";
             });
             if ($buffer) {
+                if ($config['local_replace_host']) {
+                    $buffer = preg_replace('/^X-Forwarded.*/m', '', $buffer);
+                    $buffer = preg_replace('/^X-Real-Ip.*/m', '', $buffer);
+                    $buffer = str_replace('Host: ' .$config['uri'], 'Host: '.$config['local_host'].':'.$config['local_port'], $buffer);
+                }
                 $localConnection->write($buffer);
                 $buffer = '';
             }
