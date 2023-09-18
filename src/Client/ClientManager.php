@@ -277,15 +277,12 @@ class ClientManager
             $fn = null;
 
             echo 'local connection success'."\n";
-            // $connection->on('data', function($chunk){
-            //     var_dump($chunk);
-            // });
             // var_dump($buffer);
             // 交换数据
             $connection->pipe(new \React\Stream\ThroughStream(function($buffer) use ($config) {
                 if ($config['local_replace_host']) {
-                    $buffer = preg_replace('/^X-Forwarded.*/m', '', $buffer);
-                    $buffer = preg_replace('/^X-Real-Ip.*/m', '', $buffer);
+                    $buffer = preg_replace('/^X-Forwarded.*\R?/m', '', $buffer);
+                    $buffer = preg_replace('/^X-Real-Ip.*\R?/m', '', $buffer);
                     $buffer = str_replace('Host: ' .$config['uri'], 'Host: '.$config['local_host'].':'.$config['local_port'], $buffer);
                 }
                 return $buffer;
@@ -296,8 +293,8 @@ class ClientManager
             });
             if ($buffer) {
                 if ($config['local_replace_host']) {
-                    $buffer = preg_replace('/^X-Forwarded.*/m', '', $buffer);
-                    $buffer = preg_replace('/^X-Real-Ip.*/m', '', $buffer);
+                    $buffer = preg_replace('/^X-Forwarded.*\R?/m', '', $buffer);
+                    $buffer = preg_replace('/^X-Real-Ip.*\R?/m', '', $buffer);
                     $buffer = str_replace('Host: ' .$config['uri'], 'Host: '.$config['local_host'].':'.$config['local_port'], $buffer);
                 }
                 $localConnection->write($buffer);
