@@ -12,19 +12,32 @@ use RingCentral\Psr7;
 class ClientServer
 {
     public $port = 32123;
+    public $certPath = '';
 
-    public function __construct($port = null)
+    public function __construct($port = null, $certPath = '')
     {
         if ($port) {
             $this->port = $port;
+        }
+        if ($certPath) {
+            $this->certPath = $certPath;
         }
 
     }
 
     public function run()
     {
-     
-        $socket = new SocketServer('0.0.0.0:'.$this->port);
+        
+        if ($this->certPath) {
+            $socket = new SocketServer('tls://0.0.0.0:'.$this->port, [
+                'tls' => array(
+                    'local_cert' => $this->certPath
+                )
+            ]);
+        } else {
+            $socket = new SocketServer('0.0.0.0:'.$this->port);
+        }
+
 
         $socket->on('connection', function (ConnectionInterface $connection) {
             echo 'user: '.$connection->getRemoteAddress().' is connected'."\n";

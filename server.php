@@ -10,7 +10,7 @@ use Wpjscc\Penetration\Proxy\ProxyManager;
 use Wpjscc\Penetration\Helper;
 
 
-$clientServer = new ClientServer(getParam('--server-port', 32123));
+$clientServer = new ClientServer(getParam('--server-port', 32123), getParam('--cert-path'));
 $userServer = new UserServer(getParam('--http-port', 8080));
 
 
