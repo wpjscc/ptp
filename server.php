@@ -35,11 +35,11 @@ $startTime = time();
         echo sprintf("%s-%s-%s", 'remote:wait:queue', $uri, $proxyConnection->wait_queue->count())."\n";
     }
 
-    foreach (ClientManager::$remoteTunnelConnections as $uri => $remoteTunnelConnection) {
+    foreach (ProxyManager::$remoteTunnelConnections as $uri => $remoteTunnelConnection) {
         echo sprintf("%s-%s-%s", 'remote:tunnel:connection', $uri, $remoteTunnelConnection->count())."\n";
     }
 
-    foreach (ClientManager::$remoteDynamicConnections as $uri => $remoteDynamicConnection) {
+    foreach (ProxyManager::$remoteDynamicConnections as $uri => $remoteDynamicConnection) {
         echo sprintf("%s-%s-%s", 'remote:dynamic:connection:defered', $uri, $remoteDynamicConnection->count())."\n";
     }
     echo "\n";
