@@ -5,8 +5,6 @@ namespace Wpjscc\Penetration\Proxy;
 use React\EventLoop\Loop;
 use React\EventLoop\LoopInterface;
 use React\Socket\ConnectionInterface;
-
-use Wpjscc\Penetration\Client\ClientManager;
 use React\Promise\Deferred;
 use React\Promise\Timer\TimeoutException;
 use RingCentral\Psr7;
@@ -49,7 +47,7 @@ class ProxyConnection
         $this->getIdleConnection()->then(function (ConnectionInterface $clientConnection) use ($userConnection, &$buffer, $fn, $request) {
 
 
-            $localHost = ClientManager::$remoteTunnelConnections[$this->uri][$clientConnection->tunnelConnection]['Local-Host'];
+            $localHost = ProxyManager::$remoteTunnelConnections[$this->uri][$clientConnection->tunnelConnection]['Local-Host'];
 
             $proxyReplace = "\r\nHost: $localHost\r\n";
 
@@ -117,7 +115,7 @@ class ProxyConnection
         if ($this->current_connections < $this->max_connections) {
             $this->current_connections++;
             // todo 链接关闭
-            return \React\Promise\Timer\timeout(ClientManager::createRemoteDynamicConnection($this->uri)->then(function (ConnectionInterface $connection) {
+            return \React\Promise\Timer\timeout(ProxyManager::createRemoteDynamicConnection($this->uri)->then(function (ConnectionInterface $connection) {
                 
                 $connection->on('close', function () use ($connection) {
                     $this->current_connections--;

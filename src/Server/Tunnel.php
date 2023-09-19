@@ -5,6 +5,7 @@ namespace Wpjscc\Penetration\Server;
 use React\Socket\SocketServer;
 use React\Socket\ConnectionInterface;
 use Wpjscc\Penetration\Client\ClientManager;
+use Wpjscc\Penetration\Proxy\ProxyManager;
 use Wpjscc\Penetration\Client\ClientConnection;
 use RingCentral\Psr7;
 use Wpjscc\Penetration\Server\Tunnel\TcpTunnel;
@@ -121,7 +122,7 @@ class Tunnel
                     $request = $request->withoutHeader('Uri');
                     $request = $request->withHeader('Uri', $state['uri']);
 
-                    ClientManager::handleClientConnection($connection, $request);
+                    ProxyManager::handleClientConnection($connection, $request);
                 }
 
                 
@@ -138,12 +139,12 @@ class Tunnel
     {
         $remoteDomain = $request->getHeaderLine('Remote-Domain');
 
-        if (isset(ClientManager::$uriToToken[$remoteDomain])) {
-            if (ClientManager::$uriToToken[$remoteDomain]!=$request->getHeaderLine('Authorization')) {
+        if (isset(ProxyManager::$uriToToken[$remoteDomain])) {
+            if (ProxyManager::$uriToToken[$remoteDomain]!=$request->getHeaderLine('Authorization')) {
                 return false;
             }
         } else {
-            ClientManager::$uriToToken[$remoteDomain] = $request->getHeaderLine('Authorization');
+            ProxyManager::$uriToToken[$remoteDomain] = $request->getHeaderLine('Authorization');
         }
 
 
