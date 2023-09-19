@@ -6,6 +6,7 @@ use Wpjscc\Penetration\Client\ClientManager;
 
 
 ClientManager::createLocalTunnelConnection(
+    $tunnelProtocol = getParam('--tunnel-protocol'),
     $localHost = getParam('--local-host'),
     $localPort = getParam('--local-port'),
     $domain = getParam('--domain'),

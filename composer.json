@@ -3,7 +3,9 @@
     "type": "project",
     "require": {
         "react/http": "^1.9",
-        "clue/http-proxy-react": "^1.8"
+        "clue/http-proxy-react": "^1.8",
+        "cboden/ratchet": "^0.4.4",
+        "ratchet/pawl": "^0.4.1"
     },
     "autoload": {
         "psr-4": {

@@ -3,19 +3,24 @@
 require 'vendor/autoload.php';
 
 
-use Wpjscc\Penetration\ClientServer;
+use Wpjscc\Penetration\Server\Tunnel;
 use Wpjscc\Penetration\UserServer;
 use Wpjscc\Penetration\Client\ClientManager;
 use Wpjscc\Penetration\Proxy\ProxyManager;
 use Wpjscc\Penetration\Helper;
 
 
-$clientServer = new ClientServer(getParam('--server-port', 32123), getParam('--cert-pem'), getParam('--cert-key'));
 $userServer = new UserServer(getParam('--http-port', 8080));
-
-
-$clientServer->run();
 $userServer->run();
+
+$tunnel = new Tunnel(
+    getParam('--protocol', 'tcp'),
+    getParam('--host', ''),
+    getParam('--server-port', 32123), 
+    getParam('--cert-pem'), 
+    getParam('--cert-key')
+);
+$tunnel->run();
 
 $startTime = time();
 

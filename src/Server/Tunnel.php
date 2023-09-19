@@ -1,22 +1,32 @@
 <?php
 
-namespace Wpjscc\Penetration;
+namespace Wpjscc\Penetration\Server;
 
 use React\Socket\SocketServer;
 use React\Socket\ConnectionInterface;
 use Wpjscc\Penetration\Client\ClientManager;
 use Wpjscc\Penetration\Client\ClientConnection;
 use RingCentral\Psr7;
+use Wpjscc\Penetration\Server\Tunnel\TcpTunnel;
+use Wpjscc\Penetration\Server\Tunnel\WebsocketTunnel;
 
 
-class ClientServer
+class Tunnel
 {
+    public $protocol = 'tcp';
+    public $host = '0.0.0.0';
     public $port = 32123;
     public $certPem = '';
     public $certKey = '';
 
-    public function __construct($port = null, $certPem = '', $certKey = '')
+    public function __construct($protocol = 'tcp', $host = '0.0.0.0', $port = null, $certPem = '', $certKey = '')
     {
+        $this->protocol = $protocol;
+
+        if ($host) {
+            $this->host = $host;
+        }
+
         if ($port) {
             $this->port = $port;
         }
@@ -24,21 +34,40 @@ class ClientServer
         $this->certPem = $certPem;
         $this->certKey = $certKey;
 
+        var_dump($this->protocol, $this->host, $this->port, $this->certPem, $this->certKey);
+
+    }
+
+    public function getTunnel()
+    {
+        $context = [];
+
+        if ($this->certPem) {
+            $context = [
+                'tls' => array(
+                    'local_cert' => $this->certPem,
+                    'local_pk' => $this->certKey,
+                )
+            ];
+        }
+
+        if ($this->protocol == 'websocket') {
+
+           $socket = new WebsocketTunnel($this->host, $this->port, '0.0.0.0', null, $context);
+        } else {
+            if ($this->certPem) {
+                $socket = new TcpTunnel('tls://0.0.0.0:'.$this->port, $context);
+            } else {
+                $socket = new TcpTunnel('0.0.0.0:'.$this->port, $context);
+            }
+        }
+        return $socket;
     }
 
     public function run()
     {
         
-        if ($this->certPem) {
-            $socket = new SocketServer('tls://0.0.0.0:'.$this->port, [
-                'tls' => array(
-                    'local_cert' => $this->certPem,
-                    'local_pk' => $this->certKey,
-                )
-            ]);
-        } else {
-            $socket = new SocketServer('0.0.0.0:'.$this->port);
-        }
+        $socket = $this->getTunnel();
 
 
         $socket->on('connection', function (ConnectionInterface $connection) {
@@ -101,6 +130,7 @@ class ClientServer
 
         });
 
+        echo "Client Server is protocol is  {$this->protocol}...\n";
         echo "Client Server is running at {$this->port}...\n";
     }
 

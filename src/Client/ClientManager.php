@@ -2,7 +2,8 @@
 
 namespace Wpjscc\Penetration\Client;
 
-use Wpjscc\Penetration\Proxy\ProxyManager;
+use Wpjscc\Penetration\Client\Tunnel\TcpTunnel;
+use Wpjscc\Penetration\Client\Tunnel\WebsocketTunnel;
 use React\Promise\Deferred;
 use React\Promise\Timer\TimeoutException;
 use React\Socket\Connector;
@@ -10,8 +11,6 @@ use RingCentral\Psr7;
 
 class ClientManager
 {
-
-
 
     // 客户端相关
     public static $localTunnelConnections = [];
@@ -21,6 +20,8 @@ class ClientManager
     static $configs = [
         [
             'timeout' => 6,
+            'tunnel_protocol' => 'tcp',// tcp or websocket
+
             // 本地的地址
             // local ssl
             'local_tls' => false,
@@ -46,6 +47,7 @@ class ClientManager
     ];
 
     public static function createLocalTunnelConnection(
+        $tunnelProtocol = 'tcp',
         $localHost,
         $localPort,
         $domain,
@@ -66,9 +68,14 @@ class ClientManager
             $config['domain'] = $domain;
             $config['token'] = $token;
 
+            if ($tunnelProtocol) {
+                $config['tunnel_protocol'] = $tunnelProtocol;
+            }
+
             if ($localproxy) {
                 $config['local_proxy'] = $localproxy;
             }
+
 
             if ($localReplaceHost) {
                 $config['local_replace_host'] = $localReplaceHost;
@@ -83,11 +90,9 @@ class ClientManager
             }
 
 
-
             $function = function ($config) use (&$function) {
-
-                (new Connector(array('timeout' => $config['timeout'])))->connect(($config['remote_tls'] ? 'tls' : 'tcp') .  "://".$config['remote_host'].":".$config['remote_port'])->then(function ($connection) use ($function, &$config) {
-                    echo 'Connection established to: ' . $connection->getRemoteAddress() . "\n";
+                static::getTunnel($config)->then(function ($connection) use ($function, &$config) {
+                    echo 'Connection established : ' . $connection->getLocalAddress() . " ====> " .$connection->getRemoteAddress() . "\n";
                     $headers = [
                         'GET /client HTTP/1.1',
                         'Host: '.$config['remote_host'],
@@ -124,6 +129,16 @@ class ClientManager
             $function($config);
             
         }
+    }
+
+    public static function getTunnel($config)
+    {
+        if ($config['tunnel_protocol'] == 'websocket') {
+            $tunnel = (new WebsocketTunnel())->connect(($config['remote_tls'] ? 'wss' : 'ws')."://".$config['remote_host'].":".$config['remote_port']);
+        } else {
+            $tunnel = (new TcpTunnel(array('timeout' => $config['timeout'])))->connect(($config['remote_tls'] ? 'tls' : 'tcp')."://".$config['remote_host'].":".$config['remote_port']);
+        }
+        return $tunnel;
     }
 
     public static function handleLocalTunnelBuffer($connection, &$buffer, &$config)
@@ -199,13 +214,14 @@ class ClientManager
 
     public static function createLocalDynamicConnections($tunnelConnection, &$config)
     {
-        (new Connector(array('timeout' => $config['timeout'])))->connect(($config['remote_tls'] ? 'tls' : 'tcp')."://".$config['remote_host'].":".$config['remote_port'])->then(function ($connection) use ($tunnelConnection, $config) {
+        static::getTunnel($config)->then(function ($connection) use ($tunnelConnection, $config) {
             $headers = [
                 'GET /client HTTP/1.1',
                 'Host: '.$config['remote_host'],
                 'User-Agent: ReactPHP',
                 'Authorization: '. $config['token'],
                 'Remote-Domain: '.$config['domain'],
+                'Dynamic-Tunnel-Address: '.$connection->getLocalAddress(),
                 'Local-Tunnel-Address: '.$tunnelConnection->getLocalAddress(),
             ];
             $connection->write(implode("\r\n", $headers)."\r\n\r\n");
@@ -397,7 +413,7 @@ class ClientManager
 
             // todo 最大数量限制
             static::$remoteTunnelConnections[$uri]->attach($connection, [
-                'Local-host' => $request->getHeaderLine('Local-Host'),
+                'Local-Host' => $request->getHeaderLine('Local-Host'),
                 'Local-Tunnel-Address' => $request->getHeaderLine('Local-Tunnel-Address'),
             ]);
             $connection->on('close', function () use ($uri, $connection) {
@@ -425,7 +441,7 @@ class ClientManager
                     break;
                 }
             }
-            var_dump($localTunnelAddress);
+
             static::$remoteDynamicConnections[$uri]->rewind();
             $deferred = static::$remoteDynamicConnections[$uri]->current();
             static::$remoteDynamicConnections[$uri]->detach($deferred);
