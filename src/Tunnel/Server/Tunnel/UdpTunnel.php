@@ -66,5 +66,8 @@ class UdpTunnel extends EventEmitter implements ServerInterface
     public function close()
     {
         $this->server->close();
+        foreach ($this->connections as $contection) {
+            $contection->close();
+        }
     }
 }

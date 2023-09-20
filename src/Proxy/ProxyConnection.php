@@ -46,7 +46,11 @@ class ProxyConnection
         });
         $this->getIdleConnection()->then(function (ConnectionInterface $clientConnection) use ($userConnection, &$buffer, $fn, $request) {
 
-
+            $clientConnection->tunnelConnection->once('close', $fnclose = function () use ($clientConnection, $userConnection) {
+                echo 'tunnel connection close trigger dynamic connection close' . "\n";
+                $clientConnection->close();
+                $userConnection->close();
+            });
             $localHost = ProxyManager::$remoteTunnelConnections[$this->uri][$clientConnection->tunnelConnection]['Local-Host'];
 
             $proxyReplace = "";
@@ -90,6 +94,12 @@ class ProxyConnection
             });
             $userConnection->on('end', function () {
                 echo 'user connection end' . "\n";
+            });
+            $userConnection->on('close', function () use ($clientConnection, &$fnclose) {
+                echo 'user connection close' . "\n";
+                $clientConnection->tunnelConnection->removeListener('close', $fnclose);
+                $fnclose = null;
+
             });
             $middle->on('end', function () {
                 echo 'middleware connection end' . "\n";

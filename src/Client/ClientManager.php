@@ -21,6 +21,7 @@ class ClientManager
         
         $common = $inis['common'];
         $common['timeout']  = $common['timeout'] ?? 6;
+        $common['pool_count']  = $common['pool_count'] ?? 1;
         $common['server_tls']  = $common['server_tls'] ?? false;
         $common['tunnel_protocol']  = $common['tunnel_protocol'] ?? 'tcp';
         unset($inis['common']);
@@ -32,59 +33,65 @@ class ClientManager
             ]);
         }
 
+        $function = function ($config) use (&$function) {
+            $protocol = $config['tunnel_protocol'];
+            // 当是udp的时候,需要先建立一个tcp的通道
+            if ($protocol == 'udp') {
+                $protocol = 'tcp';
+            }
+            static::getTunnel($config, $protocol)->then(function ($connection) use ($function, &$config) {
+                var_dump(get_class($connection));
+                echo 'Connection established : ' ;
+                echo $connection->getLocalAddress() . " ====> " . $connection->getRemoteAddress() . "\n";
+                $headers = [
+                    'GET /client HTTP/1.1',
+                    'Host: ' . $config['server_host'],
+                    'User-Agent: ReactPHP',
+                    'Tunnel: 1',
+                    'Authorization: ' . ($config['token'] ?? ''),
+                    'Local-Host: ' . $config['local_host'] . ':' . $config['local_port'],
+                    'Domain: ' . $config['domain'],
+                    'Local-Tunnel-Address: ' . $connection->getLocalAddress(),
+                ];
+                $connection->write(implode("\r\n", $headers) . "\r\n\r\n");
 
-        foreach (static::$configs as $config) {
+                $buffer = '';
+                $connection->on('data', $fn = function ($chunk) use ($connection, &$config, &$buffer, &$fn) {
+                    $buffer .= $chunk;
+                    ClientManager::handleLocalTunnelBuffer($connection, $buffer, $config, $fn);
+                });
 
-            $function = function ($config) use (&$function) {
-                $protocol = $config['tunnel_protocol'];
-                // 当是udp的时候,需要先建立一个tcp的通道
-                if ($protocol == 'udp') {
-                    $protocol = 'tcp';
-                }
-                static::getTunnel($config, $protocol)->then(function ($connection) use ($function, &$config) {
-                    var_dump(get_class($connection));
-                    echo 'Connection established : ' ;
-                    echo $connection->getLocalAddress() . " ====> " . $connection->getRemoteAddress() . "\n";
-                    $headers = [
-                        'GET /client HTTP/1.1',
-                        'Host: ' . $config['server_host'],
-                        'User-Agent: ReactPHP',
-                        'Tunnel: 1',
-                        'Authorization: ' . ($config['token'] ?? ''),
-                        'Local-Host: ' . $config['local_host'] . ':' . $config['local_port'],
-                        'Domain: ' . $config['domain'],
-                        'Local-Tunnel-Address: ' . $connection->getLocalAddress(),
-                    ];
-                    $connection->write(implode("\r\n", $headers) . "\r\n\r\n");
-
-                    $buffer = '';
-                    $connection->on('data', $fn = function ($chunk) use ($connection, &$config, &$buffer, &$fn) {
-                        $buffer .= $chunk;
-                        ClientManager::handleLocalTunnelBuffer($connection, $buffer, $config, $fn);
-                    });
-
-                    $connection->on('close', function () use ($function, $config) {
-                        echo 'Connection closed' . "\n";
-                        \React\EventLoop\Loop::get()->addTimer(3, function () use ($function, $config) {
-                            $function($config);
-                        });
-                    });
-                }, function ($e) use ($config, $function) {
-                    echo 'Connection failed: ' . $e->getMessage() . PHP_EOL;
-                    \React\EventLoop\Loop::get()->addTimer(3, function () use ($function, $config) {
-                        $function($config);
-                    });
-
-                })->otherwise(function ($e) use ($config, $function) {
-                    echo 'Connection failed-1: ' . $e->getMessage() . PHP_EOL;
+                $connection->on('close', function () use ($function, $config) {
+                    echo 'Connection closed' . "\n";
                     \React\EventLoop\Loop::get()->addTimer(3, function () use ($function, $config) {
                         $function($config);
                     });
                 });
- 
-            };
+            }, function ($e) use ($config, $function) {
+                echo 'Connection failed: ' . $e->getMessage() . PHP_EOL;
+                \React\EventLoop\Loop::get()->addTimer(3, function () use ($function, $config) {
+                    $function($config);
+                });
 
-            $function($config);
+            })->otherwise(function ($e) use ($config, $function) {
+                echo 'Connection failed-1: ' . $e->getMessage() . PHP_EOL;
+                \React\EventLoop\Loop::get()->addTimer(3, function () use ($function, $config) {
+                    $function($config);
+                });
+            });
+
+        };
+
+
+        foreach (static::$configs as $config) {
+
+
+
+            $number = $config['pool_count'];
+
+            for ($i=0; $i < $number; $i++) { 
+                $function($config);
+            }
             
         }
     }
