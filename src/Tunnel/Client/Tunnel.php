@@ -33,13 +33,18 @@ class Tunnel
 
     }
 
-    public function getTunnel()
+    public function getTunnel($protocol = null)
     {
-        if ($this->protocol == 'websocket') {
+
+        if (!$protocol) {
+            $protocol = $this->protocol;
+        }
+
+        if ($protocol == 'websocket') {
             $tunnel = (new WebsocketTunnel())->connect(($this->serverTls ? 'wss' : 'ws')."://".$this->serverHost.":".$this->serverPort);
         }
 
-        else if ($this->protocol == 'udp') {
+        else if ($protocol == 'udp') {
             $tunnel = (new UdpTunnel())->connect($this->serverHost.":".$this->serverPort);
         }
         

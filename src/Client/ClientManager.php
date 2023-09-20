@@ -36,8 +36,12 @@ class ClientManager
         foreach (static::$configs as $config) {
 
             $function = function ($config) use (&$function) {
-
-                static::getTunnel($config)->then(function ($connection) use ($function, &$config) {
+                $protocol = $config['tunnel_protocol'];
+                // 当是udp的时候,需要先建立一个tcp的通道
+                if ($protocol == 'udp') {
+                    $protocol = 'tcp';
+                }
+                static::getTunnel($config, $protocol)->then(function ($connection) use ($function, &$config) {
                     echo 'Connection established : ' . $connection->getLocalAddress() . " ====> " . $connection->getRemoteAddress() . "\n";
                     $headers = [
                         'GET /client HTTP/1.1',
@@ -83,9 +87,9 @@ class ClientManager
         }
     }
 
-    public static function getTunnel($config)
+    public static function getTunnel($config, $protocol = null)
     {
-        return (new Tunnel($config))->getTunnel();
+        return (new Tunnel($config))->getTunnel($protocol);
     }
 
     public static function handleLocalTunnelBuffer($connection, &$buffer, &$config)
