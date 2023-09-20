@@ -37,7 +37,7 @@ class Config
     public static function getTcpPorts($inis)
     {
         $ports = static::getValueByKey($inis, 'tcp.ports');
-        $ports = array_unique(explode(',', $ports));
+        $ports = array_filter(array_unique(explode(',', $ports)));
         return $ports;
     }
 }
