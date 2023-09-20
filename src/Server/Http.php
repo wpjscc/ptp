@@ -1,13 +1,13 @@
 <?php
 
-namespace Wpjscc\Penetration;
+namespace Wpjscc\Penetration\Server;
 
 use React\Socket\SocketServer;
 use React\Socket\ConnectionInterface;
 use Wpjscc\Penetration\Proxy\ProxyManager;
 use RingCentral\Psr7;
 
-class UserServer
+class Http
 {
     public $port = 8080;
 
@@ -26,6 +26,7 @@ class UserServer
         $socket = new SocketServer('0.0.0.0:'.$this->port);
 
         $socket->on('connection', function (ConnectionInterface $userConnection) {
+            echo 'user: '.$userConnection->getLocalAddress().' is connected'."\n";
             
             $buffer = '';
             $userConnection->on('data', $fn = function ($chunk) use ($userConnection, &$buffer,  &$fn) {
@@ -79,6 +80,6 @@ class UserServer
 
         });
 
-        echo "User Server is running at {$this->port}...\n";
+        echo "Http Server is running at {$this->port}...\n";
     }
 }

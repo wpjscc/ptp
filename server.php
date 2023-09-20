@@ -3,26 +3,41 @@
 require 'vendor/autoload.php';
 
 
-use Wpjscc\Penetration\Server\Tunnel;
-use Wpjscc\Penetration\UserServer;
-use Wpjscc\Penetration\Client\ClientManager;
+use Wpjscc\Penetration\Config;
+use Wpjscc\Penetration\Tunnel\Server\Tunnel;
+use Wpjscc\Penetration\Server\Http;
+use Wpjscc\Penetration\Server\TcpManager;
+use Wpjscc\Penetration\Server\Tcp;
 use Wpjscc\Penetration\Proxy\ProxyManager;
 use Wpjscc\Penetration\Helper;
 
 
-$userServer = new UserServer(getParam('--http-port', 8080));
-$userServer->run();
+$inis = Config::getConfig(getParam('--ini-path', './server.ini'));
+
+$httpPort = $inis['common']['http_port'] ?? 8080;
+$httpServer = new Http($httpPort);
+$httpServer->run();
+
+
+// tcp server
+
+$tcpManager = TcpManager::create(
+    Config::getTcpIp($inis),
+    Config::getTcpPorts($inis)
+);
+$tcpManager->run();
+
 
 $tunnel = new Tunnel(
-    getParam('--protocol', 'tcp'),
-    getParam('--host', ''),
-    getParam('--server-port', 32123), 
-    getParam('--cert-pem'), 
-    getParam('--cert-key')
+    $inis['common'],
 );
 $tunnel->run();
 
 $startTime = time();
+
+\React\EventLoop\Loop::get()->addPeriodicTimer(5, function () use ($tcpManager) {
+    $tcpManager->checkPorts(Config::getTcpPorts(Config::getConfig(getParam('--ini-path', './server.ini'))));
+});
 
 \React\EventLoop\Loop::get()->addPeriodicTimer(100, function() use ($startTime){
     $numBytes = gc_mem_caches();

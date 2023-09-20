@@ -1,6 +1,6 @@
 <?php
 
-namespace Wpjscc\Penetration\Client\Tunnel;
+namespace Wpjscc\Penetration\Tunnel\Client\Tunnel;
 
 use React\Socket\ConnectorInterface;
 
@@ -16,10 +16,8 @@ class TcpTunnel implements ConnectorInterface
 
     public function connect($uri)
     {
-        var_dump($uri);
         return $this->connector->connect($uri);
     }
     
-
    
 }

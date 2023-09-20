@@ -86,11 +86,11 @@ class ProxyManager
     {
 
         $uri = $request->getHeaderLine('Uri');
-        echo ("add connection\n");
-        var_dump($uri, $request->hasHeader('Tunnel'), !isset(static::$remoteTunnelConnections[$uri]));
 
         // 是通道
         if (!isset(static::$remoteTunnelConnections[$uri]) || $request->hasHeader('Tunnel')) {
+            echo ("add tunnel connection ".$connection->getRemoteAddress()."\n");
+
             if (!isset(static::$remoteTunnelConnections[$uri])) {
                 static::$remoteTunnelConnections[$uri] = new \SplObjectStorage;
             }
@@ -116,10 +116,11 @@ class ProxyManager
         // todo 最大数量限制
         // 其次请求
         if (isset(static::$remoteDynamicConnections[$uri]) && static::$remoteDynamicConnections[$uri]->count() > 0) {
+            echo ("add dynamic connection ".$connection->getRemoteAddress()."\n");
+
             $localTunnelAddress = $request->getHeaderLine('Local-Tunnel-Address');
             $remoteTunnelConnection = null;
             foreach (static::$remoteTunnelConnections[$uri] as $tunnelConnection) {
-                var_dump(static::$remoteTunnelConnections[$uri][$tunnelConnection]['Local-Tunnel-Address']);
                 if (static::$remoteTunnelConnections[$uri][$tunnelConnection]['Local-Tunnel-Address'] == $localTunnelAddress) {
                     $remoteTunnelConnection = $tunnelConnection;
                     break;

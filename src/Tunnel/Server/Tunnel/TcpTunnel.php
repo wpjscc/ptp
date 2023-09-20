@@ -1,6 +1,6 @@
 <?php
 
-namespace Wpjscc\Penetration\Server\Tunnel;
+namespace Wpjscc\Penetration\Tunnel\Server\Tunnel;
 
 
 use Evenement\EventEmitter;
@@ -15,10 +15,7 @@ class TcpTunnel extends EventEmitter implements ServerInterface
     public function __construct($uri, array $context = array(), LoopInterface $loop = null)
     {
         $this->server = new \React\Socket\SocketServer($uri, $context, $loop);
-        echo "TcpTunnel\n";
-        echo "$uri\n";
         $this->server->on('connection', function ($connection) {
-            echo "connection\n";
             $this->emit('connection', array($connection));
         });
     }

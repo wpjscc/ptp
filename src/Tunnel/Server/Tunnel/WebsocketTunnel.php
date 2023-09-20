@@ -1,6 +1,6 @@
 <?php
 
-namespace Wpjscc\Penetration\Server\Tunnel;
+namespace Wpjscc\Penetration\Tunnel\Server\Tunnel;
 
 
 use Evenement\EventEmitter;
@@ -8,7 +8,6 @@ use React\Socket\ServerInterface;
 use React\EventLoop\LoopInterface;
 use Ratchet\App;
 use React\EventLoop\Loop;
-use Wpjscc\Penetration\Server\Tunnel\WebsocketController;
 
 class WebsocketTunnel extends EventEmitter implements ServerInterface
 {

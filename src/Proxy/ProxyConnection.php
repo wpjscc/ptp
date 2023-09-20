@@ -49,9 +49,9 @@ class ProxyConnection
 
             $localHost = ProxyManager::$remoteTunnelConnections[$this->uri][$clientConnection->tunnelConnection]['Local-Host'];
 
-            $proxyReplace = "\r\nHost: $localHost\r\n";
-
-            if (!$request->hasHeader('X-Forwarded-Host')) {
+            // $proxyReplace = "\r\nHost: $localHost\r\n";
+            $proxyReplace = "";
+            if ($request && !$request->hasHeader('X-Forwarded-Host')) {
                 $host = $request->getUri()->getHost();
                 $port = $request->getUri()->getPort();
                 $scheme = $request->getUri()->getScheme();
@@ -71,37 +71,42 @@ class ProxyConnection
                 'Server: ReactPHP/1',
             ];
             // 告诉clientConnection 开始连接了
-            $clientConnection->write(implode("\r\n", $headers)."\r\n\r\n");
-            
-            $middle = new ThroughStream(function($data) use ($proxyReplace) {
-                return str_replace('\r\nHost: '.$this->uri."\r\n", $proxyReplace, $data);
+            $clientConnection->write(implode("\r\n", $headers) . "\r\n\r\n");
+
+            $middle = new ThroughStream(function ($data) use ($proxyReplace) {
+                if ($proxyReplace) {
+                    return str_replace('\r\nHost: ' . $this->uri . "\r\n", $proxyReplace, $data);
+                }
+                return $data;
             });
 
             // 交换数据
             $userConnection->pipe($middle)->pipe($clientConnection);
             $clientConnection->pipe($userConnection);
 
-            $clientConnection->on('end', function(){
-                echo 'dynamic connection end'."\n";
+            $clientConnection->on('end', function () {
+                echo 'dynamic connection end' . "\n";
             });
-            $userConnection->on('end', function(){
-                echo 'user connection end'."\n";
+            $userConnection->on('end', function () {
+                echo 'user connection end' . "\n";
             });
-            $middle->on('end', function() {
-                echo 'middleware connection end'."\n";
+            $middle->on('end', function () {
+                echo 'middleware connection end' . "\n";
             });
 
             if ($buffer) {
-                $buffer = str_replace('\r\nHost: '.$this->uri."\r\n", $proxyReplace, $buffer);
+                $buffer = str_replace('\r\nHost: ' . $this->uri . "\r\n", $proxyReplace, $buffer);
                 $clientConnection->write($buffer);
                 $buffer = '';
             }
 
-        }, function ($e) use ($userConnection) {
+        }, function ($e) use ($userConnection, &$buffer) {
+            $buffer = '';
             echo $e->getMessage()."-1\n";
             $userConnection->write("http/1.1 500 ".$e->getMessage()." Error\r\n\r\n".$e->getMessage());
             $userConnection->end();
-        })->otherwise(function ($error) use ($userConnection) {
+        })->otherwise(function ($error) use ($userConnection, &$buffer) {
+            $buffer = '';
             echo $error->getMessage()."-2\n";
             $userConnection->write("http/1.1 500 Internal Server Error\r\n\r\n".$error->getMessage());
             $userConnection->end();

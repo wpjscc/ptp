@@ -1,6 +1,6 @@
 <?php
 
-namespace Wpjscc\Penetration\Client\Tunnel;
+namespace Wpjscc\Penetration\Tunnel\Client\Tunnel;
 
 use React\Socket\ConnectorInterface;
 use function Ratchet\Client\connect;
@@ -46,6 +46,7 @@ class WebsocketTunnel implements ConnectorInterface
             return $contection;
         }, function ($e) {
             echo "Could not connect: {$e->getMessage()}\n";
+            return $e;
         });
     }
     

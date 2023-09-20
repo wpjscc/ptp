@@ -1,6 +1,6 @@
 <?php
 
-namespace Wpjscc\Penetration\Server;
+namespace Wpjscc\Penetration\Tunnel\Server;
 
 use React\Socket\SocketServer;
 use React\Socket\ConnectionInterface;
@@ -8,34 +8,25 @@ use Wpjscc\Penetration\Client\ClientManager;
 use Wpjscc\Penetration\Proxy\ProxyManager;
 use Wpjscc\Penetration\Client\ClientConnection;
 use RingCentral\Psr7;
-use Wpjscc\Penetration\Server\Tunnel\TcpTunnel;
-use Wpjscc\Penetration\Server\Tunnel\WebsocketTunnel;
+use Wpjscc\Penetration\Tunnel\Server\Tunnel\TcpTunnel;
+use Wpjscc\Penetration\Tunnel\Server\Tunnel\WebsocketTunnel;
 
 
 class Tunnel
 {
     public $protocol = 'tcp';
-    public $host = '0.0.0.0';
-    public $port = 32123;
-    public $certPem = '';
-    public $certKey = '';
+    public $host = 'localhost';
+    public $port;
+    public $certPemPath = '';
+    public $certKeyPath = '';
 
-    public function __construct($protocol = 'tcp', $host = '0.0.0.0', $port = null, $certPem = '', $certKey = '')
+    public function __construct($config)
     {
-        $this->protocol = $protocol;
 
-        if ($host) {
-            $this->host = $host;
-        }
-
-        if ($port) {
-            $this->port = $port;
-        }
-
-        $this->certPem = $certPem;
-        $this->certKey = $certKey;
-
-        var_dump($this->protocol, $this->host, $this->port, $this->certPem, $this->certKey);
+        $this->protocol = $config['tunnel_protocol'] ?? 'tcp';
+        $this->port = $config['server_port'];
+        $this->certPemPath = $config['cert_pem_path'] ?? '';
+        $this->certKeyPath = $config['cert_key_path'] ?? '';
 
     }
 
@@ -43,11 +34,11 @@ class Tunnel
     {
         $context = [];
 
-        if ($this->certPem) {
+        if ($this->certPemPath) {
             $context = [
                 'tls' => array(
-                    'local_cert' => $this->certPem,
-                    'local_pk' => $this->certKey,
+                    'local_cert' => $this->certPemPath,
+                    'local_pk' => $this->certKeyPath,
                 )
             ];
         }
@@ -56,7 +47,7 @@ class Tunnel
 
            $socket = new WebsocketTunnel($this->host, $this->port, '0.0.0.0', null, $context);
         } else {
-            if ($this->certPem) {
+            if ($this->certPemPath) {
                 $socket = new TcpTunnel('tls://0.0.0.0:'.$this->port, $context);
             } else {
                 $socket = new TcpTunnel('0.0.0.0:'.$this->port, $context);
@@ -72,7 +63,7 @@ class Tunnel
 
 
         $socket->on('connection', function (ConnectionInterface $connection) {
-            echo 'user: '.$connection->getRemoteAddress().' is connected'."\n";
+            echo 'client: '.$connection->getRemoteAddress().' is connected'."\n";
             
             $buffer = '';
             $that = $this;
@@ -104,6 +95,7 @@ class Tunnel
                     }
 
                     if (!$state) {
+                        echo 'client: '.$connection->getRemoteAddress().' is unauthorized'."\n";
                         $headers = [
                             'HTTP/1.1 401 Unauthorized',
                             'Server: ReactPHP/1',
@@ -137,19 +129,19 @@ class Tunnel
 
     public function validate($request)
     {
-        $remoteDomain = $request->getHeaderLine('Remote-Domain');
+        $domain = $request->getHeaderLine('Domain');
 
-        if (isset(ProxyManager::$uriToToken[$remoteDomain])) {
-            if (ProxyManager::$uriToToken[$remoteDomain]!=$request->getHeaderLine('Authorization')) {
+        if (isset(ProxyManager::$uriToToken[$domain])) {
+            if (ProxyManager::$uriToToken[$domain]!=$request->getHeaderLine('Authorization')) {
                 return false;
             }
         } else {
-            ProxyManager::$uriToToken[$remoteDomain] = $request->getHeaderLine('Authorization');
+            ProxyManager::$uriToToken[$domain] = $request->getHeaderLine('Authorization');
         }
 
 
         return [
-            'uri' => $request->getHeaderLine('Remote-Domain'),
+            'uri' => $request->getHeaderLine('Domain'),
         ];
     }
 }

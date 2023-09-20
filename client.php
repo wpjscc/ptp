@@ -3,20 +3,18 @@
 require 'vendor/autoload.php';
 
 use Wpjscc\Penetration\Client\ClientManager;
+use Wpjscc\Penetration\Parse\Ini;
 
+$iniPath = getParam('--ini-path', './client.ini');
+
+if (!$iniPath || !file_exists($iniPath)) {
+    throw new \Exception('iniPath is required');
+}
+
+$inis = (new Ini)->parse(file_get_contents($iniPath));
 
 ClientManager::createLocalTunnelConnection(
-    $tunnelProtocol = getParam('--tunnel-protocol'),
-    $localHost = getParam('--local-host'),
-    $localPort = getParam('--local-port'),
-    $domain = getParam('--domain'),
-    $token = getParam('--token'),
-    $remoteHost = getParam('--remote-host'),
-    $remotePort = getParam('--remote-port'),
-    $remoteTls = getParam('--remote-tls') ? true : false,
-    $localTls = getParam('--local-tls') ? true : false,
-    $localProxy = getParam('--local-proxy'),
-    $localReplaceHost = getParam('--local-replace-host') ? true : false,
+    $inis
 );
 
 function getParam($key, $default = null){

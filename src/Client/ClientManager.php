@@ -2,8 +2,7 @@
 
 namespace Wpjscc\Penetration\Client;
 
-use Wpjscc\Penetration\Client\Tunnel\TcpTunnel;
-use Wpjscc\Penetration\Client\Tunnel\WebsocketTunnel;
+use Wpjscc\Penetration\Tunnel\Client\Tunnel;
 use React\Socket\Connector;
 use RingCentral\Psr7;
 
@@ -14,95 +13,44 @@ class ClientManager
     public static $localTunnelConnections = [];
     public static $localDynamicConnections = [];
 
-
     static $configs = [
-        [
-            'timeout' => 6,
-            'tunnel_protocol' => 'tcp',// tcp or websocket
-
-            // 本地的地址
-            // local ssl
-            'local_tls' => false,
-            // domain or ip
-            'local_host' => '127.0.0.1',
-            'local_port' => '8088',
-            // local_proxy->local_host
-            // see https://github.com/clue/reactphp-http-proxy#proxyconnector
-            'local_proxy' => '',
-            // 当local_host 指向的域名没有控制权时，将 request header 中的HOST 替换成 local_host 并把 xff 头去掉，这对于代理第三方api 很有用
-            'local_replace_host' => false,
-    
-            // 服务器的地址
-            'remote_host' => 'reactphp-intranet-penetration.xiaofuwu.wpjs.cc',
-            'remote_port' => '32123',
-            'remote_tls' => false,
-            
-            // 为了自定义域名使用，该域名需指向服务器ip
-            'domain' => 'reactphp-intranet-penetration.xiaofuwu.wpjs.cc',
-
-            'token' => 'xxxxxx',
-        ]
     ];
 
-    public static function createLocalTunnelConnection(
-        $tunnelProtocol = 'tcp',
-        $localHost,
-        $localPort,
-        $domain,
-        $token,
-        $remoteHost = null,
-        $remotePort = null,
-        $remoteTls = false,
-        $localTls = false,
-        $localproxy = null,
-        $localReplaceHost = false
-        )
+    public static function createLocalTunnelConnection($inis)
     {
+        
+        $common = $inis['common'];
+        $common['timeout']  = $common['timeout'] ?? 6;
+        $common['server_tls']  = $common['server_tls'] ?? false;
+        $common['tunnel_protocol']  = $common['tunnel_protocol'] ?? 'tcp';
+        unset($inis['common']);
+
+
+        foreach ($inis as $config) {
+            static::$configs = array_merge(static::$configs, [
+                array_merge($common, $config)
+            ]);
+        }
+
+
         foreach (static::$configs as $config) {
-            $config['remote_tls'] = $remoteTls;
-            $config['local_tls'] = $localTls;
-            $config['local_host'] = $localHost;
-            $config['local_port'] = $localPort;
-            $config['domain'] = $domain;
-            $config['token'] = $token;
-
-            if ($tunnelProtocol) {
-                $config['tunnel_protocol'] = $tunnelProtocol;
-            }
-
-            if ($localproxy) {
-                $config['local_proxy'] = $localproxy;
-            }
-
-
-            if ($localReplaceHost) {
-                $config['local_replace_host'] = $localReplaceHost;
-            }
-
-            if ($remoteHost) {
-                $config['remote_host'] = $remoteHost;
-            }
-            
-            if ($remotePort) {
-                $config['remote_port'] = $remotePort;
-            }
-
 
             $function = function ($config) use (&$function) {
+
                 static::getTunnel($config)->then(function ($connection) use ($function, &$config) {
-                    echo 'Connection established : ' . $connection->getLocalAddress() . " ====> " .$connection->getRemoteAddress() . "\n";
+                    echo 'Connection established : ' . $connection->getLocalAddress() . " ====> " . $connection->getRemoteAddress() . "\n";
                     $headers = [
                         'GET /client HTTP/1.1',
-                        'Host: '.$config['remote_host'],
+                        'Host: ' . $config['server_host'],
                         'User-Agent: ReactPHP',
                         'Tunnel: 1',
-                        'Authorization: '. $config['token'],
-                        'Local-Host: '.$config['local_host'].':'.$config['local_port'],
-                        'Remote-Domain: '.$config['domain'],
-                        'Local-Tunnel-Address: '.$connection->getLocalAddress(),
+                        'Authorization: ' . ($config['token'] ?? ''),
+                        'Local-Host: ' . $config['local_host'] . ':' . $config['local_port'],
+                        'Domain: ' . $config['domain'],
+                        'Local-Tunnel-Address: ' . $connection->getLocalAddress(),
                     ];
-                    $connection->write(implode("\r\n", $headers)."\r\n\r\n");
-                    
+                    $connection->write(implode("\r\n", $headers) . "\r\n\r\n");
+
                     $buffer = '';
                     $connection->on('data', $fn = function ($chunk) use ($connection, &$config, &$buffer, &$fn) {
                         $buffer .= $chunk;
@@ -110,18 +58,24 @@ class ClientManager
                     });
 
                     $connection->on('close', function () use ($function, $config) {
-                        echo 'Connection closed'."\n";
-                        \React\EventLoop\Loop::get()->addTimer(3, function() use ($function, $config){
+                        echo 'Connection closed' . "\n";
+                        \React\EventLoop\Loop::get()->addTimer(3, function () use ($function, $config) {
                             $function($config);
                         });
                     });
                 }, function ($e) use ($config, $function) {
                     echo 'Connection failed: ' . $e->getMessage() . PHP_EOL;
-                    \React\EventLoop\Loop::get()->addTimer(3, function() use ($function, $config){
+                    \React\EventLoop\Loop::get()->addTimer(3, function () use ($function, $config) {
                         $function($config);
                     });
 
+                })->otherwise(function ($e) use ($config, $function) {
+                    echo 'Connection failed-1: ' . $e->getMessage() . PHP_EOL;
+                    \React\EventLoop\Loop::get()->addTimer(3, function () use ($function, $config) {
+                        $function($config);
+                    });
                 });
+ 
             };
 
             $function($config);
@@ -131,12 +85,7 @@ class ClientManager
 
     public static function getTunnel($config)
     {
-        if ($config['tunnel_protocol'] == 'websocket') {
-            $tunnel = (new WebsocketTunnel())->connect(($config['remote_tls'] ? 'wss' : 'ws')."://".$config['remote_host'].":".$config['remote_port']);
-        } else {
-            $tunnel = (new TcpTunnel(array('timeout' => $config['timeout'])))->connect(($config['remote_tls'] ? 'tls' : 'tcp')."://".$config['remote_host'].":".$config['remote_port']);
-        }
-        return $tunnel;
+        return (new Tunnel($config))->getTunnel();
     }
 
     public static function handleLocalTunnelBuffer($connection, &$buffer, &$config)
@@ -178,7 +127,7 @@ class ClientManager
         $uri = $response->getHeaderLine('Uri');
         echo ('local tunnel success '.$uri."\n");
         $config['uri'] = $uri;
-        echo ($connection->getRemoteAddress().'=>'. $connection->getLocalAddress())."\n";
+        echo ($connection->getLocalAddress().'=====>'. $connection->getRemoteAddress())."\n";
 
         if (!isset(static::$localTunnelConnections[$uri])) {
             static::$localTunnelConnections[$uri] = new \SplObjectStorage;
@@ -215,10 +164,10 @@ class ClientManager
         static::getTunnel($config)->then(function ($connection) use ($tunnelConnection, $config) {
             $headers = [
                 'GET /client HTTP/1.1',
-                'Host: '.$config['remote_host'],
+                'Host: '.$config['server_host'],
                 'User-Agent: ReactPHP',
-                'Authorization: '. $config['token'],
-                'Remote-Domain: '.$config['domain'],
+                'Authorization: '. ($config['token'] ?? ''),
+                'Domain: '.$config['domain'],
                 'Dynamic-Tunnel-Address: '.$connection->getLocalAddress(),
                 'Local-Tunnel-Address: '.$tunnelConnection->getLocalAddress(),
             ];
@@ -288,7 +237,7 @@ class ClientManager
         echo ('start handleLocalConnection'."\n");
         $proxy = null;
 
-        if ($config['local_proxy']) {
+        if ($config['local_proxy'] ?? '') {
             $proxy = new \Clue\React\HttpProxy\ProxyConnector($config['local_proxy']);
         }
 
@@ -297,7 +246,7 @@ class ClientManager
         ), ($proxy ? [
             'tcp' => $proxy,
             'dns' => false,
-        ] : []))))->connect(($config['local_tls'] ? 'tls' : 'tcp') .  "://".$config['local_host'].":".$config['local_port'])->then(function ($localConnection) use ($connection, &$fn, &$buffer, $config) {
+        ] : []))))->connect((($config['local_tls'] ?? false) ? 'tls' : 'tcp') .  "://".$config['local_host'].":".$config['local_port'])->then(function ($localConnection) use ($connection, &$fn, &$buffer, $config) {
 
             $connection->removeListener('data', $fn);
             $fn = null;
@@ -306,7 +255,7 @@ class ClientManager
             // var_dump($buffer);
             // 交换数据
             $connection->pipe(new \React\Stream\ThroughStream(function($buffer) use ($config) {
-                if ($config['local_replace_host']) {
+                if ($config['local_replace_host'] ?? false) {
                     $buffer = preg_replace('/^X-Forwarded.*\R?/m', '', $buffer);
                     $buffer = preg_replace('/^X-Real-Ip.*\R?/m', '', $buffer);
                     $buffer = str_replace('Host: ' .$config['uri'], 'Host: '.$config['local_host'].':'.$config['local_port'], $buffer);
@@ -318,7 +267,7 @@ class ClientManager
                 echo 'local connection end'."\n";
             });
             if ($buffer) {
-                if ($config['local_replace_host']) {
+                if ($config['local_replace_host'] ?? false) {
                     $buffer = preg_replace('/^X-Forwarded.*\R?/m', '', $buffer);
                     $buffer = preg_replace('/^X-Real-Ip.*\R?/m', '', $buffer);
                     $buffer = str_replace('Host: ' .$config['uri'], 'Host: '.$config['local_host'].':'.$config['local_port'], $buffer);

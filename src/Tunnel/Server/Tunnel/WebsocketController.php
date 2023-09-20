@@ -1,6 +1,6 @@
 <?php
 
-namespace Wpjscc\Penetration\Server\Tunnel;
+namespace Wpjscc\Penetration\Tunnel\Server\Tunnel;
 
 use Ratchet\MessageComponentInterface;
 use Ratchet\ConnectionInterface;
