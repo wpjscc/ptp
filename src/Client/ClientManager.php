@@ -42,7 +42,9 @@ class ClientManager
                     $protocol = 'tcp';
                 }
                 static::getTunnel($config, $protocol)->then(function ($connection) use ($function, &$config) {
-                    echo 'Connection established : ' . $connection->getLocalAddress() . " ====> " . $connection->getRemoteAddress() . "\n";
+                    var_dump(get_class($connection));
+                    echo 'Connection established : ' ;
+                    echo $connection->getLocalAddress() . " ====> " . $connection->getRemoteAddress() . "\n";
                     $headers = [
                         'GET /client HTTP/1.1',
                         'Host: ' . $config['server_host'],

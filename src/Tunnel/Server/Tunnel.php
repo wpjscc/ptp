@@ -25,6 +25,10 @@ class Tunnel
     public function __construct($config)
     {
 
+        $host = $config['server_host'] ?? '';
+        if ($host) {
+            $this->host = $host;
+        }
         $this->protocol = $config['tunnel_protocol'] ?? 'tcp';
         $this->port = $config['server_port'];
         $this->certPemPath = $config['cert_pem_path'] ?? '';

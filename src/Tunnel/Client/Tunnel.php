@@ -2,12 +2,7 @@
 
 namespace Wpjscc\Penetration\Tunnel\Client;
 
-use React\Socket\SocketServer;
-use React\Socket\ConnectionInterface;
-use Wpjscc\Penetration\Client\ClientManager;
-use Wpjscc\Penetration\Proxy\ProxyManager;
-use Wpjscc\Penetration\Client\ClientConnection;
-use RingCentral\Psr7;
+
 use Wpjscc\Penetration\Tunnel\Client\Tunnel\TcpTunnel;
 use Wpjscc\Penetration\Tunnel\Client\Tunnel\UdpTunnel;
 use Wpjscc\Penetration\Tunnel\Client\Tunnel\WebsocketTunnel;
