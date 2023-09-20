@@ -7,6 +7,7 @@ use React\Stream\ReadableStreamInterface;
 use React\Stream\WritableStreamInterface;
 use React\Stream\Util;
 use React\Socket\ConnectionInterface;
+use React\Datagram\SocketInterface;
 
 final class CompositeConnectionStream extends EventEmitter implements ConnectionInterface
 {
@@ -16,7 +17,8 @@ final class CompositeConnectionStream extends EventEmitter implements Connection
     private $writable;
     private $closed = false;
 
-    public function __construct(ReadableStreamInterface $readable, WritableStreamInterface $writable, ConnectionInterface $connection = null)
+    // $connection is a SocketInterface or ConnectionInterface
+    public function __construct(ReadableStreamInterface $readable, WritableStreamInterface $writable, $connection = null)
     {
         $this->readable = $readable;
         $this->writable = $writable;

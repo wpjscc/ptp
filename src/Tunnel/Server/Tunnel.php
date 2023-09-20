@@ -9,6 +9,7 @@ use Wpjscc\Penetration\Proxy\ProxyManager;
 use Wpjscc\Penetration\Client\ClientConnection;
 use RingCentral\Psr7;
 use Wpjscc\Penetration\Tunnel\Server\Tunnel\TcpTunnel;
+use Wpjscc\Penetration\Tunnel\Server\Tunnel\UdpTunnel;
 use Wpjscc\Penetration\Tunnel\Server\Tunnel\WebsocketTunnel;
 
 
@@ -46,7 +47,11 @@ class Tunnel
         if ($this->protocol == 'websocket') {
 
            $socket = new WebsocketTunnel($this->host, $this->port, '0.0.0.0', null, $context);
-        } else {
+        } 
+        else if ($this->protocol == 'udp') {
+            $socket = new UdpTunnel('0.0.0.0:'.$this->port);
+        }
+        else {
             if ($this->certPemPath) {
                 $socket = new TcpTunnel('tls://0.0.0.0:'.$this->port, $context);
             } else {

@@ -49,8 +49,9 @@ class ProxyConnection
 
             $localHost = ProxyManager::$remoteTunnelConnections[$this->uri][$clientConnection->tunnelConnection]['Local-Host'];
 
-            // $proxyReplace = "\r\nHost: $localHost\r\n";
             $proxyReplace = "";
+            $proxyReplace = "\r\nHost: $localHost\r\n";
+
             if ($request && !$request->hasHeader('X-Forwarded-Host')) {
                 $host = $request->getUri()->getHost();
                 $port = $request->getUri()->getPort();
@@ -75,7 +76,7 @@ class ProxyConnection
 
             $middle = new ThroughStream(function ($data) use ($proxyReplace) {
                 if ($proxyReplace) {
-                    return str_replace('\r\nHost: ' . $this->uri . "\r\n", $proxyReplace, $data);
+                    $data = str_replace("\r\nHost: " . $this->uri . "\r\n", $proxyReplace, $data);
                 }
                 return $data;
             });
@@ -95,7 +96,7 @@ class ProxyConnection
             });
 
             if ($buffer) {
-                $buffer = str_replace('\r\nHost: ' . $this->uri . "\r\n", $proxyReplace, $buffer);
+                $buffer = str_replace("\r\nHost: " . $this->uri . "\r\n", $proxyReplace, $buffer);
                 $clientConnection->write($buffer);
                 $buffer = '';
             }
