@@ -39,7 +39,7 @@ $startTime = time();
     $tcpManager->checkPorts(Config::getTcpPorts(Config::getConfig(getParam('--ini-path', './server.ini'))));
 });
 
-\React\EventLoop\Loop::get()->addPeriodicTimer(10, function() use ($startTime){
+\React\EventLoop\Loop::get()->addPeriodicTimer(30, function() use ($startTime){
     $numBytes = gc_mem_caches();
     echo sprintf('%s-%s-%s-%s', Helper::formatTime(time() - $startTime),'after_memory',Helper::formatMemory(memory_get_usage(true)), $numBytes)."\n";
     

@@ -27,7 +27,7 @@ class WebsocketController extends EventEmitter implements  MessageComponentInter
             $conn->send(base64_encode($data));
         });
 
-        $contection = new CompositeConnectionStream($read, $write);
+        $contection = new CompositeConnectionStream($read, $write, $conn->getConnection()->getConnection());
 
         $this->clients->attach($conn, $read);
         $this->emit('connection', array($contection));

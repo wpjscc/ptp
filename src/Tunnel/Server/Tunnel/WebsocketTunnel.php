@@ -6,17 +6,18 @@ namespace Wpjscc\Penetration\Tunnel\Server\Tunnel;
 use Evenement\EventEmitter;
 use React\Socket\ServerInterface;
 use React\EventLoop\LoopInterface;
-use Ratchet\App;
 use React\EventLoop\Loop;
 
 class WebsocketTunnel extends EventEmitter implements ServerInterface
 {
     private $server;
 
-    public function __construct($httpHost = 'localhost', $port = 8080, $address = '127.0.0.1', LoopInterface $loop = null, $context = array())
+    public function __construct($httpHost = 'localhost', $port = 8080, $address = '127.0.0.1', LoopInterface $loop = null, $context = array(), $socket = null)
     {
         $loop = $loop ?: Loop::get();
-        $app = new App($httpHost, $port, $address, $loop, $context);
+        $app = new WebsocketApp($httpHost, $port, $address, $loop, $context, $socket);
+        $this->server = $app->getSocket();
+
         $controller = new WebsocketController();
         $controller->on('connection', function ($conn) {
             $this->emit('connection', array($conn));
@@ -27,21 +28,21 @@ class WebsocketTunnel extends EventEmitter implements ServerInterface
 
     public function getAddress()
     {
-        // return $this->server->getAddress();
+        return $this->server->getAddress();
     }
 
     public function pause()
     {
-        // $this->server->pause();
+        $this->server->pause();
     }
 
     public function resume()
     {
-        // $this->server->resume();
+        $this->server->resume();
     }
 
     public function close()
     {
-        // $this->server->close();
+        $this->server->close();
     }
 }

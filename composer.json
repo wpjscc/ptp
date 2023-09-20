@@ -4,9 +4,9 @@
     "require": {
         "react/http": "^1.9",
         "clue/http-proxy-react": "^1.8",
-        "cboden/ratchet": "^0.4.4",
         "wpjscc/pawl": "^0.4.1",
-        "react/datagram": "^1.9"
+        "react/datagram": "^1.9",
+        "wpjscc/ratchet": "^0.4.4"
     },
     "autoload": {
         "psr-4": {

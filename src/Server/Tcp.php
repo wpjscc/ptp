@@ -55,7 +55,7 @@ class Tcp
             }
         });
 
-        echo "Client Tcp Server is running at {$this->port}...\n";
+        echo "Tcp Server is running at {$this->port}...\n";
 
         return $socket;
     }

@@ -11,6 +11,7 @@ use RingCentral\Psr7;
 use Wpjscc\Penetration\Tunnel\Server\Tunnel\TcpTunnel;
 use Wpjscc\Penetration\Tunnel\Server\Tunnel\UdpTunnel;
 use Wpjscc\Penetration\Tunnel\Server\Tunnel\WebsocketTunnel;
+use Wpjscc\Penetration\DecorateSocket;
 
 
 class Tunnel
@@ -28,11 +29,16 @@ class Tunnel
         $this->port = $config['server_port'];
         $this->certPemPath = $config['cert_pem_path'] ?? '';
         $this->certKeyPath = $config['cert_key_path'] ?? '';
-
     }
 
-    public function getTunnel()
+    public function getTunnel($protocol = null, $socket = null)
     {
+
+        if (!$protocol) {
+            $protocol = $this->protocol;
+        }
+
+
         $context = [];
 
         if ($this->certPemPath) {
@@ -44,18 +50,15 @@ class Tunnel
             ];
         }
 
-        if ($this->protocol == 'websocket') {
-
-           $socket = new WebsocketTunnel($this->host, $this->port, '0.0.0.0', null, $context);
-        } 
-        else if ($this->protocol == 'udp') {
-            $socket = new UdpTunnel('0.0.0.0:'.$this->port);
-        }
-        else {
+        if ($protocol == 'websocket') {
+            $socket = new WebsocketTunnel($this->host, $this->port, '0.0.0.0', null, $context, $socket);
+        } else if ($protocol == 'udp') {
+            $socket = new UdpTunnel('0.0.0.0:' . $this->port);
+        } else {
             if ($this->certPemPath) {
-                $socket = new TcpTunnel('tls://0.0.0.0:'.$this->port, $context);
+                $socket = new TcpTunnel('tls://0.0.0.0:' . $this->port, $context);
             } else {
-                $socket = new TcpTunnel('0.0.0.0:'.$this->port, $context);
+                $socket = new TcpTunnel('0.0.0.0:' . $this->port, $context);
             }
         }
         return $socket;
@@ -63,17 +66,29 @@ class Tunnel
 
     public function run()
     {
-        
-        $socket = $this->getTunnel();
+        $protocols = explode(',', $this->protocol);
 
+        foreach ($protocols as $protocol) {
 
-        $socket->on('connection', function (ConnectionInterface $connection) {
-            echo 'client: '.$connection->getRemoteAddress().' is connected'."\n";
-            
+            if ($protocol == 'websocket') {
+                continue;
+            }
+
+            $this->listenTunnel($protocol, $this->getTunnel($protocol));
+
+            echo "Client Server is running at {$protocol}:{$this->port}...\n";
+        }
+    }
+
+    protected function listenTunnel($protocol, $socket)
+    {
+        $socket->on('connection', function (ConnectionInterface $connection) use ($protocol, $socket) {
+            echo 'client: ' . $connection->getRemoteAddress() . ' is connected' . "\n";
+
             $buffer = '';
             $that = $this;
-            $connection->on('data', $fn = function ($chunk) use ($connection, &$buffer, &$fn, $that) {
-                
+            $connection->on('data', $fn = function ($chunk) use ($connection, &$buffer, &$fn, $that, $protocol, $socket) {
+
                 $buffer .= $chunk;
 
                 $pos = strpos($buffer, "\r\n\r\n");
@@ -91,6 +106,21 @@ class Tunnel
                         return;
                     }
 
+                    // websocket协议
+                    if ($protocol == 'tcp') {
+                        $upgradeHeader = $request->getHeader('Upgrade');
+                        if ((1 === count($upgradeHeader) && 'websocket' === strtolower($upgradeHeader[0]))) {
+                            echo "tcp upgrade to websocket\n";
+                            $decoratedSocket = new DecorateSocket($socket);
+                            $websocketTunnel = $that->getTunnel('websocket', $decoratedSocket);
+                            $this->listenTunnel('websocket', $websocketTunnel);
+                            $decoratedSocket->emit('connection', [$connection]);
+                            $connection->emit('data', [$buffer]);
+                            $buffer = '';
+                            return;
+                        }
+                    }
+
                     $buffer = '';
                     $state = false;
                     try {
@@ -100,36 +130,30 @@ class Tunnel
                     }
 
                     if (!$state) {
-                        echo 'client: '.$connection->getRemoteAddress().' is unauthorized'."\n";
+                        echo 'client: ' . $connection->getRemoteAddress() . ' is unauthorized' . "\n";
                         $headers = [
                             'HTTP/1.1 401 Unauthorized',
                             'Server: ReactPHP/1',
                         ];
-                        $connection->write(implode("\r\n", $headers)."\r\n\r\n");
+                        $connection->write(implode("\r\n", $headers) . "\r\n\r\n");
                         $connection->end();
-                        return ;
+                        return;
                     }
 
                     $headers = [
                         'HTTP/1.1 200 OK',
                         'Server: ReactPHP/1',
-                        'Uri: '.$state['uri'],
+                        'Uri: ' . $state['uri'],
                     ];
-                    $connection->write(implode("\r\n", $headers)."\r\n\r\n");
+                    $connection->write(implode("\r\n", $headers) . "\r\n\r\n");
                     $request = $request->withoutHeader('Uri');
                     $request = $request->withHeader('Uri', $state['uri']);
 
                     ProxyManager::handleClientConnection($connection, $request);
                 }
-
-                
-
             });
-
         });
 
-        echo "Client Server is protocol is  {$this->protocol}...\n";
-        echo "Client Server is running at {$this->port}...\n";
     }
 
     public function validate($request)
@@ -137,7 +161,7 @@ class Tunnel
         $domain = $request->getHeaderLine('Domain');
 
         if (isset(ProxyManager::$uriToToken[$domain])) {
-            if (ProxyManager::$uriToToken[$domain]!=$request->getHeaderLine('Authorization')) {
+            if (ProxyManager::$uriToToken[$domain] != $request->getHeaderLine('Authorization')) {
                 return false;
             }
         } else {
