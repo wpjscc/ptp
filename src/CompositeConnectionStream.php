@@ -15,14 +15,19 @@ final class CompositeConnectionStream extends EventEmitter implements Connection
     private $connection;
     private $readable;
     private $writable;
+    public $protocol;
+
     private $closed = false;
 
+    protected $remoteAddress;
+
     // $connection is a SocketInterface or ConnectionInterface
-    public function __construct(ReadableStreamInterface $readable, WritableStreamInterface $writable, $connection = null)
+    public function __construct(ReadableStreamInterface $readable, WritableStreamInterface $writable, $connection = null, $protocol = null)
     {
         $this->readable = $readable;
         $this->writable = $writable;
         $this->connection = $connection;
+        $this->protocol = $protocol;
 
         if (!$readable->isReadable() || !$writable->isWritable()) {
             $this->close();
@@ -100,8 +105,11 @@ final class CompositeConnectionStream extends EventEmitter implements Connection
 
     public function getRemoteAddress()
     {
+        if ($this->remoteAddress)
+            return $this->remoteAddress;
+
         if ($this->connection)
-            return $this->connection->getRemoteAddress();
+            return $this->remoteAddress = $this->connection->getRemoteAddress();
 
         return null;
     }

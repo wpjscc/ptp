@@ -267,18 +267,51 @@ class ClientManager
             echo 'local connection success'."\n";
             // var_dump($buffer);
             // 交换数据
-            $connection->pipe(new \React\Stream\ThroughStream(function($buffer) use ($config) {
+
+            $connection->pipe(new \React\Stream\ThroughStream(function($buffer) use ($config, $connection) {
+                if (strpos($buffer, 'POST /close HTTP/1.1') !== false) {
+                    echo 'udp dynamic connection receive close request' . "\n";
+                    $connection->close();
+                    return '';
+                }
+
                 if ($config['local_replace_host'] ?? false) {
                     $buffer = preg_replace('/^X-Forwarded.*\R?/m', '', $buffer);
                     $buffer = preg_replace('/^X-Real-Ip.*\R?/m', '', $buffer);
                     $buffer = str_replace('Host: ' .$config['uri'], 'Host: '.$config['local_host'].':'.$config['local_port'], $buffer);
                 }
+
                 return $buffer;
             }))->pipe($localConnection);
+
             $localConnection->pipe($connection);
-            $localConnection->on('end', function(){
+
+            $localConnection->on('end', function() use ($connection) {
                 echo 'local connection end'."\n";
+                // udp 要发送关闭请求
+                if (isset($connection->protocol) && $connection->protocol == 'udp') {
+                    echo 'udp dynamic connection close and try send close requset'."\n";
+                    $connection->write("POST /close HTTP/1.1\r\n\r\n");
+                }
             });
+
+            $localConnection->on('close', function() use ($connection, &$fn) {
+                echo 'local connection close'."\n";
+
+                $connection->close();
+            
+            });
+
+            $connection->on('end', function(){
+                echo 'dynamic connection end'."\n";
+            });
+
+            $connection->on('close', function () use ($localConnection, $connection) {
+                echo 'dynamic connection close'."\n";
+                $localConnection->close();
+            });
+
+
             if ($buffer) {
                 if ($config['local_replace_host'] ?? false) {
                     $buffer = preg_replace('/^X-Forwarded.*\R?/m', '', $buffer);

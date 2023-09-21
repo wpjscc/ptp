@@ -13,7 +13,9 @@ class WebsocketTunnel implements ConnectorInterface
     public function connect($uri)
     {
         var_dump($uri.'/tunnel');
-        return connect($uri.'/tunnel')->then(function ($conn) {
+        $protocol = parse_url($uri, PHP_URL_SCHEME);
+        
+        return connect($uri.'/tunnel')->then(function ($conn) use ($protocol) {
             echo "Connected!\n";
             $read = new ThroughStream;
             $write = new ThroughStream;
@@ -22,7 +24,7 @@ class WebsocketTunnel implements ConnectorInterface
                 $conn->send(base64_encode($data));
             });
 
-            $contection = new CompositeConnectionStream($read, $write, $conn->getStream());
+            $contection = new CompositeConnectionStream($read, $write, $conn->getStream(), $protocol);
             $conn->on('message', function ($msg) use ($read) {
                 var_dump('receiveDataFromServer', $msg->getPayload());
                 $read->write(base64_decode($msg));

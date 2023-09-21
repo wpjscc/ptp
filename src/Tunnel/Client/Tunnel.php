@@ -35,16 +35,21 @@ class Tunnel
             $protocol = $this->protocol;
         }
 
-        if ($protocol == 'websocket') {
-            $tunnel = (new WebsocketTunnel())->connect(($this->serverTls ? 'wss' : 'ws')."://".$this->serverHost.":".$this->serverPort);
+        if ($protocol == 'ws') {
+            $tunnel = (new WebsocketTunnel())->connect("ws://".$this->serverHost.":".$this->serverPort);
         }
-
+        elseif ($protocol == 'wss') {
+            $tunnel = (new WebsocketTunnel())->connect("wss://".$this->serverHost.":".$this->serverPort);
+        }
         else if ($protocol == 'udp') {
+            var_dump($protocol);
             $tunnel = (new UdpTunnel())->connect($this->serverHost.":".$this->serverPort);
         }
-        
+        elseif ($protocol == 'tls') {
+            $tunnel = (new TcpTunnel(array('timeout' => $this->timeout)))->connect("tls://".$this->serverHost.":".$this->serverPort);
+        }
         else {
-            $tunnel = (new TcpTunnel(array('timeout' => $this->timeout)))->connect(($this->serverTls ? 'tls' : 'tcp')."://".$this->serverHost.":".$this->serverPort);
+            $tunnel = (new TcpTunnel(array('timeout' => $this->timeout)))->connect("tcp://".$this->serverHost.":".$this->serverPort);
         }
         return $tunnel;
     }

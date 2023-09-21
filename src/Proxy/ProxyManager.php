@@ -111,7 +111,7 @@ class ProxyManager
             return ;
         }
 
-        echo ("dynamic connection connected\n");
+        echo ("\ndynamic connection connected ".$connection->getRemoteAddress()."\n");
 
         // todo 最大数量限制
         // 其次请求
@@ -130,7 +130,7 @@ class ProxyManager
             static::$remoteDynamicConnections[$uri]->rewind();
             $deferred = static::$remoteDynamicConnections[$uri]->current();
             static::$remoteDynamicConnections[$uri]->detach($deferred);
-            echo ('deferred dynamic connection'."\n");
+            echo ('deferred dynamic connection '.$connection->getRemoteAddress()."\n");
             $connection->tunnelConnection = $remoteTunnelConnection;
             $deferred->resolve($connection);
             return ;

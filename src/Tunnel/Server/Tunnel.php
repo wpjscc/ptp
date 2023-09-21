@@ -42,7 +42,6 @@ class Tunnel
             $protocol = $this->protocol;
         }
 
-
         $context = [];
 
         if ($this->certPemPath) {
@@ -54,16 +53,28 @@ class Tunnel
             ];
         }
 
-        if ($protocol == 'websocket') {
+        if ($protocol == 'ws') {
             $socket = new WebsocketTunnel($this->host, $this->port, '0.0.0.0', null, $context, $socket);
-        } else if ($protocol == 'udp') {
-            $socket = new UdpTunnel('0.0.0.0:' . $this->port);
-        } else {
-            if ($this->certPemPath) {
-                $socket = new TcpTunnel('tls://0.0.0.0:' . $this->port, $context);
-            } else {
-                $socket = new TcpTunnel('0.0.0.0:' . $this->port, $context);
+        } 
+        else if ($protocol == 'wss') {
+            if (!$this->certPemPath) {
+                throw new \Exception('wss protocol must set cert_pem_path and cert_key_path');
             }
+            $socket = new WebsocketTunnel($this->host, $this->port, '0.0.0.0', null, $context, $socket);
+        }
+        
+        else if ($protocol == 'udp') {
+            $socket = new UdpTunnel('0.0.0.0:' . $this->port);
+        }
+
+        else if ($protocol == 'tls') {
+            if (!$this->certPemPath) {
+                throw new \Exception('tls protocol must set cert_pem_path and cert_key_path');
+            }
+            $socket = new TcpTunnel('tls://0.0.0.0:' . $this->port, $context);
+        } 
+        else {
+            $socket = new TcpTunnel('0.0.0.0:' . $this->port, $context);
         }
         return $socket;
     }
@@ -74,7 +85,7 @@ class Tunnel
 
         foreach ($protocols as $protocol) {
 
-            if ($protocol == 'websocket') {
+            if ($protocol == 'ws' || $protocol == 'wss') {
                 continue;
             }
 
@@ -116,7 +127,8 @@ class Tunnel
                         if ((1 === count($upgradeHeader) && 'websocket' === strtolower($upgradeHeader[0]))) {
                             echo "tcp upgrade to websocket\n";
                             $decoratedSocket = new DecorateSocket($socket);
-                            $websocketTunnel = $that->getTunnel('websocket', $decoratedSocket);
+                            $scheme = $request->getUri()->getScheme() == 'https' ? 'wss' :'ws';
+                            $websocketTunnel = $that->getTunnel($scheme, $decoratedSocket);
                             $this->listenTunnel('websocket', $websocketTunnel);
                             $decoratedSocket->emit('connection', [$connection]);
                             $connection->emit('data', [$buffer]);

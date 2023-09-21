@@ -27,7 +27,7 @@ class UdpTunnel extends EventEmitter implements ServerInterface
                 if (!isset($this->connections[$address])) {
                     $read = new ThroughStream;
                     $write = new ThroughStream;
-                    $contection = new CompositeConnectionStream($read, $write);
+                    $contection = new CompositeConnectionStream($read, $write, null, 'udp');
 
                     $write->on('data', function ($data) use ($server, $address) {
                         $server->send($data, $address);
@@ -42,6 +42,9 @@ class UdpTunnel extends EventEmitter implements ServerInterface
                 } else {
                     $contection = $this->connections[$address];
                 }
+                // if (strpos($message, 'POST /close HTTP/1.1') !== false) {
+                //     var_dump('receiveDataFromCLient', $message);
+                // }
                 $contection->emit('data', array($message));
             });
         });

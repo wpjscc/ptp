@@ -27,32 +27,38 @@ class WebsocketController extends EventEmitter implements  MessageComponentInter
             $conn->send(base64_encode($data));
         });
 
-        $contection = new CompositeConnectionStream($read, $write, $conn->getConnection()->getConnection());
+        $_connection = $conn->getConnection()->getConnection();
 
-        $this->clients->attach($conn, $read);
+        $localAddress = $_connection->getLocalAddress();
+        $protocol = strpos($localAddress, 'tls') === 0 ? 'wss' : 'ws';
+
+
+        $contection = new CompositeConnectionStream($read, $write, $_connection, $protocol);
+
+        $this->clients->attach($conn, $contection);
         $this->emit('connection', array($contection));
 
     }
 
     public function onMessage(ConnectionInterface $from, $msg)
     {
-        $read = $this->clients[$from];
-        $read->write(base64_decode($msg));
+        $contection = $this->clients[$from];
+        $contection->emit('data', array(base64_decode($msg)));
     }
 
-    public function onClose(ConnectionInterface $conn)
+    public function onClose(ConnectionInterface $conn, ...$args)
     {
-        echo "Connection {$conn->resourceId} has disconnected\n";
-        $read = $this->clients[$conn];
-        $read->close();
+        $contection = $this->clients[$conn];
+        echo "Connection {$conn->resourceId} ".$contection->getRemoteAddress()." has disconnected\n";
+        $contection->end();
         $this->clients->detach($conn);
     }
 
     public function onError(ConnectionInterface $conn, \Exception $e)
     {
         echo "An error has occurred: {$e->getMessage()}\n";
-        $read = $this->clients[$conn];
-        $read->emit('error', array($e));
+        $contection = $this->clients[$conn];
+        $contection->emit('error', array($e));
         $conn->close();
     }
 }

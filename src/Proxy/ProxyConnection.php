@@ -70,7 +70,8 @@ class ProxyConnection
 
             $userConnection->removeListener('data', $fn);
             $fn = null;
-            echo "dynamic connection success \n";
+            $dynamicAddress = $clientConnection->getRemoteAddress();
+            echo "dynamic connection success ".$dynamicAddress."\n";
             $headers = [
                 'HTTP/1.1 201 OK',
                 'Server: ReactPHP/1',
@@ -87,20 +88,49 @@ class ProxyConnection
 
             // 交换数据
             $userConnection->pipe($middle)->pipe($clientConnection);
-            $clientConnection->pipe($userConnection);
+
+            if (isset($clientConnection->protocol) && $clientConnection->protocol == 'udp') {
+                $clientConnection->pipe(new ThroughStream(function ($buffer) use ($clientConnection) {
+                    // var_dump($buffer);
+                    if (strpos($buffer, 'POST /close HTTP/1.1') !== false) {
+                        echo 'udp dynamic connection receive close request' . "\n";
+                        $clientConnection->close();
+                        return '';
+                    }
+                    return $buffer;
+                }))->pipe($userConnection);
+               
+            } else {
+                $clientConnection->pipe($userConnection);
+            }
+
+            // pipe 关闭仅用于end事件  https://reactphp.org/stream/#pipe
+            // close 要主动关闭
+            $clientConnection->on('close', function () use ($dynamicAddress, $userConnection) {
+                $userConnection->close();
+                echo 'dynamic connection close ' .$dynamicAddress. "\n";
+            });
 
             $clientConnection->on('end', function () {
                 echo 'dynamic connection end' . "\n";
             });
-            $userConnection->on('end', function () {
+
+            $userConnection->on('end', function () use ($clientConnection) {
                 echo 'user connection end' . "\n";
+                if (isset($clientConnection->protocol) && $clientConnection->protocol == 'udp') {
+                    echo 'udp dynamic connection end and try send close request' . "\n";
+                    $clientConnection->write("POST /close HTTP/1.1\r\n\r\n");
+                }
             });
+
             $userConnection->on('close', function () use ($clientConnection, &$fnclose) {
                 echo 'user connection close' . "\n";
+                
+                $clientConnection->close();
                 $clientConnection->tunnelConnection->removeListener('close', $fnclose);
                 $fnclose = null;
-
             });
+
             $middle->on('end', function () {
                 echo 'middleware connection end' . "\n";
             });

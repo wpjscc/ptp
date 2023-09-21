@@ -18,13 +18,12 @@ class UdpTunnel implements ConnectorInterface
             $write = new ThroughStream;
 
             $write->on('data', function ($data) use ($client) {
-                var_dump('sendDataToServer', $data);
                 $client->send($data);
             });
 
-            $contection = new CompositeConnectionStream($read, $write, $client);
+            $contection = new CompositeConnectionStream($read, $write, $client, 'udp');
             $client->on('message', function ($msg) use ($read) {
-                var_dump('receiveDataFromServer', $msg);
+                // var_dump('receiveDataFromServer', $msg);
                 $read->write($msg);
             });
 
@@ -40,7 +39,9 @@ class UdpTunnel implements ConnectorInterface
             $contection->on('close', function () use ($client) {
                 echo "Connection closed11\n";
                 echo microtime(true)."\n";
-                $client->close();
+                \React\EventLoop\Loop::addPeriodicTimer(0.001, function () use ($client) {
+                    $client->close();
+                });
             });
 
             return $contection;
