@@ -72,12 +72,16 @@ class ProxyConnection
             $fn = null;
             $dynamicAddress = $clientConnection->getRemoteAddress();
             echo "dynamic connection success ".$dynamicAddress."\n";
-            $headers = [
-                'HTTP/1.1 201 OK',
-                'Server: ReactPHP/1',
-            ];
-            // 告诉clientConnection 开始连接了
-            $clientConnection->write(implode("\r\n", $headers) . "\r\n\r\n");
+
+            if (isset($clientConnection->protocol) && $clientConnection->protocol != 'single') {
+                $headers = [
+                    'HTTP/1.1 201 OK',
+                    'Server: ReactPHP/1',
+                ];
+                // 告诉clientConnection 开始连接了
+                $clientConnection->write(implode("\r\n", $headers) . "\r\n\r\n");
+            }
+           
 
             $middle = new ThroughStream(function ($data) use ($proxyReplace) {
                 if ($proxyReplace) {

@@ -6,7 +6,8 @@
         "clue/http-proxy-react": "^1.8",
         "wpjscc/pawl": "^0.4.1",
         "react/datagram": "^1.9",
-        "wpjscc/ratchet": "^0.4.4"
+        "wpjscc/ratchet": "^0.4.4",
+        "ramsey/uuid": "^4.2"
     },
     "autoload": {
         "psr-4": {

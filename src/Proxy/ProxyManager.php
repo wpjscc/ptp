@@ -4,6 +4,9 @@ namespace Wpjscc\Penetration\Proxy;
 
 use React\Promise\Deferred;
 use React\Promise\Timer\TimeoutException;
+use Wpjscc\Penetration\Tunnel\Server\Tunnel\SingleTunnel;
+use Ramsey\Uuid\Uuid;
+
 
 class ProxyManager
 {
@@ -59,8 +62,16 @@ class ProxyManager
 
             foreach (static::$remoteTunnelConnections[$uri] as $key=>$tunnelConnection) {
                 if ($key === $index){
-                    echo ("send create dynamic connection by ".$tunnelConnection->getRemoteAddress()."\n");
-                    $tunnelConnection->write(implode("\r\n", $headers)."\r\n\r\n");
+                    $singleTunnel = static::$remoteTunnelConnections[$uri][$tunnelConnection]['Single-Tunnel'] ?? false;
+                    if ($singleTunnel) {
+                        $uuid = Uuid::uuid4()->toString();
+                        echo ("send create dynamic connection by single tunnel ".$tunnelConnection->getRemoteAddress()."\n");
+                        $tunnelConnection->write("HTTP/1.1 310 OK\r\nUuid:{$uuid}"."\r\n\r\n");
+                    } else {
+                        echo ("send create dynamic connection by ".$tunnelConnection->getRemoteAddress()."\n");
+                        $tunnelConnection->write(implode("\r\n", $headers)."\r\n\r\n");
+                    }
+                   
                     break;
                 }
             }
@@ -104,6 +115,7 @@ class ProxyManager
 
             // todo 最大数量限制
             static::$remoteTunnelConnections[$uri]->attach($connection, [
+                'Single-Tunnel' => $request->getHeaderLine('Single-Tunnel'),
                 'Local-Host' => $request->getHeaderLine('Local-Host'),
                 'Local-Tunnel-Address' => $request->getHeaderLine('Local-Tunnel-Address'),
             ]);
@@ -156,6 +168,24 @@ class ProxyManager
                     unset(static::$uriToToken[$uri]);
                 }
             });
+
+
+            if ($request->getHeaderLine('Single-Tunnel')) {
+                $singleTunnel = new SingleTunnel();
+                $singleTunnel->overConnection($connection);
+                $singleTunnel->on('connection', function ($singleConnection) use ($connection, $uri) {
+                    if (isset(static::$remoteDynamicConnections[$uri]) && static::$remoteDynamicConnections[$uri]->count() > 0) {
+                        echo ("add dynamic connection by single tunnel".$singleConnection->getRemoteAddress()."\n");
+                        static::$remoteDynamicConnections[$uri]->rewind();
+                        $deferred = static::$remoteDynamicConnections[$uri]->current();
+                        static::$remoteDynamicConnections[$uri]->detach($deferred);
+                        echo ('deferred dynamic connection single-tunnel '.$singleConnection->getRemoteAddress()."\n");
+                        $singleConnection->tunnelConnection = $connection;
+                        $deferred->resolve($singleConnection);
+                    }
+                });
+            }
+
             return ;
         }
 

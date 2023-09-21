@@ -3,6 +3,7 @@
 namespace Wpjscc\Penetration\Client;
 
 use Wpjscc\Penetration\Tunnel\Client\Tunnel;
+use Wpjscc\Penetration\Tunnel\Client\Tunnel\SingleTunnel;
 use React\Socket\Connector;
 use RingCentral\Psr7;
 
@@ -21,6 +22,7 @@ class ClientManager
         
         $common = $inis['common'];
         $common['timeout']  = $common['timeout'] ?? 6;
+        $common['single_tunnel']  = $common['single_tunnel'] ?? 0;
         $common['pool_count']  = $common['pool_count'] ?? 1;
         $common['server_tls']  = $common['server_tls'] ?? false;
         $common['protocol']  = $common['protocol'] ?? '';
@@ -49,6 +51,7 @@ class ClientManager
                     'Authorization: ' . ($config['token'] ?? ''),
                     'Local-Host: ' . $config['local_host'] . ':' . $config['local_port'],
                     'Domain: ' . $config['domain'],
+                    'Single-Tunnel: ' . ($config['single_tunnel'] ?? 0),
                     'Local-Tunnel-Address: ' . $connection->getLocalAddress(),
                 ];
                 $connection->write(implode("\r\n", $headers) . "\r\n\r\n");
@@ -157,6 +160,16 @@ class ClientManager
         $connection->on('close', function () use ($uri, $connection) {
             static::$localTunnelConnections[$uri]->detach($connection);
         });
+
+        if ($config['single_tunnel'] ?? false) {
+            $connection->removeAllListeners('data');
+            $singleTunnel = (new SingleTunnel());
+            $singleTunnel->overConnection($connection);
+            $singleTunnel->on('connection', function ($connection) use (&$config) {
+                $buffer = '';
+                static::handleLocalConnection($connection, $config, $buffer, null);
+            });
+        }
        
     }
     public static function addLocalDynamicConnection($connection, $response)

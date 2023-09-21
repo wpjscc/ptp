@@ -7,6 +7,7 @@ use Evenement\EventEmitter;
 use React\Socket\ServerInterface;
 use React\EventLoop\LoopInterface;
 use React\EventLoop\Loop;
+use Wpjscc\Penetration\CompositeConnectionStream;
 
 class WebsocketTunnel extends EventEmitter implements ServerInterface
 {

@@ -26,7 +26,7 @@ class WebsocketTunnel implements ConnectorInterface
 
             $contection = new CompositeConnectionStream($read, $write, $conn->getStream(), $protocol);
             $conn->on('message', function ($msg) use ($read) {
-                var_dump('receiveDataFromServer', $msg->getPayload());
+                echo ('websocket tunnel receiveDataFromServer');
                 $read->write(base64_decode($msg));
             });
 
