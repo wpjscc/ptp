@@ -49,10 +49,17 @@ class ProxyManager
                 'Server: ReactPHP/1',
                 'Uri: '.$uri
             ];
+
+            echo ('remote tunnel connection count '.static::$remoteTunnelConnections[$uri]->count()."\n");
+
             // 随机发送一个创建链接的请求(给他通道发送)
             $index = rand(0, static::$remoteTunnelConnections[$uri]->count()-1);
+
+            echo ('random index '.$index."\n");
+
             foreach (static::$remoteTunnelConnections[$uri] as $key=>$tunnelConnection) {
                 if ($key === $index){
+                    echo ("send create dynamic connection by ".$tunnelConnection->getRemoteAddress()."\n");
                     $tunnelConnection->write(implode("\r\n", $headers)."\r\n\r\n");
                     break;
                 }

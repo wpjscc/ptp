@@ -278,7 +278,7 @@ class ClientManager
                     $buffer = preg_replace('/^X-Real-Ip.*\R?/m', '', $buffer);
                     $buffer = str_replace('Host: ' .$config['uri'], 'Host: '.$config['local_host'].':'.$config['local_port'], $buffer);
                 }
-
+                echo "dynamic connection receive data ".microtime(true)."\n";
                 return $buffer;
             }))->pipe($localConnection);
 
