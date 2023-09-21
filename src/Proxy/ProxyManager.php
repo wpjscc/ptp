@@ -107,7 +107,48 @@ class ProxyManager
                 'Local-Host' => $request->getHeaderLine('Local-Host'),
                 'Local-Tunnel-Address' => $request->getHeaderLine('Local-Tunnel-Address'),
             ]);
-            $connection->on('close', function () use ($uri, $connection) {
+
+            $ping = function ($connection) {
+                $connection->write("HTTP/1.1 300 OK\r\n\r\n");
+            };
+
+            $pong = function ($connection) {
+                $deferred = new Deferred();
+
+                $connection->once('data', $fn = function ($buffer) use ($deferred) {
+                    if (strpos($buffer, 'HTTP/1.1 301 OK') !== false) {
+                        $deferred->resolve();
+                    }
+                });
+
+                \React\Promise\Timer\timeout($deferred->promise(), 3)->then(null, function ($e) use ($connection, $fn, $deferred) {
+                    echo ("ping pong timeout\n");
+                    $connection->removeListener('data', $fn);
+                    if ($e instanceof TimeoutException) {
+                        $e =  new \RuntimeException(
+                            'wait timed out after ' . $e->getTimeout() . ' seconds (ETIMEDOUT)',
+                            \defined('SOCKET_ETIMEDOUT') ? \SOCKET_ETIMEDOUT : 110
+                        );
+                    }
+                    $deferred->reject($e);
+                });
+
+                return $deferred->promise();
+            };
+
+            $timer = \React\EventLoop\Loop::addPeriodicTimer(10, function () use ($ping, $pong, $connection) {
+                echo ("start ping pong".$connection->getRemoteAddress()."\n");
+                $ping($connection);
+                $pong($connection)->then(function () {
+                    echo ("ping pong success\n\n");
+                }, function ($e) use ($connection) {
+                    echo ("ping pong fail\n\n");
+                    $connection->close();
+                });
+            });
+
+            $connection->on('close', function () use ($uri, $connection, $timer) {
+                \React\EventLoop\Loop::cancelTimer($timer);
                 static::$remoteTunnelConnections[$uri]->detach($connection);
                 if (static::$remoteTunnelConnections[$uri]->count() == 0) {
                     echo ("tunnel connection close\n");

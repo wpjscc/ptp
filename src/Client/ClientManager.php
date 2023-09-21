@@ -123,7 +123,14 @@ class ClientManager
             // 请求创建代理连接
             elseif ($response->getStatusCode() === 201) {
                 static::createLocalDynamicConnections($connection, $config);
-            } else {
+            } 
+            // 服务端ping
+            elseif ($response->getStatusCode() === 300) {
+                echo 'server ping'."\n";
+                $connection->write("HTTP/1.1 301 OK\r\n\r\n");
+            }
+            
+            else {
                 echo $response->getStatusCode();
                 echo $response->getReasonPhrase();
                 $connection->close();
