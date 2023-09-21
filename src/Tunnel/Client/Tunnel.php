@@ -37,6 +37,8 @@ class Tunnel
             $protocol = $this->protocol;
         }
 
+        echo "protocol: ".$protocol."\n";
+
         if ($protocol == 'ws') {
             $tunnel = (new WebsocketTunnel())->connect("ws://".$this->serverHost.":".$this->server80port);
         }

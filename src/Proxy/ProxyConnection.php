@@ -149,7 +149,7 @@ class ProxyConnection
         })->otherwise(function ($error) use ($userConnection, &$buffer) {
             $buffer = '';
             echo $error->getMessage()."-2\n";
-            $userConnection->write("http/1.1 500 Internal Server Error\r\n\r\n".$error->getMessage());
+            $userConnection->write("http/1.1 502 Internal Server Error\r\n\r\n".$error->getMessage());
             $userConnection->end();
         });
 

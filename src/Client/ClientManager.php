@@ -37,8 +37,8 @@ class ClientManager
         $function = function ($config) use (&$function) {
             $protocol = $config['protocol'];
             $tunneProtocol = $config['tunnel_protocol'];
+            echo 'start create tunnel connection'."\n";
             static::getTunnel($config, $protocol?:$tunneProtocol)->then(function ($connection) use ($function, &$config) {
-                var_dump(get_class($connection));
                 echo 'Connection established : ' ;
                 echo $connection->getLocalAddress() . " ====> " . $connection->getRemoteAddress() . "\n";
                 $headers = [
@@ -131,6 +131,7 @@ class ClientManager
             }
             
             else {
+                echo 'error'."\n";
                 echo $response->getStatusCode();
                 echo $response->getReasonPhrase();
                 $connection->close();

@@ -124,7 +124,8 @@ class Tunnel
     protected function listenTunnel($protocol, $socket)
     {
         $socket->on('connection', function (ConnectionInterface $connection) use ($protocol, $socket) {
-            echo 'client: ' . $connection->getRemoteAddress() . ' is connected' . "\n";
+            echo 'client: is connected';
+            echo $connection->getRemoteAddress() . ' ' . "\n";
 
             $buffer = '';
             $that = $this;
