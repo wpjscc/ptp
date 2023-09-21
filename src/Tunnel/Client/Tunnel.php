@@ -12,7 +12,8 @@ class Tunnel
 {
     public $protocol = 'tcp';
     public $serverHost;
-    public $serverPort;
+    public $server80port;
+    public $server443port;
     public $serverTls;
 
     public $timeout;
@@ -22,7 +23,8 @@ class Tunnel
 
         $this->protocol = $config['tunnel_protocol'] ?? 'tcp';
         $this->serverHost = $config['server_host'];
-        $this->serverPort = $config['server_port'];
+        $this->server80port = $config['server_80_port'];
+        $this->server443port = $config['server_443_port'] ?? '';
         $this->serverTls = $config['server_tls'] ?? false;
         $this->timeout = $config['timeout'] ?? 6;
 
@@ -36,20 +38,26 @@ class Tunnel
         }
 
         if ($protocol == 'ws') {
-            $tunnel = (new WebsocketTunnel())->connect("ws://".$this->serverHost.":".$this->serverPort);
+            $tunnel = (new WebsocketTunnel())->connect("ws://".$this->serverHost.":".$this->server80port);
         }
         elseif ($protocol == 'wss') {
-            $tunnel = (new WebsocketTunnel())->connect("wss://".$this->serverHost.":".$this->serverPort);
+            if (!$this->server443port) {
+                throw new \Exception('wss protocol must set server_443_port');
+            }
+            $tunnel = (new WebsocketTunnel())->connect("wss://".$this->serverHost.":".$this->server443port);
         }
         else if ($protocol == 'udp') {
             var_dump($protocol);
-            $tunnel = (new UdpTunnel())->connect($this->serverHost.":".$this->serverPort);
+            $tunnel = (new UdpTunnel())->connect($this->serverHost.":".$this->server80port);
         }
         elseif ($protocol == 'tls') {
-            $tunnel = (new TcpTunnel(array('timeout' => $this->timeout)))->connect("tls://".$this->serverHost.":".$this->serverPort);
+            if (!$this->server443port) {
+                throw new \Exception('tls protocol must set server_443_port');
+            }
+            $tunnel = (new TcpTunnel(array('timeout' => $this->timeout)))->connect("tls://".$this->serverHost.":".$this->server443port);
         }
         else {
-            $tunnel = (new TcpTunnel(array('timeout' => $this->timeout)))->connect("tcp://".$this->serverHost.":".$this->serverPort);
+            $tunnel = (new TcpTunnel(array('timeout' => $this->timeout)))->connect("tcp://".$this->serverHost.":".$this->server80port);
         }
         return $tunnel;
     }

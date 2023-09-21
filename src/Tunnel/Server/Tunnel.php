@@ -18,7 +18,8 @@ class Tunnel
 {
     public $protocol = 'tcp';
     public $host = 'localhost';
-    public $port;
+    public $server80port;
+    public $server443port;
     public $certPemPath = '';
     public $certKeyPath = '';
 
@@ -30,7 +31,8 @@ class Tunnel
             $this->host = $host;
         }
         $this->protocol = $config['tunnel_protocol'] ?? 'tcp';
-        $this->port = $config['server_port'];
+        $this->server80port = $config['server_80_port'];
+        $this->server443port = $config['server_443_port'] ?? '';
         $this->certPemPath = $config['cert_pem_path'] ?? '';
         $this->certKeyPath = $config['cert_key_path'] ?? '';
     }
@@ -54,27 +56,37 @@ class Tunnel
         }
 
         if ($protocol == 'ws') {
-            $socket = new WebsocketTunnel($this->host, $this->port, '0.0.0.0', null, $context, $socket);
+            $socket = new WebsocketTunnel($this->host, $this->server80port, '0.0.0.0', null, $context, $socket);
         } 
         else if ($protocol == 'wss') {
             if (!$this->certPemPath) {
                 throw new \Exception('wss protocol must set cert_pem_path and cert_key_path');
             }
-            $socket = new WebsocketTunnel($this->host, $this->port, '0.0.0.0', null, $context, $socket);
+
+            if (!$this->server443port) {
+                throw new \Exception('wss protocol must set server_443_port');
+            }
+
+            $socket = new WebsocketTunnel($this->host, $this->server443port, '0.0.0.0', null, $context, $socket);
         }
         
         else if ($protocol == 'udp') {
-            $socket = new UdpTunnel('0.0.0.0:' . $this->port);
+            $socket = new UdpTunnel('0.0.0.0:' . $this->server80port);
         }
 
         else if ($protocol == 'tls') {
             if (!$this->certPemPath) {
                 throw new \Exception('tls protocol must set cert_pem_path and cert_key_path');
             }
-            $socket = new TcpTunnel('tls://0.0.0.0:' . $this->port, $context);
+
+            if (!$this->server443port) {
+                throw new \Exception('tls protocol must set server_443_port');
+            }
+            
+            $socket = new TcpTunnel('tls://0.0.0.0:' . $this->server443port, $context);
         } 
         else {
-            $socket = new TcpTunnel('0.0.0.0:' . $this->port, $context);
+            $socket = new TcpTunnel('0.0.0.0:' . $this->server80port, $context);
         }
         return $socket;
     }
@@ -85,13 +97,27 @@ class Tunnel
 
         foreach ($protocols as $protocol) {
 
+            // 复用 80 和 443 端口
             if ($protocol == 'ws' || $protocol == 'wss') {
+                continue;
+            }
+
+            if (!in_array($protocol, ['tls', 'tcp', 'udp'])) {
                 continue;
             }
 
             $this->listenTunnel($protocol, $this->getTunnel($protocol));
 
-            echo "Client Server is running at {$protocol}:{$this->port}...\n";
+            if ($protocol == 'tls') {
+                echo "Client Server is running at {$protocol}:{$this->server443port}...\n";
+            }
+            else if ($protocol == 'tcp') {
+                echo "Client Server is running at {$protocol}:{$this->server80port}...\n";
+            }
+            else if ($protocol == 'udp') {
+                echo "Client Server is running at {$protocol}:{$this->server80port}...\n";
+            }
+            
         }
     }
 
@@ -122,7 +148,7 @@ class Tunnel
                     }
 
                     // websocket协议
-                    if ($protocol == 'tcp') {
+                    if ($protocol == 'tcp' || $protocol == 'tls') {
                         $upgradeHeader = $request->getHeader('Upgrade');
                         if ((1 === count($upgradeHeader) && 'websocket' === strtolower($upgradeHeader[0]))) {
                             echo "tcp upgrade to websocket\n";

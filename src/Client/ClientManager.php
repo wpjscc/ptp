@@ -23,6 +23,7 @@ class ClientManager
         $common['timeout']  = $common['timeout'] ?? 6;
         $common['pool_count']  = $common['pool_count'] ?? 1;
         $common['server_tls']  = $common['server_tls'] ?? false;
+        $common['protocol']  = $common['protocol'] ?? '';
         $common['tunnel_protocol']  = $common['tunnel_protocol'] ?? 'tcp';
         unset($inis['common']);
 
@@ -34,12 +35,9 @@ class ClientManager
         }
 
         $function = function ($config) use (&$function) {
-            $protocol = $config['tunnel_protocol'];
-            // 当是udp的时候,需要先建立一个tcp的通道
-            if ($protocol == 'udp') {
-                $protocol = 'tcp';
-            }
-            static::getTunnel($config, $protocol)->then(function ($connection) use ($function, &$config) {
+            $protocol = $config['protocol'];
+            $tunneProtocol = $config['tunnel_protocol'];
+            static::getTunnel($config, $protocol?:$tunneProtocol)->then(function ($connection) use ($function, &$config) {
                 var_dump(get_class($connection));
                 echo 'Connection established : ' ;
                 echo $connection->getLocalAddress() . " ====> " . $connection->getRemoteAddress() . "\n";
