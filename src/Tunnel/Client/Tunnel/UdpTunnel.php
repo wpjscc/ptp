@@ -18,7 +18,21 @@ class UdpTunnel implements ConnectorInterface
             $write = new ThroughStream;
 
             $write->on('data', function ($data) use ($client) {
+                echo "sendDataToServer length ".strlen($data)." \n";
+                //  65536 will report Unable to send packet: stream_socket_sendto(): Message too long
+                // see React\Datagram\Buffer -> handleWrite
+                // todo packet length > 65536
                 $client->send($data);
+                
+                // if (strlen($data) > 512) {
+                //     do {
+                //         $client->send(substr($data, 0, 512));
+                //         $data = substr($data, 512);
+                //     } while ($data);
+                // } else {
+                //     $client->send($data);
+                // }
+
             });
 
             $contection = new CompositeConnectionStream($read, $write, $client, 'udp');
@@ -29,11 +43,12 @@ class UdpTunnel implements ConnectorInterface
 
             $client->on('error', function ($error, $client) use ($contection) {
                 echo "Connection closed\n";
+                echo $error->getMessage()."\n";
                 echo microtime(true)."\n";
 
-                if ($contection->isReadable()) {
-                    $contection->close();
-                }
+                $client->send("POST /close HTTP/1.1\r\n\r\n");
+
+
             });
 
             $contection->on('close', function () use ($client) {
