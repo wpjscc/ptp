@@ -49,7 +49,6 @@ class ProxyManager
             echo ('create dynamic connection'."\n");
             $headers = [
                 'HTTP/1.1 201 OK',
-                'Server: ReactPHP/1',
                 'Uri: '.$uri
             ];
 

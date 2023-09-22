@@ -161,6 +161,7 @@ class ClientManager
             static::$localTunnelConnections[$uri]->detach($connection);
         });
 
+        // 单通道 接收所有权，处理后续数据请求
         if ($config['single_tunnel'] ?? false) {
             $connection->removeAllListeners('data');
             $singleTunnel = (new SingleTunnel());

@@ -74,12 +74,10 @@ class ProxyConnection
             echo "dynamic connection success ".$dynamicAddress."\n";
 
             if (isset($clientConnection->protocol) && $clientConnection->protocol != 'single') {
-                $headers = [
-                    'HTTP/1.1 201 OK',
-                    'Server: ReactPHP/1',
-                ];
                 // 告诉clientConnection 开始连接了
-                $clientConnection->write(implode("\r\n", $headers) . "\r\n\r\n");
+                $clientConnection->write(implode("\r\n", [
+                    'HTTP/1.1 201 OK',
+                ]) . "\r\n\r\n");
             }
            
 
@@ -94,6 +92,7 @@ class ProxyConnection
             $userConnection->pipe($middle)->pipe($clientConnection);
 
             if (isset($clientConnection->protocol) && $clientConnection->protocol == 'udp') {
+                // udp 协议需要特殊处理
                 $clientConnection->pipe(new ThroughStream(function ($buffer) use ($clientConnection) {
                     // var_dump($buffer);
                     if (strpos($buffer, 'POST /close HTTP/1.1') !== false) {
@@ -121,6 +120,8 @@ class ProxyConnection
 
             $userConnection->on('end', function () use ($clientConnection) {
                 echo 'user connection end' . "\n";
+
+                // udp 协议需要特殊处理
                 if (isset($clientConnection->protocol) && $clientConnection->protocol == 'udp') {
                     echo 'udp dynamic connection end and try send close request' . "\n";
                     $clientConnection->write("POST /close HTTP/1.1\r\n\r\n");
