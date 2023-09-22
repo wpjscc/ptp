@@ -124,13 +124,12 @@ class Tunnel
     protected function listenTunnel($protocol, $socket)
     {
         $socket->on('connection', function (ConnectionInterface $connection) use ($protocol, $socket) {
-            echo 'client: is connected';
+            echo 'client: is connected ';
             echo $connection->getRemoteAddress() . ' ' . "\n";
 
             $buffer = '';
             $that = $this;
             $connection->on('data', $fn = function ($chunk) use ($connection, &$buffer, &$fn, $that, $protocol, $socket) {
-
                 $buffer .= $chunk;
 
                 $pos = strpos($buffer, "\r\n\r\n");

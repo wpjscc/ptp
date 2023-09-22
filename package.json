@@ -1,0 +1,6 @@
+{
+  "dependencies": {
+    "browserify": "^17.0.0",
+    "http-parser-js": "^0.5.8"
+  }
+}

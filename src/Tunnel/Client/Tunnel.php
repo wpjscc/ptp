@@ -14,7 +14,6 @@ class Tunnel
     public $serverHost;
     public $server80port;
     public $server443port;
-    public $serverTls;
 
     public $timeout;
 
@@ -25,7 +24,6 @@ class Tunnel
         $this->serverHost = $config['server_host'];
         $this->server80port = $config['server_80_port'];
         $this->server443port = $config['server_443_port'] ?? '';
-        $this->serverTls = $config['server_tls'] ?? false;
         $this->timeout = $config['timeout'] ?? 6;
 
     }

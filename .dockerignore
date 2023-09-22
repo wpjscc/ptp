@@ -3,3 +3,5 @@
 .git
 docker
 *.ini
+node_modules
+
