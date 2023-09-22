@@ -181,6 +181,10 @@ class ProxyManager
                         echo ('deferred dynamic connection single-tunnel '.$singleConnection->getRemoteAddress()."\n");
                         $singleConnection->tunnelConnection = $connection;
                         $deferred->resolve($singleConnection);
+                    } else {
+                        echo ("no dynamic connection by single tunnel".$singleConnection->getRemoteAddress()."\n");
+                        $singleConnection->write("HTTP/1.1 205 Not Support Created\r\n\r\n");
+                        $singleConnection->end();
                     }
                 });
             }
