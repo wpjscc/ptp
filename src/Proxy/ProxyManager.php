@@ -76,7 +76,7 @@ class ProxyManager
             }
         } else {
             echo "no tunnel connection\r\n";
-            return \React\Promise\reject(new \Exception('no tunnel connection'));
+            return \React\Promise\reject(new \Exception('no tunnel connection, please try again later'));
         }
 
         if (!isset(static::$remoteDynamicConnections[$uri])) {

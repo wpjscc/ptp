@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Document</title>
+</head>
+<body>
+    
+    <script>
+
+
+        var socket = new WebSocket("ws://192.168.1.9:/tunnel");
+
+        // Event listeners for socket events
+        socket.onopen = function() {
+        console.log("Socket connection established");
+        };
+
+        socket.onmessage = function(event) {
+        var message = event.data;
+        console.log("Received message: " + message);
+        };
+
+        socket.onclose = function(event) {
+        console.log("Socket connection closed with code: " + event.code);
+        };
+
+    </script>
+</body>
+</html>

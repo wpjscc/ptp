@@ -148,13 +148,19 @@ class ProxyConnection
 
         }, function ($e) use ($userConnection, &$buffer) {
             $buffer = '';
-            echo $e->getMessage()."-1\n";
-            $userConnection->write("http/1.1 500 ".$e->getMessage()." Error\r\n\r\n".$e->getMessage());
+            echo $e->getMessage()."-3\n";
+            $message = $e->getMessage();
+            $length = strlen($e->getMessage());
+            $now = date('Y-m-d H:i:s');
+            $userConnection->write("HTTP/1.1 502 Bad Gateway\r\nContent-Type: text/plain; charset=utf-8\r\nDate: {$now}\r\nContent-Length: {$length}\r\n\r\n".$message);
             $userConnection->end();
         })->otherwise(function ($error) use ($userConnection, &$buffer) {
             $buffer = '';
             echo $error->getMessage()."-2\n";
-            $userConnection->write("http/1.1 502 Internal Server Error\r\n\r\n".$error->getMessage());
+            $message = $error->getMessage();
+            $length = strlen($error->getMessage());
+            $now = date('Y-m-d H:i:s');
+            $userConnection->write("HTTP/1.1 500 Error\r\nContent-Type: text/plain; charset=utf-8\r\nDate: {$now}\r\nContent-Length: {$length}\r\n\r\n".$message);
             $userConnection->end();
         });
 
