@@ -9,7 +9,8 @@ require=(function(){function r(e,n,t){function o(i,f){if(!n[i]){if(!e[i]){var c=
     const { Transform, pipeline } = require('stream');
     const { HTTPParser } = require('http-parser-js');
     const { Buffer } = require('buffer');
-    const { createGzip,gzip } = require('zlib');
+    // const { createGzip,gzip } = require('zlib');
+    const zlib = require('zlib');
     const http = require('http');
     const { Base64 } = require('js-base64');
 
@@ -915,10 +916,19 @@ require=(function(){function r(e,n,t){function o(i,f){if(!n[i]){if(!e[i]){var c=
 
                         const statusLine = `HTTP/1.1 ${res.statusCode} ${res.statusMessage}`;
                         let isChunked = false
+                        let isGzip = false
                         if (res.headers['transfer-encoding'] == 'chunked') {
                             // delete res.headers['transfer-encoding']
-                            delete res.headers['content-encoding']
+                            // delete res.headers['content-encoding']
                             isChunked = true
+
+                            if (res.headers['content-encoding'] == 'gzip') { 
+                                isGzip = true
+                                delete res.headers['content-encoding']
+
+                            } else {
+                                delete res.headers['content-encoding']
+                            }
                         } else {
 
                         }
@@ -937,9 +947,25 @@ require=(function(){function r(e,n,t){function o(i,f){if(!n[i]){if(!e[i]){var c=
                             // console.log(buf)
                             var string = new TextDecoder().decode(buf);
                             if (isChunked) {
-                                // let length = string.length.toString(16);
-                                let length = buf.length.toString(16);
-                                $connection.write(length + `\r\n` + string + `\r\n`);
+                                if (isGzip) {
+                                    console.log('gzip')
+                                    // zlib.gzip(buf, function (err, result) { 
+                                    //     if (err) throw err;
+                                    //     console.log(2321321321321,result)
+                                    //     let length = result.length.toString(16);
+                                    //     let _string = result.toString()
+                                    //     console.log(555555555,_string)
+
+                                    //     $connection.write(length + `\r\n` + _string + `\r\n`);
+                                    // })
+                                    let length = buf.length.toString(16);
+                                    $connection.write(length + `\r\n` + string + `\r\n`);
+                                } else {
+                                    // let length = string.length.toString(16);
+                                    let length = buf.length.toString(16);
+                                    $connection.write(length + `\r\n` + string + `\r\n`);
+                                }
+                               
                             } else {
                                 $connection.write(string);
                             }
