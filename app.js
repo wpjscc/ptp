@@ -8,6 +8,7 @@
     const { Transform, pipeline } = require('stream');
     const { HTTPParser } = require('http-parser-js');
     const { Buffer } = require('buffer');
+    const { createGzip,gzip } = require('zlib');
     const http = require('http');
     const { Base64 } = require('js-base64');
 
