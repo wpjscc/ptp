@@ -73,7 +73,7 @@ class ProxyConnection
             $dynamicAddress = $clientConnection->getRemoteAddress();
             echo "dynamic connection success ".$dynamicAddress."\n";
 
-            if (isset($clientConnection->protocol) && $clientConnection->protocol != 'single') {
+            if (($clientConnection->protocol ?? '') != 'single') {
                 // 告诉clientConnection 开始连接了
                 $clientConnection->write(implode("\r\n", [
                     'HTTP/1.1 201 OK',

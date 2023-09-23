@@ -227,7 +227,11 @@ class ClientManager
                         $response = Psr7\parse_response(substr($buffer, $httpPos, $pos));
                     } catch (\Exception $e) {
                         // invalid response message, close connection
-                        echo $e->getMessage();
+                        echo $e->getFile()."\n";
+                        echo $e->getLine()."\n";
+                        echo $e->getMessage()."\n";
+                        echo substr($buffer, $httpPos, $pos)."\n";
+                        var_dump($pos, $httpPos);
                         $connection->close();
                         return;
                     }
