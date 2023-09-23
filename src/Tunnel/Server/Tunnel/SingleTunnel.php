@@ -105,16 +105,20 @@ class SingleTunnel extends EventEmitter implements ServerInterface
             else {
                 // ignore other response code
 
+                echo "single tunnel ignore response code-{$response->getStatusCode()}\n" ."\n";
+
             }
 
             // 继续解析
-            $this->parseBuffer('');
+            $this->parseBuffer(null);
         }
     }
 
     protected function createConnection($response)
     {
         $uuid = $response->getHeaderLine('Uuid');
+
+        echo "single tunnel create connection-{$uuid}\n" ."\n";
 
         if (!Uuid::isValid($uuid)) {
             return;
@@ -146,19 +150,25 @@ class SingleTunnel extends EventEmitter implements ServerInterface
     {
         $uuid = $response->getHeaderLine('Uuid');
 
+        echo "single tunnel receive data-{$uuid}\n" ."\n";
+
         if (!Uuid::isValid($uuid)) {
             return;
             // ignore
         }
 
         if (!isset($this->connections[$uuid])) {
+            $data = base64_decode($response->getHeaderLine('Data'));
+            $length = strlen($data);
+            echo "single tunnel after close receive data-length-{$length}\n" ."\n";
             return;
             // ignore
         }
 
         $data = base64_decode($response->getHeaderLine('Data'));
+        $length = strlen($data);
 
-        echo "single tunnel receive data-{$uuid}\n" ."\n";
+        echo "single tunnel receive data-length-{$length}\n" ."\n";
 
 
         $this->connections[$uuid]->emit('data', array($data));
@@ -167,6 +177,8 @@ class SingleTunnel extends EventEmitter implements ServerInterface
     protected function handleClose($response)
     {
         $uuid = $response->getHeaderLine('Uuid');
+
+        echo "single tunnel close1-{$uuid}\n" ."\n";
 
         if (!Uuid::isValid($uuid)) {
             return;
@@ -180,6 +192,8 @@ class SingleTunnel extends EventEmitter implements ServerInterface
 
 
         $this->connections[$uuid]->close();
+
+        unset($this->connections[$uuid]);
 
     }
 }

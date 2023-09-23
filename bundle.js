@@ -1,4 +1,992 @@
 require=(function(){function r(e,n,t){function o(i,f){if(!n[i]){if(!e[i]){var c="function"==typeof require&&require;if(!f&&c)return c(i,!0);if(u)return u(i,!0);var a=new Error("Cannot find module '"+i+"'");throw a.code="MODULE_NOT_FOUND",a}var p=n[i]={exports:{}};e[i][0].call(p.exports,function(r){var n=e[i][1][r];return o(n||r)},p,p.exports,r,e,n,t)}return n[i].exports}for(var u="function"==typeof require&&require,i=0;i<t.length;i++)o(t[i]);return o}return r})()({1:[function(require,module,exports){
+
+(function () {
+
+
+    let echo = console.log
+
+    var EventEmitter = require('events')
+    const { Transform, pipeline } = require('stream');
+    const { HTTPParser } = require('http-parser-js');
+    const { Buffer } = require('buffer');
+    const http = require('http');
+    const { Base64 } = require('js-base64');
+
+    class ThroughStream extends Transform {
+        constructor() {
+            super();
+        }
+        // 重写_transform方法来处理输入数据
+        _transform(chunk, encoding, callback) {
+            // 对输入数据进行处理
+            // const transformedChunk = chunk.toString().toUpperCase();
+            const transformedChunk = chunk;
+            // 将处理后的数据传递给可写流
+            this.push(transformedChunk);
+            // 回调函数通知流处理完毕
+            callback();
+        }
+    }
+
+
+
+    class Util {
+        static parseRequest(input) {
+            input = Buffer.from(input);
+            const parser = new HTTPParser(HTTPParser.REQUEST);
+            let complete = false;
+            let shouldKeepAlive;
+            let upgrade;
+            let host;
+            let port;
+            let method;
+            let url;
+            let versionMajor;
+            let versionMinor;
+            let headers = {};
+            let trailers = [];
+            let bodyChunks = [];
+
+            parser[HTTPParser.kOnHeadersComplete] = function (req) {
+                shouldKeepAlive = req.shouldKeepAlive;
+                upgrade = req.upgrade;
+                method = HTTPParser.methods[req.method];
+                url = req.url;
+                versionMajor = req.versionMajor;
+                versionMinor = req.versionMinor;
+
+                for (let $i = 0; $i < req.headers.length; $i += 2) {
+                    if (req.headers[$i] === 'Host') {
+                        let hostAndPort = req.headers[$i + 1].split(':');
+                        host = hostAndPort[0];
+                        if (hostAndPort.length > 1) {
+                            port = hostAndPort[1];
+                        }
+                    }
+                    headers[req.headers[$i]] = req.headers[$i + 1]
+                }
+            };
+
+            parser[HTTPParser.kOnBody] = function (chunk, offset, length) {
+                bodyChunks.push(chunk.slice(offset, offset + length));
+            };
+
+            // This is actually the event for trailers, go figure.
+            parser[HTTPParser.kOnHeaders] = function (t) {
+                trailers = t;
+            };
+
+            parser[HTTPParser.kOnMessageComplete] = function () {
+                complete = true;
+            };
+
+            // Since we are sending the entire Buffer at once here all callbacks above happen synchronously.
+            // The parser does not do _anything_ asynchronous.
+            // However, you can of course call execute() multiple times with multiple chunks, e.g. from a stream.
+            // But then you have to refactor the entire logic to be async (e.g. resolve a Promise in kOnMessageComplete and add timeout logic).
+            parser.execute(input);
+            parser.finish();
+
+            if (!complete) {
+                throw new Error('Could not parse request');
+            }
+
+            let body = Buffer.concat(bodyChunks);
+
+            return {
+                host,
+                port,
+                shouldKeepAlive,
+                upgrade,
+                method,
+                path: url,
+                versionMajor,
+                versionMinor,
+                headers,
+                body,
+                trailers,
+            };
+        }
+        static parseResponse(input) {
+            console.log(input)
+            input = Buffer.from(`${input}\r\n`);
+            const parser = new HTTPParser(HTTPParser.RESPONSE);
+            let complete = false;
+            let shouldKeepAlive;
+            let upgrade;
+            let statusCode;
+            let statusMessage;
+            let versionMajor;
+            let versionMinor;
+            let headers = {};
+            let trailers = [];
+            let bodyChunks = [];
+
+            parser[HTTPParser.kOnHeadersComplete] = function (res) {
+                shouldKeepAlive = res.shouldKeepAlive;
+                upgrade = res.upgrade;
+                statusCode = res.statusCode;
+                statusMessage = res.statusMessage;
+                versionMajor = res.versionMajor;
+                versionMinor = res.versionMinor;
+
+                for (let $i = 0; $i < res.headers.length; $i += 2) {
+                    headers[res.headers[$i]] = res.headers[$i + 1]
+                }
+            };
+
+            parser[HTTPParser.kOnBody] = function (chunk, offset, length) {
+                bodyChunks.push(chunk.slice(offset, offset + length));
+            };
+
+            // This is actually the event for trailers, go figure.
+            parser[HTTPParser.kOnHeaders] = function (t) {
+                trailers = t;
+            };
+
+            parser[HTTPParser.kOnMessageComplete] = function () {
+                complete = true;
+            };
+
+            // Since we are sending the entire Buffer at once here all callbacks above happen synchronously.
+            // The parser does not do _anything_ asynchronous.
+            // However, you can of course call execute() multiple times with multiple chunks, e.g. from a stream.
+            // But then you have to refactor the entire logic to be async (e.g. resolve a Promise in kOnMessageComplete and add timeout logic).
+            parser.execute(input);
+            parser.finish();
+
+            if (!complete) {
+                throw new Error('Could not parse');
+            }
+
+            let body = Buffer.concat(bodyChunks);
+
+            return {
+                shouldKeepAlive,
+                upgrade,
+                statusCode,
+                statusMessage,
+                versionMajor,
+                versionMinor,
+                headers,
+                body,
+                trailers,
+            };
+        }
+        static array(value) {
+            if (typeof Array.isArray === 'function') {
+                return Array.isArray(value)
+            }
+            return Object.prototype.toString.call(value) === '[object Array]'
+        }
+
+        /**
+         * 是否对象
+         */
+        static object(value) {
+            return Object.prototype.toString.call(value) === '[object Object]'
+        }
+        static pipe(source, dest, options = {}) {
+            // source not readable => NO-OP
+            if (!source.isReadable()) {
+                return dest;
+            }
+
+            // destination not writable => just pause() source
+            if (!dest.isWritable()) {
+                source.pause();
+
+                return dest;
+            }
+
+            dest.emit('pipe', [source]);
+
+            // forward all source data events as dest.write()
+            const dataer = (data) => {
+                const feedMore = dest.write(data);
+
+                if (feedMore === false) {
+                    source.pause();
+                }
+            };
+            source.on('data', dataer);
+            dest.on('close', () => {
+                source.removeListener('data', dataer);
+                source.pause();
+            });
+
+            // forward destination drain as source.resume()
+            const drainer = () => {
+                source.resume();
+            };
+            dest.on('drain', drainer);
+            source.on('close', () => {
+                dest.removeListener('drain', drainer);
+            });
+
+            // forward end event from source as dest.end()
+            const end = options['end'] !== undefined ? options['end'] : true;
+            if (end) {
+                const ender = () => {
+                    dest.end();
+                };
+                source.on('end', ender);
+                dest.on('close', () => {
+                    source.removeListener('end', ender);
+                });
+            }
+
+            return dest;
+        }
+
+        static forwardEvents(source, target, events) {
+
+            if (Util.object(events)) {
+                Object.keys(events).forEach((sourceEvent) => {
+                    const targetEvent = events[sourceEvent];
+                    source.on(sourceEvent, (...args) => {
+                        target.emit(targetEvent, args);
+                    });
+                });
+            } else {
+                events.forEach((event) => {
+                    source.on(event, (...args) => {
+                        target.emit(event, args);
+                    });
+                });
+            }
+
+
+        }
+    }
+
+    class ReadableStreamWraper extends EventEmitter {
+
+        constructor($read) {
+            super();
+            this._read = $read;
+            this.closed = false;
+            Util.forwardEvents($read, this, {
+                data: 'data',
+                end: 'end',
+                error: 'error',
+                readable: 'data',
+                close: 'close',
+            });
+
+        }
+
+        isReadable() {
+            return this._read.readable;
+        }
+
+        pause() {
+            if (!this.closed) {
+                this._read.pause();
+            }
+        }
+
+        resume() {
+            if (!this.closed) {
+                return this._read.resume();
+            }
+        }
+
+        pipe(dest, options = []) {
+            return Util.pipe(this, dest, options);
+        }
+
+        close() {
+            if (this.closed) {
+                return;
+            }
+
+            this.closed = true;
+            this.emit('close');
+            this._read.destroy();
+            this.removeAllListeners()
+
+        }
+    }
+
+    class WritableStreamWraper extends EventEmitter {
+
+        constructor($write) {
+            super();
+            this._write = $write;
+            this.closed = false;
+            Util.forwardEvents($write, this, {
+                drain: 'drain',
+                error: 'error',
+                pipe: 'pipe',
+                close: 'close',
+            });
+        }
+
+        isWritable() {
+            return this._write.writable;
+        }
+
+        write($data) {
+
+            if (this.closed) {
+                return;
+            }
+            if ($data !== null && $data !== undefined) {
+                console.log('write data ')
+                this._write.write($data);
+            }
+        }
+
+        end($data) {
+            this._write.end($data);
+            this.close()
+        }
+
+        close() {
+            if (this.closed) {
+                return;
+            }
+            this.closed = true;
+            this.emit('close');
+            this._write.destroy();
+            this.removeAllListeners()
+        }
+    }
+
+
+    class CompositeConnectionStream extends EventEmitter {
+        constructor($read, $write, $connection, $protocol) {
+            super();
+            this.closed = false;
+            // $read ThroughStream
+            this.readable = new ReadableStreamWraper($read);
+            // $write ThroughStream
+            this.writable = new WritableStreamWraper($write);
+            this.connection = $connection;
+            this.protocol = $protocol;
+
+            if (!this.readable.isReadable() || !this.writable.isWritable()) {
+                this.close();
+                return;
+            }
+
+            Util.forwardEvents(this.readable, this, {
+                data: 'data',
+                end: 'end',
+                error: 'error',
+            });
+
+            Util.forwardEvents(this.writable, this, {
+                drain: 'drain',
+                error: 'error',
+                pipe: 'pipe',
+            });
+
+            this.readable.on('close', () => {
+                this.close();
+            });
+
+            this.writable.on('close', () => {
+                this.close();
+            });
+
+
+
+        }
+
+        isWritable() {
+            return this.writable.isWritable();
+        }
+
+        pause() {
+            this.readable.pause();
+        }
+
+        resume() {
+
+            if (!this.writable.isWritable()) {
+                return;
+            }
+
+            this.readable.resume();
+        }
+
+        pipe($dest, $options = []) {
+            return Util.pipe(this, $dest, $options);
+        }
+
+        isWritable() {
+            return this.writable.isWritable();
+        }
+
+        write($data) {
+            this.writable.write($data);
+        }
+
+        end($data) {
+            this.readable.pause();
+            this.writable.end($data);
+        }
+
+        close() {
+            if (this.closed) {
+                return;
+            }
+            this.closed = true;
+
+            this.readable.close();
+            this.writable.close();
+            this.emit('close');
+            this.removeAllListeners();
+        }
+
+        getLocalAddress() {
+
+        }
+
+        getRemoteAddress() {
+
+        }
+    }
+
+
+
+    class WebSocketTunnel {
+        connect($uri) {
+            return new Promise((resolve, reject) => {
+
+                let socket = new WebSocket($uri);
+
+                let $read = new ThroughStream;
+                let $write = new ThroughStream;
+
+                let $compositeConnectionStream = new CompositeConnectionStream($read, $write, '', 'ws');
+
+
+                socket.onopen = function () {
+                    console.log("Socket connection established");
+                    resolve(
+                        $compositeConnectionStream
+                    );
+                };
+
+                socket.onmessage = function (event) {
+                    var message = event.data;
+                    console.log("Received message: " + Base64.decode(message));
+                    $compositeConnectionStream.emit('data', Base64.decode(message));
+                };
+
+                $write.on('data', function ($data) {
+                    console.log("Send message length: " + $data.length);
+                    socket.send(Base64.encode($data));
+                })
+
+                socket.onclose = function (event) {
+                    console.log("Socket connection closed with code: " + event.code);
+                    $compositeConnectionStream.close()
+                    reject(event)
+                };
+
+            })
+        }
+    }
+
+    class SingleTunnel extends EventEmitter {
+        constructor() {
+            super()
+            this.connections = {};
+            this.connection = null;
+            this.buffer = ''
+        }
+        overConnection($connection) {
+            this.connection = $connection;
+            this.connection.on('data', ($buffer) => {
+                this.parseBuffer($buffer)
+            });
+        }
+        parseBuffer($buffer) {
+            if ($buffer === '') {
+                return;
+            }
+            let length = 0
+            if ($buffer) {
+                length = $buffer.length
+            }
+            echo('start parse buffer length: ' + length + "\n");
+
+            this.buffer += $buffer;
+
+            let $pos = this.buffer.indexOf("\r\n\r\n");
+            if ($pos > -1) {
+
+                let $httpPos = this.buffer.indexOf("HTTP/1.1")
+                if ($httpPos == -1) {
+                    $httpPos = 0
+                }
+
+                let $headers = this.buffer.substr($httpPos, $pos - $httpPos + 4);
+                let $response = null;
+                try {
+                    $response = Util.parseResponse($headers);
+                } catch (e) {
+                    console.log(e)
+                    this.connection.close();
+                    return;
+                }
+
+                this.buffer = this.buffer.substr($pos + 4);
+
+                if ($response['statusCode'] === 310) {
+                    this.createConnection($response)
+                }
+                else if ($response['statusCode'] === 311) {
+                    this.handleData($response)
+                }
+                else if ($response['statusCode'] === 312) {
+                    this.handleClose($response)
+                }
+                else if ($response['statusCode'] === 300) {
+                    echo('server ping' + "\n")
+                    this.connection.write("HTTP/1.1 301 OK\r\n\r\n");
+                }
+                else {
+                    echo('ignore other response code'.$response['statusCode']);
+                }
+                this.parseBuffer(null)
+
+            }
+
+        }
+
+        createConnection($response) {
+            let uuid = $response['headers']['Uuid'];
+            let $read = new ThroughStream;
+            let $write = new ThroughStream;
+            let $connection = new CompositeConnectionStream($read, $write, null, 'single');
+
+            $write.on('data', ($data) => {
+                echo(`single tunnel send data-${uuid}\n`)
+                echo(`single tunnel send data-${$data}\n`)
+                $data = Base64.encode($data);
+                this.connection.write(`HTTP/1.1 311 OK\r\nUuid: ${uuid}\r\nData: ${$data}\r\n\r\n`);
+            })
+
+            $read.on('close', () => {
+                this.connection.write(`HTTP/1.1 312 OK\r\nUuid: ${uuid}\r\n\r\n`)
+                $connection.close();
+                // remove connections
+                delete this.connections[uuid];
+            })
+
+            this.connections[uuid] = $connection;
+
+            this.emit('connection', $connection);
+            this.connection.write(`HTTP/1.1 310 OK\r\nUuid: ${uuid}\r\n\r\n`);
+        }
+
+        handleData($response) {
+            let uuid = $response['headers']['Uuid'];
+
+            if (this.connections[uuid]) {
+                echo(`single tunnel receive data-${uuid}\n`);
+
+                let $data = Base64.decode($response['headers']['Data']);
+                this.connections[uuid].emit('data', [$data]);
+            }
+            else {
+                echo('connection not found ' + uuid + "\n")
+            }
+        }
+
+        handleClose($response) {
+            let uuid = $response['headers']['Uuid'];
+            if (this.connections[uuid]) {
+                echo(`single tunnel receive close-${uuid}\n`);
+                this.connections[uuid].close();
+                delete this.connections[uuid];
+            }
+            else {
+                echo('connection not found ' + uuid + "\n")
+            }
+        }
+
+        close() {
+            Object.keys(this.connections).forEach(($uuid) => {
+                this.connections[$uuid].close();
+            })
+        }
+    }
+
+    class Tunnel {
+
+        constructor($config) {
+            this.protocol = $config['tunnel_protocol'] || 'tcp';
+            this.server_host = $config['server_host'];
+            this.server_80_port = $config['server_80_port'];
+            this.server_443_port = $config['server_443_port'];
+            this.timeout = $config['timeout'] || 6;
+
+        }
+
+        getTunnel($protocol) {
+
+            if (!$protocol) {
+                $protocol = this.protocol;
+            }
+
+            console.log('protocol is ' + $protocol)
+
+            if ($protocol == 'ws') {
+                return new WebSocketTunnel().connect('ws://' + this.server_host + ':' + this.server_80_port + '/tunnel');
+            }
+            else if ($protocol == 'wsss') {
+                return new WebSocketTunnel().connect('wss://' + this.server_host + ':' + this.server_443_port + '/tunnel');
+            }
+
+            return new Promise((resolve, reject) => {
+                reject('not support protocol ' + $protocol)
+            })
+
+        }
+
+    }
+
+
+
+
+
+    var inisString = `
+    [common]
+    pool_count = 1
+    server_host = 192.168.1.9
+    server_80_port = 32126
+    server_443_port = 32125
+    protocol = ws
+    tunnel_protocol = udp
+    single_tunnel = true
+
+    [web]
+    local_host = 192.168.1.9
+    local_port = 8080
+    domain = 192.168.1.9:9010
+`;
+
+
+    console.log(parseINIString(inisString))
+
+
+    function parseINIString(data) {
+        var regex = {
+            section: /^\s*\[\s*([^\]]*)\s*\]\s*$/,
+            param: /^\s*([^=]+?)\s*=\s*(.*?)\s*$/,
+            comment: /^\s*;.*$/
+        };
+        var value = {};
+        var lines = data.split(/[\r\n]+/);
+        var section = null;
+        lines.forEach(function (line) {
+            if (regex.comment.test(line)) {
+                return;
+            } else if (regex.param.test(line)) {
+                var match = line.match(regex.param);
+                if (section) {
+                    value[section][match[1]] = match[2];
+                } else {
+                    value[match[1]] = match[2];
+                }
+            } else if (regex.section.test(line)) {
+                var match = line.match(regex.section);
+                value[match[1]] = {};
+                section = match[1];
+            } else if (line.length == 0 && section) {
+                section = null;
+            };
+        });
+        return value;
+    }
+
+    class ClientManager {
+        static $localTunnelConnections = {};
+        static $localDynamicConnections = {};
+        static $configs = [];
+
+        static createLocalTunnelConnection($inis) {
+            let $common = $inis['common'];
+            $common['timeout'] = $common['timeout'] || 6;
+            $common['single_tunnel'] = $common['single_tunnel'] || 0;
+            $common['pool_count'] = $common['pool_count'] || 1;
+            $common['server_tls'] = $common['server_tls'] || false;
+            $common['protocol'] = $common['protocol'] || '';
+            $common['tunnel_protocol'] = $common['tunnel_protocol'] || 'tcp';
+            delete $common['common'];
+
+            Object.keys($inis).forEach(function ($key) {
+                if ($key != 'common') {
+                    let $config = $inis[$key];
+                    ClientManager.$configs.push(Object.assign($common, $config));
+                }
+            })
+
+            let $function = function ($config) {
+
+                let $protocol = $config['protocol']
+
+                let $tunnel_protocol = $config['tunnel_protocol']
+
+                new Tunnel($config).getTunnel($protocol).then(function ($connection) {
+                    console.log($config)
+                    let $headers = [
+                        'GET /client HTTP/1.1',
+                        'Host: ' + $config['server_host'],
+                        'User-Agent: ReactPHP',
+                        'Tunnel: 1',
+                        'Authorization: ' + ($config['token'] || ''),
+                        'Local-Host: ' + $config['local_host'] + ':' + $config['local_port'],
+                        'Domain: ' + $config['domain'],
+                        'Single-Tunnel: ' + ($config['single_tunnel'] || 0),
+                        'Local-Tunnel-Address: ' + ($connection.getLocalAddress() || 'no local address'),
+                    ];
+                    $connection.write($headers.join("\r\n") + "\r\n\r\n");
+
+                    let $bufferObj = {
+                        buffer: ''
+                    };
+
+                    let $fn = null
+                    $connection.on('data', $fn = function ($chunk) {
+                        $bufferObj.buffer += $chunk;
+                        ClientManager.handleLocalTunnelBuffer($connection, $bufferObj, $config, $fn);
+                    });
+
+                    $connection.on('close', function () {
+                        console.log('connection closed')
+                        setTimeout(() => {
+                            $function($config)
+                        }, 3000);
+                    });
+
+                }).catch(($error) => {
+                    console.log($error)
+
+                    setTimeout(() => {
+                        $function($config)
+                    }, 3000);
+                })
+
+            }
+            echo(ClientManager.$configs)
+
+            for (let i = 0; i < ClientManager.$configs.length; i++) {
+                echo(i)
+                let $number = ClientManager.$configs[i]['pool_count'] || 1;
+                for (let j = 0; j < $number; j++) {
+                    $function(ClientManager.$configs[i])
+                }
+            }
+
+
+        }
+
+        static handleLocalTunnelBuffer($connection, $bufferObj, $config) {
+            let $pos = $bufferObj.buffer.indexOf("\r\n\r\n");
+            if ($pos > -1) {
+
+                let $httpPos = $bufferObj.buffer.indexOf("HTTP/1.1")
+                if ($httpPos == -1) {
+                    $httpPos = 0
+                }
+
+                let $headers = $bufferObj.buffer.substr($httpPos, $pos - $httpPos + 4);
+                console.log($headers)
+                let $response = null
+                try {
+                    $response = Util.parseResponse($headers);
+                } catch (e) {
+                    console.log(e)
+                    $connection.close();
+                    return;
+                }
+
+                $bufferObj.buffer = $bufferObj.buffer.substr($pos + 4);
+
+                if ($response['statusCode'] === 200) {
+                    ClientManager.addLocalTunnelConnection($connection, $response, $config);
+                }
+                else if ($response['statusCode'] === 201) {
+
+                }
+                else if ($response['statusCode'] === 300) {
+
+                }
+                else {
+                    console.error($response)
+                    $connection.close();
+                    return;
+                }
+
+                ClientManager.handleLocalTunnelBuffer($connection, $bufferObj, $config);
+
+
+            }
+
+        }
+
+        static addLocalTunnelConnection($connection, $response, $config) {
+            let $uri = $response['headers']['Uri'];
+            echo('local tunnel success ' + $uri + "\n");
+            $config['uri'] = $uri;
+
+            if (!ClientManager.$localTunnelConnections[$uri]) {
+                ClientManager.$localTunnelConnections[$uri] = [];
+            }
+            ClientManager.$localTunnelConnections[$uri].push($connection);
+
+            $connection.on('close', function () {
+                let $index = ClientManager.$localTunnelConnections[$uri].indexOf($connection);
+                if ($index > -1) {
+                    ClientManager.$localTunnelConnections[$uri].splice($index, 1);
+                }
+            });
+
+            if ($config['single_tunnel'] || false) {
+                $connection.removeAllListeners('data');
+                let $singleTunnel = new SingleTunnel();
+                $singleTunnel.overConnection($connection);
+                $singleTunnel.on('connection', function ($connection) {
+                    let $bufferObj = {
+                        buffer: ''
+                    };
+                    ClientManager.handleLocalConnection($connection, $config, $bufferObj, null);
+                });
+            }
+
+
+        }
+
+        static async handleLocalConnection($connection, $config, $bufferObj, $response) {
+
+            $connection.on('data', async ($chunk) => {
+                $bufferObj.buffer += $chunk;
+
+                echo('start handleLocalConnection' + "\n");
+                let $proxy = null
+
+                if ($config['local-proxy']) {
+                    // todo $proxy
+
+                }
+                let $r = function () {
+                    return new Promise((resolve, reject) => {
+                        try {
+                            let $request = Util.parseRequest($bufferObj.buffer);
+                            $bufferObj.buffer = '';
+                            resolve($request)
+                        } catch (e) {
+                            console.error(e)
+                            console.log('current buffer: ' + $bufferObj.buffer)
+                            reject(e)
+                        }
+                    })
+                }
+
+                let $request = null
+
+                if (!$bufferObj.buffer) {
+                    console.error('no buffer')
+                    return;
+                }
+                try {
+
+                    console.log('try parse')
+                    console.log('current buffer ' + $bufferObj.buffer)
+                    $request = await $r();
+
+                    $bufferObj.buffer = ''
+                } catch (e) {
+                    console.error(e, $bufferObj.buffer)
+                }
+
+                if ($request) {
+                    console.log('parse requesr success', $request)
+
+                    let req = http.request($request, (res) => {
+
+                        const statusLine = `HTTP/1.1 ${res.statusCode} ${res.statusMessage}`;
+                        let isChunked = false
+                        if (res.headers['transfer-encoding'] == 'chunked') {
+                            // delete res.headers['transfer-encoding']
+                            delete res.headers['content-encoding']
+                            isChunked = true
+                        } else {
+
+                        }
+                        let headers = Object.entries(res.headers)
+                            .map(([name, value]) => `${name}: ${value}`)
+                            .join('\r\n');
+                        // 将它们拼接成源字符串
+                        let sourceString = `${statusLine}\r\n${headers}\r\n\r\n`;
+                        console.log(sourceString);
+                        $connection.write(sourceString);
+
+                        res.on('data', function (buf) {
+                            // console.log(res)
+                            // console.log(res.statusCode)
+                            // console.log(res.headers)
+                            // console.log(buf)
+                            var string = new TextDecoder().decode(buf);
+                            if (isChunked) {
+                                // let length = string.length.toString(16);
+                                let length = buf.length.toString(16);
+                                $connection.write(length + `\r\n` + string + `\r\n`);
+                            } else {
+                                $connection.write(string);
+                            }
+                        });
+
+                        res.on('end', function () {
+                            console.log('end')
+
+                            if (isChunked) {
+                                $connection.write(`0\r\n\r\n`);
+                            }
+
+                        });
+                    })
+
+                    req.end()
+
+                } else {
+                    console.error('timeout' + "\n");
+                    $connection.close();
+                }
+            });
+
+
+
+
+
+
+
+
+
+
+
+        }
+
+
+    }
+
+    function timeout(ms) {
+        return new Promise(resolve => setTimeout(resolve, ms));
+    }
+
+
+    ClientManager.createLocalTunnelConnection(parseINIString(inisString));
+
+})();
+
+},{"buffer":"buffer","events":"events","http":"http","http-parser-js":"http-parser-js","js-base64":"js-base64","stream":"stream"}],2:[function(require,module,exports){
 (function (global){(function (){
 'use strict';
 
@@ -508,7 +1496,7 @@ var objectKeys = Object.keys || function (obj) {
 };
 
 }).call(this)}).call(this,typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {})
-},{"object.assign/polyfill":24,"util/":4}],2:[function(require,module,exports){
+},{"object.assign/polyfill":25,"util/":5}],3:[function(require,module,exports){
 if (typeof Object.create === 'function') {
   // implementation from standard node.js 'util' module
   module.exports = function inherits(ctor, superCtor) {
@@ -533,14 +1521,14 @@ if (typeof Object.create === 'function') {
   }
 }
 
-},{}],3:[function(require,module,exports){
+},{}],4:[function(require,module,exports){
 module.exports = function isBuffer(arg) {
   return arg && typeof arg === 'object'
     && typeof arg.copy === 'function'
     && typeof arg.fill === 'function'
     && typeof arg.readUInt8 === 'function';
 }
-},{}],4:[function(require,module,exports){
+},{}],5:[function(require,module,exports){
 (function (process,global){(function (){
 // Copyright Joyent, Inc. and other Node contributors.
 //
@@ -1130,7 +2118,7 @@ function hasOwnProperty(obj, prop) {
 }
 
 }).call(this)}).call(this,require('_process'),typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {})
-},{"./support/isBuffer":3,"_process":25,"inherits":2}],5:[function(require,module,exports){
+},{"./support/isBuffer":4,"_process":26,"inherits":3}],6:[function(require,module,exports){
 'use strict'
 
 exports.byteLength = byteLength
@@ -1282,9 +2270,9 @@ function fromByteArray (uint8) {
   return parts.join('')
 }
 
-},{}],6:[function(require,module,exports){
-
 },{}],7:[function(require,module,exports){
+
+},{}],8:[function(require,module,exports){
 module.exports = {
   "100": "Continue",
   "101": "Switching Protocols",
@@ -1350,7 +2338,7 @@ module.exports = {
   "511": "Network Authentication Required"
 }
 
-},{}],8:[function(require,module,exports){
+},{}],9:[function(require,module,exports){
 'use strict';
 
 var GetIntrinsic = require('get-intrinsic');
@@ -1367,7 +2355,7 @@ module.exports = function callBoundIntrinsic(name, allowMissing) {
 	return intrinsic;
 };
 
-},{"./":9,"get-intrinsic":12}],9:[function(require,module,exports){
+},{"./":10,"get-intrinsic":13}],10:[function(require,module,exports){
 'use strict';
 
 var bind = require('function-bind');
@@ -1416,7 +2404,7 @@ if ($defineProperty) {
 	module.exports.apply = applyBind;
 }
 
-},{"function-bind":11,"get-intrinsic":12}],10:[function(require,module,exports){
+},{"function-bind":12,"get-intrinsic":13}],11:[function(require,module,exports){
 'use strict';
 
 /* eslint no-invalid-this: 1 */
@@ -1470,14 +2458,14 @@ module.exports = function bind(that) {
     return bound;
 };
 
-},{}],11:[function(require,module,exports){
+},{}],12:[function(require,module,exports){
 'use strict';
 
 var implementation = require('./implementation');
 
 module.exports = Function.prototype.bind || implementation;
 
-},{"./implementation":10}],12:[function(require,module,exports){
+},{"./implementation":11}],13:[function(require,module,exports){
 'use strict';
 
 var undefined;
@@ -1830,7 +2818,7 @@ module.exports = function GetIntrinsic(name, allowMissing) {
 	return value;
 };
 
-},{"function-bind":11,"has":16,"has-proto":13,"has-symbols":14}],13:[function(require,module,exports){
+},{"function-bind":12,"has":17,"has-proto":14,"has-symbols":15}],14:[function(require,module,exports){
 'use strict';
 
 var test = {
@@ -1843,7 +2831,7 @@ module.exports = function hasProto() {
 	return { __proto__: test }.foo === test.foo && !({ __proto__: null } instanceof $Object);
 };
 
-},{}],14:[function(require,module,exports){
+},{}],15:[function(require,module,exports){
 'use strict';
 
 var origSymbol = typeof Symbol !== 'undefined' && Symbol;
@@ -1858,7 +2846,7 @@ module.exports = function hasNativeSymbols() {
 	return hasSymbolSham();
 };
 
-},{"./shams":15}],15:[function(require,module,exports){
+},{"./shams":16}],16:[function(require,module,exports){
 'use strict';
 
 /* eslint complexity: [2, 18], max-statements: [2, 33] */
@@ -1902,14 +2890,14 @@ module.exports = function hasSymbols() {
 	return true;
 };
 
-},{}],16:[function(require,module,exports){
+},{}],17:[function(require,module,exports){
 'use strict';
 
 var bind = require('function-bind');
 
 module.exports = bind.call(Function.call, Object.prototype.hasOwnProperty);
 
-},{"function-bind":11}],17:[function(require,module,exports){
+},{"function-bind":12}],18:[function(require,module,exports){
 /*! ieee754. BSD-3-Clause License. Feross Aboukhadijeh <https://feross.org/opensource> */
 exports.read = function (buffer, offset, isLE, mLen, nBytes) {
   var e, m
@@ -1996,7 +2984,7 @@ exports.write = function (buffer, value, offset, isLE, mLen, nBytes) {
   buffer[offset + i - d] |= s * 128
 }
 
-},{}],18:[function(require,module,exports){
+},{}],19:[function(require,module,exports){
 if (typeof Object.create === 'function') {
   // implementation from standard node.js 'util' module
   module.exports = function inherits(ctor, superCtor) {
@@ -2025,7 +3013,7 @@ if (typeof Object.create === 'function') {
   }
 }
 
-},{}],19:[function(require,module,exports){
+},{}],20:[function(require,module,exports){
 var hasMap = typeof Map === 'function' && Map.prototype;
 var mapSizeDescriptor = Object.getOwnPropertyDescriptor && hasMap ? Object.getOwnPropertyDescriptor(Map.prototype, 'size') : null;
 var mapSize = hasMap && mapSizeDescriptor && typeof mapSizeDescriptor.get === 'function' ? mapSizeDescriptor.get : null;
@@ -2543,7 +3531,7 @@ function arrObjKeys(obj, inspect) {
     return xs;
 }
 
-},{"./util.inspect":6}],20:[function(require,module,exports){
+},{"./util.inspect":7}],21:[function(require,module,exports){
 'use strict';
 
 var keysShim;
@@ -2667,7 +3655,7 @@ if (!Object.keys) {
 }
 module.exports = keysShim;
 
-},{"./isArguments":22}],21:[function(require,module,exports){
+},{"./isArguments":23}],22:[function(require,module,exports){
 'use strict';
 
 var slice = Array.prototype.slice;
@@ -2701,7 +3689,7 @@ keysShim.shim = function shimObjectKeys() {
 
 module.exports = keysShim;
 
-},{"./implementation":20,"./isArguments":22}],22:[function(require,module,exports){
+},{"./implementation":21,"./isArguments":23}],23:[function(require,module,exports){
 'use strict';
 
 var toStr = Object.prototype.toString;
@@ -2720,7 +3708,7 @@ module.exports = function isArguments(value) {
 	return isArgs;
 };
 
-},{}],23:[function(require,module,exports){
+},{}],24:[function(require,module,exports){
 'use strict';
 
 // modified from https://github.com/es-shims/es6-shim
@@ -2768,7 +3756,7 @@ module.exports = function assign(target, source1) {
 	return to; // step 4
 };
 
-},{"call-bind/callBound":8,"has-symbols/shams":15,"object-keys":21}],24:[function(require,module,exports){
+},{"call-bind/callBound":9,"has-symbols/shams":16,"object-keys":22}],25:[function(require,module,exports){
 'use strict';
 
 var implementation = require('./implementation');
@@ -2825,7 +3813,7 @@ module.exports = function getPolyfill() {
 	return Object.assign;
 };
 
-},{"./implementation":23}],25:[function(require,module,exports){
+},{"./implementation":24}],26:[function(require,module,exports){
 // shim for using process in browser
 var process = module.exports = {};
 
@@ -3011,7 +3999,7 @@ process.chdir = function (dir) {
 };
 process.umask = function() { return 0; };
 
-},{}],26:[function(require,module,exports){
+},{}],27:[function(require,module,exports){
 (function (global){(function (){
 /*! https://mths.be/punycode v1.4.1 by @mathias */
 ;(function(root) {
@@ -3548,7 +4536,7 @@ process.umask = function() { return 0; };
 }(this));
 
 }).call(this)}).call(this,typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {})
-},{}],27:[function(require,module,exports){
+},{}],28:[function(require,module,exports){
 'use strict';
 
 var replace = String.prototype.replace;
@@ -3573,7 +4561,7 @@ module.exports = {
     RFC3986: Format.RFC3986
 };
 
-},{}],28:[function(require,module,exports){
+},{}],29:[function(require,module,exports){
 'use strict';
 
 var stringify = require('./stringify');
@@ -3586,7 +4574,7 @@ module.exports = {
     stringify: stringify
 };
 
-},{"./formats":27,"./parse":29,"./stringify":30}],29:[function(require,module,exports){
+},{"./formats":28,"./parse":30,"./stringify":31}],30:[function(require,module,exports){
 'use strict';
 
 var utils = require('./utils');
@@ -3852,7 +4840,7 @@ module.exports = function (str, opts) {
     return utils.compact(obj);
 };
 
-},{"./utils":31}],30:[function(require,module,exports){
+},{"./utils":32}],31:[function(require,module,exports){
 'use strict';
 
 var getSideChannel = require('side-channel');
@@ -4174,7 +5162,7 @@ module.exports = function (object, opts) {
     return joined.length > 0 ? prefix + joined : '';
 };
 
-},{"./formats":27,"./utils":31,"side-channel":33}],31:[function(require,module,exports){
+},{"./formats":28,"./utils":32,"side-channel":34}],32:[function(require,module,exports){
 'use strict';
 
 var formats = require('./formats');
@@ -4428,7 +5416,7 @@ module.exports = {
     merge: merge
 };
 
-},{"./formats":27}],32:[function(require,module,exports){
+},{"./formats":28}],33:[function(require,module,exports){
 /*! safe-buffer. MIT License. Feross Aboukhadijeh <https://feross.org/opensource> */
 /* eslint-disable node/no-deprecated-api */
 var buffer = require('buffer')
@@ -4495,7 +5483,7 @@ SafeBuffer.allocUnsafeSlow = function (size) {
   return buffer.SlowBuffer(size)
 }
 
-},{"buffer":"buffer"}],33:[function(require,module,exports){
+},{"buffer":"buffer"}],34:[function(require,module,exports){
 'use strict';
 
 var GetIntrinsic = require('get-intrinsic');
@@ -4621,7 +5609,7 @@ module.exports = function getSideChannel() {
 	return channel;
 };
 
-},{"call-bind/callBound":8,"get-intrinsic":12,"object-inspect":19}],34:[function(require,module,exports){
+},{"call-bind/callBound":9,"get-intrinsic":13,"object-inspect":20}],35:[function(require,module,exports){
 'use strict';
 
 function _inheritsLoose(subClass, superClass) { subClass.prototype = Object.create(superClass.prototype); subClass.prototype.constructor = subClass; subClass.__proto__ = superClass; }
@@ -4750,7 +5738,7 @@ createErrorType('ERR_UNKNOWN_ENCODING', function (arg) {
 createErrorType('ERR_STREAM_UNSHIFT_AFTER_END_EVENT', 'stream.unshift() after end event');
 module.exports.codes = codes;
 
-},{}],35:[function(require,module,exports){
+},{}],36:[function(require,module,exports){
 (function (process){(function (){
 // Copyright Joyent, Inc. and other Node contributors.
 //
@@ -4879,7 +5867,7 @@ Object.defineProperty(Duplex.prototype, 'destroyed', {
   }
 });
 }).call(this)}).call(this,require('_process'))
-},{"./_stream_readable":37,"./_stream_writable":39,"_process":25,"inherits":18}],36:[function(require,module,exports){
+},{"./_stream_readable":38,"./_stream_writable":40,"_process":26,"inherits":19}],37:[function(require,module,exports){
 // Copyright Joyent, Inc. and other Node contributors.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a
@@ -4917,7 +5905,7 @@ function PassThrough(options) {
 PassThrough.prototype._transform = function (chunk, encoding, cb) {
   cb(null, chunk);
 };
-},{"./_stream_transform":38,"inherits":18}],37:[function(require,module,exports){
+},{"./_stream_transform":39,"inherits":19}],38:[function(require,module,exports){
 (function (process,global){(function (){
 // Copyright Joyent, Inc. and other Node contributors.
 //
@@ -5947,7 +6935,7 @@ function indexOf(xs, x) {
   return -1;
 }
 }).call(this)}).call(this,require('_process'),typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {})
-},{"../errors":34,"./_stream_duplex":35,"./internal/streams/async_iterator":40,"./internal/streams/buffer_list":41,"./internal/streams/destroy":42,"./internal/streams/from":44,"./internal/streams/state":46,"./internal/streams/stream":47,"_process":25,"buffer":"buffer","events":"events","inherits":18,"string_decoder/":66,"util":6}],38:[function(require,module,exports){
+},{"../errors":35,"./_stream_duplex":36,"./internal/streams/async_iterator":41,"./internal/streams/buffer_list":42,"./internal/streams/destroy":43,"./internal/streams/from":45,"./internal/streams/state":47,"./internal/streams/stream":48,"_process":26,"buffer":"buffer","events":"events","inherits":19,"string_decoder/":67,"util":7}],39:[function(require,module,exports){
 // Copyright Joyent, Inc. and other Node contributors.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a
@@ -6138,7 +7126,7 @@ function done(stream, er, data) {
   if (stream._transformState.transforming) throw new ERR_TRANSFORM_ALREADY_TRANSFORMING();
   return stream.push(null);
 }
-},{"../errors":34,"./_stream_duplex":35,"inherits":18}],39:[function(require,module,exports){
+},{"../errors":35,"./_stream_duplex":36,"inherits":19}],40:[function(require,module,exports){
 (function (process,global){(function (){
 // Copyright Joyent, Inc. and other Node contributors.
 //
@@ -6782,7 +7770,7 @@ Writable.prototype._destroy = function (err, cb) {
   cb(err);
 };
 }).call(this)}).call(this,require('_process'),typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {})
-},{"../errors":34,"./_stream_duplex":35,"./internal/streams/destroy":42,"./internal/streams/state":46,"./internal/streams/stream":47,"_process":25,"buffer":"buffer","inherits":18,"util-deprecate":68}],40:[function(require,module,exports){
+},{"../errors":35,"./_stream_duplex":36,"./internal/streams/destroy":43,"./internal/streams/state":47,"./internal/streams/stream":48,"_process":26,"buffer":"buffer","inherits":19,"util-deprecate":69}],41:[function(require,module,exports){
 (function (process){(function (){
 'use strict';
 
@@ -6965,7 +7953,7 @@ var createReadableStreamAsyncIterator = function createReadableStreamAsyncIterat
 };
 module.exports = createReadableStreamAsyncIterator;
 }).call(this)}).call(this,require('_process'))
-},{"./end-of-stream":43,"_process":25}],41:[function(require,module,exports){
+},{"./end-of-stream":44,"_process":26}],42:[function(require,module,exports){
 'use strict';
 
 function ownKeys(object, enumerableOnly) { var keys = Object.keys(object); if (Object.getOwnPropertySymbols) { var symbols = Object.getOwnPropertySymbols(object); enumerableOnly && (symbols = symbols.filter(function (sym) { return Object.getOwnPropertyDescriptor(object, sym).enumerable; })), keys.push.apply(keys, symbols); } return keys; }
@@ -7149,7 +8137,7 @@ module.exports = /*#__PURE__*/function () {
   }]);
   return BufferList;
 }();
-},{"buffer":"buffer","util":6}],42:[function(require,module,exports){
+},{"buffer":"buffer","util":7}],43:[function(require,module,exports){
 (function (process){(function (){
 'use strict';
 
@@ -7248,7 +8236,7 @@ module.exports = {
   errorOrDestroy: errorOrDestroy
 };
 }).call(this)}).call(this,require('_process'))
-},{"_process":25}],43:[function(require,module,exports){
+},{"_process":26}],44:[function(require,module,exports){
 // Ported from https://github.com/mafintosh/end-of-stream with
 // permission from the author, Mathias Buus (@mafintosh).
 
@@ -7335,12 +8323,12 @@ function eos(stream, opts, callback) {
   };
 }
 module.exports = eos;
-},{"../../../errors":34}],44:[function(require,module,exports){
+},{"../../../errors":35}],45:[function(require,module,exports){
 module.exports = function () {
   throw new Error('Readable.from is not available in the browser')
 };
 
-},{}],45:[function(require,module,exports){
+},{}],46:[function(require,module,exports){
 // Ported from https://github.com/mafintosh/pump with
 // permission from the author, Mathias Buus (@mafintosh).
 
@@ -7427,7 +8415,7 @@ function pipeline() {
   return streams.reduce(pipe);
 }
 module.exports = pipeline;
-},{"../../../errors":34,"./end-of-stream":43}],46:[function(require,module,exports){
+},{"../../../errors":35,"./end-of-stream":44}],47:[function(require,module,exports){
 'use strict';
 
 var ERR_INVALID_OPT_VALUE = require('../../../errors').codes.ERR_INVALID_OPT_VALUE;
@@ -7450,10 +8438,10 @@ function getHighWaterMark(state, options, duplexKey, isDuplex) {
 module.exports = {
   getHighWaterMark: getHighWaterMark
 };
-},{"../../../errors":34}],47:[function(require,module,exports){
+},{"../../../errors":35}],48:[function(require,module,exports){
 module.exports = require('events').EventEmitter;
 
-},{"events":"events"}],48:[function(require,module,exports){
+},{"events":"events"}],49:[function(require,module,exports){
 (function (global){(function (){
 exports.fetch = isFunction(global.fetch) && isFunction(global.ReadableStream)
 
@@ -7516,7 +8504,7 @@ function isFunction (value) {
 xhr = null // Help gc
 
 }).call(this)}).call(this,typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {})
-},{}],49:[function(require,module,exports){
+},{}],50:[function(require,module,exports){
 (function (process,global,Buffer){(function (){
 var capability = require('./capability')
 var inherits = require('inherits')
@@ -7872,7 +8860,7 @@ var unsafeHeaders = [
 ]
 
 }).call(this)}).call(this,require('_process'),typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {},require("buffer").Buffer)
-},{"./capability":48,"./response":50,"_process":25,"buffer":"buffer","inherits":18,"readable-stream":65}],50:[function(require,module,exports){
+},{"./capability":49,"./response":51,"_process":26,"buffer":"buffer","inherits":19,"readable-stream":66}],51:[function(require,module,exports){
 (function (process,global,Buffer){(function (){
 var capability = require('./capability')
 var inherits = require('inherits')
@@ -8087,35 +9075,35 @@ IncomingMessage.prototype._onXHRProgress = function (resetTimers) {
 }
 
 }).call(this)}).call(this,require('_process'),typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {},require("buffer").Buffer)
-},{"./capability":48,"_process":25,"buffer":"buffer","inherits":18,"readable-stream":65}],51:[function(require,module,exports){
-arguments[4][34][0].apply(exports,arguments)
-},{"dup":34}],52:[function(require,module,exports){
+},{"./capability":49,"_process":26,"buffer":"buffer","inherits":19,"readable-stream":66}],52:[function(require,module,exports){
 arguments[4][35][0].apply(exports,arguments)
-},{"./_stream_readable":54,"./_stream_writable":56,"_process":25,"dup":35,"inherits":18}],53:[function(require,module,exports){
+},{"dup":35}],53:[function(require,module,exports){
 arguments[4][36][0].apply(exports,arguments)
-},{"./_stream_transform":55,"dup":36,"inherits":18}],54:[function(require,module,exports){
+},{"./_stream_readable":55,"./_stream_writable":57,"_process":26,"dup":36,"inherits":19}],54:[function(require,module,exports){
 arguments[4][37][0].apply(exports,arguments)
-},{"../errors":51,"./_stream_duplex":52,"./internal/streams/async_iterator":57,"./internal/streams/buffer_list":58,"./internal/streams/destroy":59,"./internal/streams/from":61,"./internal/streams/state":63,"./internal/streams/stream":64,"_process":25,"buffer":"buffer","dup":37,"events":"events","inherits":18,"string_decoder/":66,"util":6}],55:[function(require,module,exports){
+},{"./_stream_transform":56,"dup":37,"inherits":19}],55:[function(require,module,exports){
 arguments[4][38][0].apply(exports,arguments)
-},{"../errors":51,"./_stream_duplex":52,"dup":38,"inherits":18}],56:[function(require,module,exports){
+},{"../errors":52,"./_stream_duplex":53,"./internal/streams/async_iterator":58,"./internal/streams/buffer_list":59,"./internal/streams/destroy":60,"./internal/streams/from":62,"./internal/streams/state":64,"./internal/streams/stream":65,"_process":26,"buffer":"buffer","dup":38,"events":"events","inherits":19,"string_decoder/":67,"util":7}],56:[function(require,module,exports){
 arguments[4][39][0].apply(exports,arguments)
-},{"../errors":51,"./_stream_duplex":52,"./internal/streams/destroy":59,"./internal/streams/state":63,"./internal/streams/stream":64,"_process":25,"buffer":"buffer","dup":39,"inherits":18,"util-deprecate":68}],57:[function(require,module,exports){
+},{"../errors":52,"./_stream_duplex":53,"dup":39,"inherits":19}],57:[function(require,module,exports){
 arguments[4][40][0].apply(exports,arguments)
-},{"./end-of-stream":60,"_process":25,"dup":40}],58:[function(require,module,exports){
+},{"../errors":52,"./_stream_duplex":53,"./internal/streams/destroy":60,"./internal/streams/state":64,"./internal/streams/stream":65,"_process":26,"buffer":"buffer","dup":40,"inherits":19,"util-deprecate":69}],58:[function(require,module,exports){
 arguments[4][41][0].apply(exports,arguments)
-},{"buffer":"buffer","dup":41,"util":6}],59:[function(require,module,exports){
+},{"./end-of-stream":61,"_process":26,"dup":41}],59:[function(require,module,exports){
 arguments[4][42][0].apply(exports,arguments)
-},{"_process":25,"dup":42}],60:[function(require,module,exports){
+},{"buffer":"buffer","dup":42,"util":7}],60:[function(require,module,exports){
 arguments[4][43][0].apply(exports,arguments)
-},{"../../../errors":51,"dup":43}],61:[function(require,module,exports){
+},{"_process":26,"dup":43}],61:[function(require,module,exports){
 arguments[4][44][0].apply(exports,arguments)
-},{"dup":44}],62:[function(require,module,exports){
+},{"../../../errors":52,"dup":44}],62:[function(require,module,exports){
 arguments[4][45][0].apply(exports,arguments)
-},{"../../../errors":51,"./end-of-stream":60,"dup":45}],63:[function(require,module,exports){
+},{"dup":45}],63:[function(require,module,exports){
 arguments[4][46][0].apply(exports,arguments)
-},{"../../../errors":51,"dup":46}],64:[function(require,module,exports){
+},{"../../../errors":52,"./end-of-stream":61,"dup":46}],64:[function(require,module,exports){
 arguments[4][47][0].apply(exports,arguments)
-},{"dup":47,"events":"events"}],65:[function(require,module,exports){
+},{"../../../errors":52,"dup":47}],65:[function(require,module,exports){
+arguments[4][48][0].apply(exports,arguments)
+},{"dup":48,"events":"events"}],66:[function(require,module,exports){
 exports = module.exports = require('./lib/_stream_readable.js');
 exports.Stream = exports;
 exports.Readable = exports;
@@ -8126,7 +9114,7 @@ exports.PassThrough = require('./lib/_stream_passthrough.js');
 exports.finished = require('./lib/internal/streams/end-of-stream.js');
 exports.pipeline = require('./lib/internal/streams/pipeline.js');
 
-},{"./lib/_stream_duplex.js":52,"./lib/_stream_passthrough.js":53,"./lib/_stream_readable.js":54,"./lib/_stream_transform.js":55,"./lib/_stream_writable.js":56,"./lib/internal/streams/end-of-stream.js":60,"./lib/internal/streams/pipeline.js":62}],66:[function(require,module,exports){
+},{"./lib/_stream_duplex.js":53,"./lib/_stream_passthrough.js":54,"./lib/_stream_readable.js":55,"./lib/_stream_transform.js":56,"./lib/_stream_writable.js":57,"./lib/internal/streams/end-of-stream.js":61,"./lib/internal/streams/pipeline.js":63}],67:[function(require,module,exports){
 // Copyright Joyent, Inc. and other Node contributors.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a
@@ -8423,7 +9411,7 @@ function simpleWrite(buf) {
 function simpleEnd(buf) {
   return buf && buf.length ? this.write(buf) : '';
 }
-},{"safe-buffer":32}],67:[function(require,module,exports){
+},{"safe-buffer":33}],68:[function(require,module,exports){
 /*
  * Copyright Joyent, Inc. and other Node contributors.
  *
@@ -9201,7 +10189,7 @@ exports.format = urlFormat;
 
 exports.Url = Url;
 
-},{"punycode":26,"qs":28}],68:[function(require,module,exports){
+},{"punycode":27,"qs":29}],69:[function(require,module,exports){
 (function (global){(function (){
 
 /**
@@ -9272,7 +10260,7 @@ function config (name) {
 }
 
 }).call(this)}).call(this,typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {})
-},{}],69:[function(require,module,exports){
+},{}],70:[function(require,module,exports){
 module.exports = extend
 
 var hasOwnProperty = Object.prototype.hasOwnProperty;
@@ -11074,7 +12062,7 @@ function numberIsNaN (obj) {
 }
 
 }).call(this)}).call(this,require("buffer").Buffer)
-},{"base64-js":5,"buffer":"buffer","ieee754":17}],"events":[function(require,module,exports){
+},{"base64-js":6,"buffer":"buffer","ieee754":18}],"events":[function(require,module,exports){
 // Copyright Joyent, Inc. and other Node contributors.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a
@@ -12038,7 +13026,7 @@ function parseErrorCode(code) {
   return err;
 }
 
-},{"assert":1}],"http":[function(require,module,exports){
+},{"assert":2}],"http":[function(require,module,exports){
 (function (global){(function (){
 var ClientRequest = require('./lib/request')
 var response = require('./lib/response')
@@ -12126,7 +13114,327 @@ http.METHODS = [
 	'UNSUBSCRIBE'
 ]
 }).call(this)}).call(this,typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {})
-},{"./lib/request":49,"./lib/response":50,"builtin-status-codes":7,"url":67,"xtend":69}],"stream":[function(require,module,exports){
+},{"./lib/request":50,"./lib/response":51,"builtin-status-codes":8,"url":68,"xtend":70}],"js-base64":[function(require,module,exports){
+(function (global,Buffer){(function (){
+//
+// THIS FILE IS AUTOMATICALLY GENERATED! DO NOT EDIT BY HAND!
+//
+;
+(function (global, factory) {
+    typeof exports === 'object' && typeof module !== 'undefined'
+        ? module.exports = factory()
+        : typeof define === 'function' && define.amd
+            ? define(factory) :
+            // cf. https://github.com/dankogai/js-base64/issues/119
+            (function () {
+                // existing version for noConflict()
+                var _Base64 = global.Base64;
+                var gBase64 = factory();
+                gBase64.noConflict = function () {
+                    global.Base64 = _Base64;
+                    return gBase64;
+                };
+                if (global.Meteor) { // Meteor.js
+                    Base64 = gBase64;
+                }
+                global.Base64 = gBase64;
+            })();
+}((typeof self !== 'undefined' ? self
+    : typeof window !== 'undefined' ? window
+        : typeof global !== 'undefined' ? global
+            : this), function () {
+    'use strict';
+    /**
+     *  base64.ts
+     *
+     *  Licensed under the BSD 3-Clause License.
+     *    http://opensource.org/licenses/BSD-3-Clause
+     *
+     *  References:
+     *    http://en.wikipedia.org/wiki/Base64
+     *
+     * @author Dan Kogai (https://github.com/dankogai)
+     */
+    var version = '3.7.5';
+    /**
+     * @deprecated use lowercase `version`.
+     */
+    var VERSION = version;
+    var _hasatob = typeof atob === 'function';
+    var _hasbtoa = typeof btoa === 'function';
+    var _hasBuffer = typeof Buffer === 'function';
+    var _TD = typeof TextDecoder === 'function' ? new TextDecoder() : undefined;
+    var _TE = typeof TextEncoder === 'function' ? new TextEncoder() : undefined;
+    var b64ch = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/=';
+    var b64chs = Array.prototype.slice.call(b64ch);
+    var b64tab = (function (a) {
+        var tab = {};
+        a.forEach(function (c, i) { return tab[c] = i; });
+        return tab;
+    })(b64chs);
+    var b64re = /^(?:[A-Za-z\d+\/]{4})*?(?:[A-Za-z\d+\/]{2}(?:==)?|[A-Za-z\d+\/]{3}=?)?$/;
+    var _fromCC = String.fromCharCode.bind(String);
+    var _U8Afrom = typeof Uint8Array.from === 'function'
+        ? Uint8Array.from.bind(Uint8Array)
+        : function (it) { return new Uint8Array(Array.prototype.slice.call(it, 0)); };
+    var _mkUriSafe = function (src) { return src
+        .replace(/=/g, '').replace(/[+\/]/g, function (m0) { return m0 == '+' ? '-' : '_'; }); };
+    var _tidyB64 = function (s) { return s.replace(/[^A-Za-z0-9\+\/]/g, ''); };
+    /**
+     * polyfill version of `btoa`
+     */
+    var btoaPolyfill = function (bin) {
+        // console.log('polyfilled');
+        var u32, c0, c1, c2, asc = '';
+        var pad = bin.length % 3;
+        for (var i = 0; i < bin.length;) {
+            if ((c0 = bin.charCodeAt(i++)) > 255 ||
+                (c1 = bin.charCodeAt(i++)) > 255 ||
+                (c2 = bin.charCodeAt(i++)) > 255)
+                throw new TypeError('invalid character found');
+            u32 = (c0 << 16) | (c1 << 8) | c2;
+            asc += b64chs[u32 >> 18 & 63]
+                + b64chs[u32 >> 12 & 63]
+                + b64chs[u32 >> 6 & 63]
+                + b64chs[u32 & 63];
+        }
+        return pad ? asc.slice(0, pad - 3) + "===".substring(pad) : asc;
+    };
+    /**
+     * does what `window.btoa` of web browsers do.
+     * @param {String} bin binary string
+     * @returns {string} Base64-encoded string
+     */
+    var _btoa = _hasbtoa ? function (bin) { return btoa(bin); }
+        : _hasBuffer ? function (bin) { return Buffer.from(bin, 'binary').toString('base64'); }
+            : btoaPolyfill;
+    var _fromUint8Array = _hasBuffer
+        ? function (u8a) { return Buffer.from(u8a).toString('base64'); }
+        : function (u8a) {
+            // cf. https://stackoverflow.com/questions/12710001/how-to-convert-uint8-array-to-base64-encoded-string/12713326#12713326
+            var maxargs = 0x1000;
+            var strs = [];
+            for (var i = 0, l = u8a.length; i < l; i += maxargs) {
+                strs.push(_fromCC.apply(null, u8a.subarray(i, i + maxargs)));
+            }
+            return _btoa(strs.join(''));
+        };
+    /**
+     * converts a Uint8Array to a Base64 string.
+     * @param {boolean} [urlsafe] URL-and-filename-safe a la RFC4648 §5
+     * @returns {string} Base64 string
+     */
+    var fromUint8Array = function (u8a, urlsafe) {
+        if (urlsafe === void 0) { urlsafe = false; }
+        return urlsafe ? _mkUriSafe(_fromUint8Array(u8a)) : _fromUint8Array(u8a);
+    };
+    // This trick is found broken https://github.com/dankogai/js-base64/issues/130
+    // const utob = (src: string) => unescape(encodeURIComponent(src));
+    // reverting good old fationed regexp
+    var cb_utob = function (c) {
+        if (c.length < 2) {
+            var cc = c.charCodeAt(0);
+            return cc < 0x80 ? c
+                : cc < 0x800 ? (_fromCC(0xc0 | (cc >>> 6))
+                    + _fromCC(0x80 | (cc & 0x3f)))
+                    : (_fromCC(0xe0 | ((cc >>> 12) & 0x0f))
+                        + _fromCC(0x80 | ((cc >>> 6) & 0x3f))
+                        + _fromCC(0x80 | (cc & 0x3f)));
+        }
+        else {
+            var cc = 0x10000
+                + (c.charCodeAt(0) - 0xD800) * 0x400
+                + (c.charCodeAt(1) - 0xDC00);
+            return (_fromCC(0xf0 | ((cc >>> 18) & 0x07))
+                + _fromCC(0x80 | ((cc >>> 12) & 0x3f))
+                + _fromCC(0x80 | ((cc >>> 6) & 0x3f))
+                + _fromCC(0x80 | (cc & 0x3f)));
+        }
+    };
+    var re_utob = /[\uD800-\uDBFF][\uDC00-\uDFFFF]|[^\x00-\x7F]/g;
+    /**
+     * @deprecated should have been internal use only.
+     * @param {string} src UTF-8 string
+     * @returns {string} UTF-16 string
+     */
+    var utob = function (u) { return u.replace(re_utob, cb_utob); };
+    //
+    var _encode = _hasBuffer
+        ? function (s) { return Buffer.from(s, 'utf8').toString('base64'); }
+        : _TE
+            ? function (s) { return _fromUint8Array(_TE.encode(s)); }
+            : function (s) { return _btoa(utob(s)); };
+    /**
+     * converts a UTF-8-encoded string to a Base64 string.
+     * @param {boolean} [urlsafe] if `true` make the result URL-safe
+     * @returns {string} Base64 string
+     */
+    var encode = function (src, urlsafe) {
+        if (urlsafe === void 0) { urlsafe = false; }
+        return urlsafe
+            ? _mkUriSafe(_encode(src))
+            : _encode(src);
+    };
+    /**
+     * converts a UTF-8-encoded string to URL-safe Base64 RFC4648 §5.
+     * @returns {string} Base64 string
+     */
+    var encodeURI = function (src) { return encode(src, true); };
+    // This trick is found broken https://github.com/dankogai/js-base64/issues/130
+    // const btou = (src: string) => decodeURIComponent(escape(src));
+    // reverting good old fationed regexp
+    var re_btou = /[\xC0-\xDF][\x80-\xBF]|[\xE0-\xEF][\x80-\xBF]{2}|[\xF0-\xF7][\x80-\xBF]{3}/g;
+    var cb_btou = function (cccc) {
+        switch (cccc.length) {
+            case 4:
+                var cp = ((0x07 & cccc.charCodeAt(0)) << 18)
+                    | ((0x3f & cccc.charCodeAt(1)) << 12)
+                    | ((0x3f & cccc.charCodeAt(2)) << 6)
+                    | (0x3f & cccc.charCodeAt(3)), offset = cp - 0x10000;
+                return (_fromCC((offset >>> 10) + 0xD800)
+                    + _fromCC((offset & 0x3FF) + 0xDC00));
+            case 3:
+                return _fromCC(((0x0f & cccc.charCodeAt(0)) << 12)
+                    | ((0x3f & cccc.charCodeAt(1)) << 6)
+                    | (0x3f & cccc.charCodeAt(2)));
+            default:
+                return _fromCC(((0x1f & cccc.charCodeAt(0)) << 6)
+                    | (0x3f & cccc.charCodeAt(1)));
+        }
+    };
+    /**
+     * @deprecated should have been internal use only.
+     * @param {string} src UTF-16 string
+     * @returns {string} UTF-8 string
+     */
+    var btou = function (b) { return b.replace(re_btou, cb_btou); };
+    /**
+     * polyfill version of `atob`
+     */
+    var atobPolyfill = function (asc) {
+        // console.log('polyfilled');
+        asc = asc.replace(/\s+/g, '');
+        if (!b64re.test(asc))
+            throw new TypeError('malformed base64.');
+        asc += '=='.slice(2 - (asc.length & 3));
+        var u24, bin = '', r1, r2;
+        for (var i = 0; i < asc.length;) {
+            u24 = b64tab[asc.charAt(i++)] << 18
+                | b64tab[asc.charAt(i++)] << 12
+                | (r1 = b64tab[asc.charAt(i++)]) << 6
+                | (r2 = b64tab[asc.charAt(i++)]);
+            bin += r1 === 64 ? _fromCC(u24 >> 16 & 255)
+                : r2 === 64 ? _fromCC(u24 >> 16 & 255, u24 >> 8 & 255)
+                    : _fromCC(u24 >> 16 & 255, u24 >> 8 & 255, u24 & 255);
+        }
+        return bin;
+    };
+    /**
+     * does what `window.atob` of web browsers do.
+     * @param {String} asc Base64-encoded string
+     * @returns {string} binary string
+     */
+    var _atob = _hasatob ? function (asc) { return atob(_tidyB64(asc)); }
+        : _hasBuffer ? function (asc) { return Buffer.from(asc, 'base64').toString('binary'); }
+            : atobPolyfill;
+    //
+    var _toUint8Array = _hasBuffer
+        ? function (a) { return _U8Afrom(Buffer.from(a, 'base64')); }
+        : function (a) { return _U8Afrom(_atob(a).split('').map(function (c) { return c.charCodeAt(0); })); };
+    /**
+     * converts a Base64 string to a Uint8Array.
+     */
+    var toUint8Array = function (a) { return _toUint8Array(_unURI(a)); };
+    //
+    var _decode = _hasBuffer
+        ? function (a) { return Buffer.from(a, 'base64').toString('utf8'); }
+        : _TD
+            ? function (a) { return _TD.decode(_toUint8Array(a)); }
+            : function (a) { return btou(_atob(a)); };
+    var _unURI = function (a) { return _tidyB64(a.replace(/[-_]/g, function (m0) { return m0 == '-' ? '+' : '/'; })); };
+    /**
+     * converts a Base64 string to a UTF-8 string.
+     * @param {String} src Base64 string.  Both normal and URL-safe are supported
+     * @returns {string} UTF-8 string
+     */
+    var decode = function (src) { return _decode(_unURI(src)); };
+    /**
+     * check if a value is a valid Base64 string
+     * @param {String} src a value to check
+      */
+    var isValid = function (src) {
+        if (typeof src !== 'string')
+            return false;
+        var s = src.replace(/\s+/g, '').replace(/={0,2}$/, '');
+        return !/[^\s0-9a-zA-Z\+/]/.test(s) || !/[^\s0-9a-zA-Z\-_]/.test(s);
+    };
+    //
+    var _noEnum = function (v) {
+        return {
+            value: v, enumerable: false, writable: true, configurable: true
+        };
+    };
+    /**
+     * extend String.prototype with relevant methods
+     */
+    var extendString = function () {
+        var _add = function (name, body) { return Object.defineProperty(String.prototype, name, _noEnum(body)); };
+        _add('fromBase64', function () { return decode(this); });
+        _add('toBase64', function (urlsafe) { return encode(this, urlsafe); });
+        _add('toBase64URI', function () { return encode(this, true); });
+        _add('toBase64URL', function () { return encode(this, true); });
+        _add('toUint8Array', function () { return toUint8Array(this); });
+    };
+    /**
+     * extend Uint8Array.prototype with relevant methods
+     */
+    var extendUint8Array = function () {
+        var _add = function (name, body) { return Object.defineProperty(Uint8Array.prototype, name, _noEnum(body)); };
+        _add('toBase64', function (urlsafe) { return fromUint8Array(this, urlsafe); });
+        _add('toBase64URI', function () { return fromUint8Array(this, true); });
+        _add('toBase64URL', function () { return fromUint8Array(this, true); });
+    };
+    /**
+     * extend Builtin prototypes with relevant methods
+     */
+    var extendBuiltins = function () {
+        extendString();
+        extendUint8Array();
+    };
+    var gBase64 = {
+        version: version,
+        VERSION: VERSION,
+        atob: _atob,
+        atobPolyfill: atobPolyfill,
+        btoa: _btoa,
+        btoaPolyfill: btoaPolyfill,
+        fromBase64: decode,
+        toBase64: encode,
+        encode: encode,
+        encodeURI: encodeURI,
+        encodeURL: encodeURI,
+        utob: utob,
+        btou: btou,
+        decode: decode,
+        isValid: isValid,
+        fromUint8Array: fromUint8Array,
+        toUint8Array: toUint8Array,
+        extendString: extendString,
+        extendUint8Array: extendUint8Array,
+        extendBuiltins: extendBuiltins
+    };
+    //
+    // export Base64 to the namespace
+    //
+    // ES5 is yet to have Object.assign() that may make transpilers unhappy.
+    // gBase64.Base64 = Object.assign({}, gBase64);
+    gBase64.Base64 = {};
+    Object.keys(gBase64).forEach(function (k) { return gBase64.Base64[k] = gBase64[k]; });
+    return gBase64;
+}));
+
+}).call(this)}).call(this,typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {},require("buffer").Buffer)
+},{"buffer":"buffer"}],"stream":[function(require,module,exports){
 // Copyright Joyent, Inc. and other Node contributors.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a
@@ -12257,4 +13565,4 @@ Stream.prototype.pipe = function(dest, options) {
   return dest;
 };
 
-},{"events":"events","inherits":18,"readable-stream/lib/_stream_duplex.js":35,"readable-stream/lib/_stream_passthrough.js":36,"readable-stream/lib/_stream_readable.js":37,"readable-stream/lib/_stream_transform.js":38,"readable-stream/lib/_stream_writable.js":39,"readable-stream/lib/internal/streams/end-of-stream.js":43,"readable-stream/lib/internal/streams/pipeline.js":45}]},{},[]);
+},{"events":"events","inherits":19,"readable-stream/lib/_stream_duplex.js":36,"readable-stream/lib/_stream_passthrough.js":37,"readable-stream/lib/_stream_readable.js":38,"readable-stream/lib/_stream_transform.js":39,"readable-stream/lib/_stream_writable.js":40,"readable-stream/lib/internal/streams/end-of-stream.js":44,"readable-stream/lib/internal/streams/pipeline.js":46}]},{},[1]);
