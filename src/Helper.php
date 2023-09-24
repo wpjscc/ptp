@@ -98,4 +98,9 @@ final Class Helper
     {
         return base64_decode($data);
     }
+
+    public static function info()
+    {
+
+    }
 }

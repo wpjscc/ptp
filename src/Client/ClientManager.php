@@ -6,20 +6,22 @@ use Wpjscc\Penetration\Tunnel\Client\Tunnel;
 use Wpjscc\Penetration\Tunnel\Client\Tunnel\SingleTunnel;
 use React\Socket\Connector;
 use RingCentral\Psr7;
+use Psr\Log\LoggerInterface;
+use Wpjscc\Penetration\Helper;
 
-class ClientManager
+class ClientManager implements \Wpjscc\Penetration\Log\LogManagerInterface
 {
+    use \Wpjscc\Penetration\Log\LogManagerTraitDefault;
 
     // 客户端相关
     public static $localTunnelConnections = [];
     public static $localDynamicConnections = [];
 
-    static $configs = [
-    ];
+    static $configs = [];
 
     public static function createLocalTunnelConnection($inis)
     {
-        
+
         $common = $inis['common'];
         $common['timeout']  = $common['timeout'] ?? 6;
         $common['single_tunnel']  = $common['single_tunnel'] ?? 0;
@@ -39,10 +41,12 @@ class ClientManager
         $function = function ($config) use (&$function) {
             $protocol = $config['protocol'];
             $tunneProtocol = $config['tunnel_protocol'];
-            echo 'start create tunnel connection'."\n";
-            static::getTunnel($config, $protocol?:$tunneProtocol)->then(function ($connection) use ($function, &$config) {
-                echo 'Connection established : ' ;
-                echo $connection->getLocalAddress() . " ====> " . $connection->getRemoteAddress() . "\n";
+            static::getLogger()->notice('start create tunnel connection');
+            static::getTunnel($config, $protocol ?: $tunneProtocol)->then(function ($connection) use ($function, &$config) {
+                static::getLogger()->notice('Connection established:', [
+                    'local_address' => $connection->getLocalAddress(),
+                    'remote_address' => $connection->getRemoteAddress(),
+                ]);
                 $headers = [
                     'GET /client HTTP/1.1',
                     'Host: ' . $config['server_host'],
@@ -54,7 +58,12 @@ class ClientManager
                     'Single-Tunnel: ' . ($config['single_tunnel'] ?? 0),
                     // 'Local-Tunnel-Address: ' . $connection->getLocalAddress(),
                 ];
-                $connection->write(implode("\r\n", $headers) . "\r\n\r\n");
+
+                $request = implode("\r\n", $headers) . "\r\n\r\n";
+                static::getLogger()->notice('send create tunnel request', [
+                    'request' => $request,
+                ]);
+                $connection->write($request);
 
                 $buffer = '';
                 $connection->on('data', $fn = function ($chunk) use ($connection, &$config, &$buffer, &$fn) {
@@ -62,25 +71,33 @@ class ClientManager
                     ClientManager::handleLocalTunnelBuffer($connection, $buffer, $config, $fn);
                 });
 
-                $connection->on('close', function () use ($function, $config) {
-                    echo 'Connection closed' . "\n";
+                $connection->on('close', function () use ($function, &$config) {
+                    static::getLogger()->notice('Connection closed', [
+                        'uuid' => $config['uuid'] ?? '',
+                    ]);
                     \React\EventLoop\Loop::get()->addTimer(3, function () use ($function, $config) {
                         $function($config);
                     });
                 });
             }, function ($e) use ($config, $function) {
-                echo 'Connection failed: ' . $e->getMessage() . PHP_EOL;
+                static::getLogger()->error($e->getMessage(), [
+                    'class' => __CLASS__,
+                    'file' => $e->getFile(),
+                    'line' => $e->getLine(),
+                ]);
                 \React\EventLoop\Loop::get()->addTimer(3, function () use ($function, $config) {
                     $function($config);
                 });
-
             })->otherwise(function ($e) use ($config, $function) {
-                echo 'Connection failed-1: ' . $e->getMessage() . PHP_EOL;
+                static::getLogger()->error($e->getMessage(), [
+                    'class' => __CLASS__,
+                    'file' => $e->getFile(),
+                    'line' => $e->getLine(),
+                ]);
                 \React\EventLoop\Loop::get()->addTimer(3, function () use ($function, $config) {
                     $function($config);
                 });
             });
-
         };
 
 
@@ -90,10 +107,9 @@ class ClientManager
 
             $number = $config['pool_count'];
 
-            for ($i=0; $i < $number; $i++) { 
+            for ($i = 0; $i < $number; $i++) {
                 $function($config);
             }
-            
         }
     }
 
@@ -111,10 +127,14 @@ class ClientManager
                 $httpPos = 0;
             }
             try {
-                $response = Psr7\parse_response(substr($buffer, $httpPos, $pos-$httpPos));
+                $response = Psr7\parse_response(substr($buffer, $httpPos, $pos - $httpPos));
             } catch (\Exception $e) {
                 // invalid response message, close connection
-                echo $e->getMessage();
+                static::getLogger()->error($e->getMessage(), [
+                    'class' => __CLASS__,
+                    'file' => $e->getFile(),
+                    'line' => $e->getLine(),
+                ]);
                 $connection->close();
                 return;
             }
@@ -122,23 +142,25 @@ class ClientManager
             // 创建通道成功
             if ($response->getStatusCode() === 200) {
                 static::addLocalTunnelConnection($connection, $response, $config);
-            } 
+            }
             // 请求创建代理连接
             elseif ($response->getStatusCode() === 201) {
                 static::createLocalDynamicConnections($connection, $config);
-            } 
+            }
             // 服务端ping
             elseif ($response->getStatusCode() === 300) {
-                echo 'server ping'."\n";
+                static::getLogger()->info('server ping', [
+                    'class' => __CLASS__,
+                ]);
                 $connection->write("HTTP/1.1 301 OK\r\n\r\n");
-            }
-            
-            else {
-                echo 'error'."\n";
-                echo $response->getStatusCode();
-                echo $response->getReasonPhrase();
+            } else {
+                static::getLogger()->error('error', [
+                    'class' => __CLASS__,
+                    'status_code' => $response->getStatusCode(),
+                    'reason_phrase' => $response->getReasonPhrase(),
+                ]);
                 $connection->close();
-                return ;
+                return;
             }
             ClientManager::handleLocalTunnelBuffer($connection, $buffer, $config);
         }
@@ -148,12 +170,17 @@ class ClientManager
     {
         $uri = $response->getHeaderLine('Uri');
         $uuid = $response->getHeaderLine('Uuid');
-        echo ('local tunnel success '.$uri."\n");
-        echo ('local tunnel success '.$uuid."\n");
+
         $config['uri'] = $uri;
         $config['uuid'] = $uuid;
-        echo ($connection->getLocalAddress().'=====>'. $connection->getRemoteAddress())."\n";
-        
+
+        static::getLogger()->notice('local tunnel success ', [
+            'class' => __CLASS__,
+            'uri' => $uri,
+            'uuid' => $uuid,
+            'response' => Helper::toString($response)
+        ]);
+
         if (!isset(static::$localTunnelConnections[$uri])) {
             static::$localTunnelConnections[$uri] = new \SplObjectStorage;
         }
@@ -166,21 +193,23 @@ class ClientManager
 
         // 单通道 接收所有权，处理后续数据请求
         if ($config['single_tunnel'] ?? false) {
+
+            static::getLogger()->notice('current is single tunnel', []);
+
             $connection->removeAllListeners('data');
             $singleTunnel = (new SingleTunnel());
             $singleTunnel->overConnection($connection);
-            $singleTunnel->on('connection', function ($connection) use (&$config) {
+            $singleTunnel->on('connection', function ($connection, $response) use (&$config) {
                 $buffer = '';
-                static::handleLocalConnection($connection, $config, $buffer, null);
+                static::handleLocalConnection($connection, $config, $buffer, $response);
             });
         }
-       
     }
     public static function addLocalDynamicConnection($connection, $response)
     {
         $uri = $response->getHeaderLine('Uri');
-        echo ('local proxy success '.$uri."\n");
-        echo ($connection->getRemoteAddress().'=>'. $connection->getLocalAddress())."\n";
+        static::getLogger()->info('local proxy success ' . $uri . "\n");
+        static::getLogger()->info($connection->getRemoteAddress() . '=>' . $connection->getLocalAddress()) . "\n";
 
         if (!isset(static::$localDynamicConnections[$uri])) {
             static::$localDynamicConnections[$uri] = new \SplObjectStorage;
@@ -189,33 +218,39 @@ class ClientManager
         static::$localDynamicConnections[$uri]->attach($connection);
 
         $connection->on('close', function () use ($uri, $connection) {
-            echo 'local dynamic connection closed'."\n";
+            static::getLogger()->info('local dynamic connection closed', [
+                'class' => __CLASS__,
+            ]);
             static::$localDynamicConnections[$uri]->detach($connection);
         });
-       
     }
 
     public static function createLocalDynamicConnections($tunnelConnection, &$config)
     {
+        static::getLogger()->notice(__FUNCTION__, [
+            'uuid' => $config['uuid'],
+        ]);
+
         static::getTunnel($config)->then(function ($connection) use ($tunnelConnection, $config) {
             $headers = [
                 'GET /client HTTP/1.1',
-                'Host: '.$config['server_host'],
+                'Host: ' . $config['server_host'],
                 'User-Agent: ReactPHP',
-                'Authorization: '. ($config['token'] ?? ''),
-                'Domain: '.$config['domain'],
-                'Dynamic-Tunnel-Address: '.$connection->getLocalAddress(),
-                'Uuid: '.$config['uuid'],
+                'Authorization: ' . ($config['token'] ?? ''),
+                'Domain: ' . $config['domain'],
+                'Uuid: ' . $config['uuid'],
             ];
-            $connection->write(implode("\r\n", $headers)."\r\n\r\n");
+            $connection->write(implode("\r\n", $headers) . "\r\n\r\n");
             ClientManager::handleLocalDynamicConnection($connection, $config);
         });
     }
 
     public static function handleLocalDynamicConnection($connection, $config)
     {
-        echo '开始监听请求...'."\n";
-        echo $connection->getRemoteAddress()."\n";
+        static::getLogger()->notice(__FUNCTION__, [
+            'uuid' => $config['uuid'],
+        ]);
+
         $buffer = '';
         $connection->on('data', $fn = function ($chunk) use ($connection, $config, &$buffer, &$fn) {
             $buffer .= $chunk;
@@ -230,11 +265,11 @@ class ClientManager
                         $response = Psr7\parse_response(substr($buffer, $httpPos, $pos));
                     } catch (\Exception $e) {
                         // invalid response message, close connection
-                        echo $e->getFile()."\n";
-                        echo $e->getLine()."\n";
-                        echo $e->getMessage()."\n";
-                        echo substr($buffer, $httpPos, $pos)."\n";
-                        var_dump($pos, $httpPos);
+                        static::getLogger()->error($e->getMessage(), [
+                            'class' => __CLASS__,
+                            'file' => $e->getFile(),
+                            'line' => $e->getLine(),
+                        ]);
                         $connection->close();
                         return;
                     }
@@ -244,29 +279,28 @@ class ClientManager
                     // 第一次创建代理成功
                     if ($response->getStatusCode() === 200) {
                         ClientManager::addLocalDynamicConnection($connection, $response);
-                    // 第二次过来请求了
+                        // 第二次过来请求了
                     } elseif ($response->getStatusCode() === 201) {
                         $connection->removeListener('data', $fn);
                         $fn = null;
                         ClientManager::handleLocalConnection($connection, $config, $buffer, $response);
                         break;
-                    }else {
-                        echo 'error'."\n";
+                    } else {
+                        static::getLogger()->error('error', [
+                            'status_code' => $response->getStatusCode(),
+                            'reason_phrase' => $response->getReasonPhrase(),
+                        ]);
                         $connection->removeListener('data', $fn);
                         $fn = null;
-                        echo $response->getStatusCode();
-                        echo $response->getReasonPhrase();
                         $connection->close();
-                        return ;
+                        return;
                     }
                 } else {
                     break;
                 }
             }
-
         });
         $connection->resume();
-
     }
 
     public static function handleLocalConnection($connection, $config, &$buffer, $response)
@@ -274,30 +308,43 @@ class ClientManager
         $connection->on('data', $fn = function ($chunk) use (&$buffer) {
             $buffer .= $chunk;
         });
-        echo ('start handleLocalConnection'."\n");
+        static::getLogger()->notice(__FUNCTION__, [
+            'tunnel_uuid' => $config['uuid'],
+            'dynamic_tunnel_uuid' => $response->getHeaderLine('Uuid'),
+        ]);
         $proxy = null;
 
         if ($config['local_proxy'] ?? '') {
             $proxy = new \Clue\React\HttpProxy\ProxyConnector($config['local_proxy']);
         }
 
-        (new Connector(array_merge(array(
-            'timeout' => $config['timeout'],
-        ), ($proxy ? [
-            'tcp' => $proxy,
-            'dns' => false,
-        ] : []))))->connect((($config['local_tls'] ?? false) ? 'tls' : 'tcp') .  "://".$config['local_host'].":".$config['local_port'])->then(function ($localConnection) use ($connection, &$fn, &$buffer, $config) {
+        (new Connector(array_merge(
+            array(
+                'timeout' => $config['timeout'],
+            ),
+            ($proxy ? [
+                'tcp' => $proxy,
+                'dns' => false,
+            ] : [])
+        )))->connect((($config['local_tls'] ?? false) ? 'tls' : 'tcp') . "://" . $config['local_host'] . ":" . $config['local_port'])->then(function ($localConnection) use ($connection, &$fn, &$buffer, $config, $response) {
 
             $connection->removeListener('data', $fn);
             $fn = null;
 
-            echo 'local connection success'."\n";
+            static::getLogger()->notice('local connection success', [
+                'tunnel_uuid' => $config['uuid'],
+                'dynamic_tunnel_uuid' => $response->getHeaderLine('Uuid'),
+            ]);
             // var_dump($buffer);
             // 交换数据
 
-            $connection->pipe(new \React\Stream\ThroughStream(function($buffer) use ($config, $connection) {
+            $connection->pipe(new \React\Stream\ThroughStream(function ($buffer) use ($config, $connection, $response) {
                 if (strpos($buffer, 'POST /close HTTP/1.1') !== false) {
-                    echo 'udp dynamic connection receive close request' . "\n";
+                    static::getLogger()->notice('udp dynamic connection receive close request', [
+                        'tunnel_uuid' => $config['uuid'],
+                        'dynamic_tunnel_uuid' => $response->getHeaderLine('Uuid'),
+                        'response' => $buffer
+                    ]);
                     $connection->close();
                     return '';
                 }
@@ -305,66 +352,91 @@ class ClientManager
                 if ($config['local_replace_host'] ?? false) {
                     $buffer = preg_replace('/^X-Forwarded.*\R?/m', '', $buffer);
                     $buffer = preg_replace('/^X-Real-Ip.*\R?/m', '', $buffer);
-                    $buffer = str_replace('Host: ' .$config['uri'], 'Host: '.$config['local_host'].':'.$config['local_port'], $buffer);
+                    $buffer = str_replace('Host: ' . $config['uri'], 'Host: ' . $config['local_host'] . ':' . $config['local_port'], $buffer);
                 }
-                echo "dynamic connection receive data ".microtime(true)."\n";
+                static::getLogger()->notice("dynamic connection receive data ", [
+                    'tunnel_uuid' => $config['uuid'],
+                    'dynamic_tunnel_uuid' => $response->getHeaderLine('Uuid'),
+                    'length' => strlen($buffer),
+                ]);
                 return $buffer;
             }))->pipe($localConnection);
 
-            $localConnection->pipe($connection);
+            $localConnection->pipe(new \React\Stream\ThroughStream(function($buffer) use ($config, $response) {
+                static::getLogger()->notice("local connection send data ", [
+                    'tunnel_uuid' => $config['uuid'],
+                    'dynamic_tunnel_uuid' => $response->getHeaderLine('Uuid'),
+                    'length' => strlen($buffer),
+                ]);
+                return $buffer;
+            }))->pipe($connection);
 
-            $localConnection->on('end', function() use ($connection) {
-                echo 'local connection end'."\n";
+            $localConnection->on('end', function () use ($connection, $config, $response) {
+                static::getLogger()->notice('local connection end', [
+                    'tunnel_uuid' => $config['uuid'],
+                    'dynamic_tunnel_uuid' => $response->getHeaderLine('Uuid'),
+                ]);
                 // udp 要发送关闭请求
                 if (isset($connection->protocol) && $connection->protocol == 'udp') {
-                    echo 'udp dynamic connection close and try send close requset'."\n";
+                    static::getLogger()->notice('udp dynamic connection close and try send close requset', [
+                        'tunnel_uuid' => $config['uuid'],
+                        'dynamic_tunnel_uuid' => $response->getHeaderLine('Uuid'),
+                        'request' => "POST /close HTTP/1.1\r\n\r\n",
+                    ]);
                     $connection->write("POST /close HTTP/1.1\r\n\r\n");
                 }
             });
 
-            $localConnection->on('close', function() use ($connection, &$fn) {
-                echo 'local connection close'."\n";
-
+            $localConnection->on('close', function () use ($connection, $config, $response) {
+                static::getLogger()->notice('local connection close', [
+                    'tunnel_uuid' => $config['uuid'],
+                    'dynamic_tunnel_uuid' => $response->getHeaderLine('Uuid'),
+                ]);
                 $connection->close();
-            
             });
 
-            $connection->on('end', function(){
-                echo 'dynamic connection end'."\n";
+            $connection->on('end', function () use ($config, $response) {
+                static::getLogger()->info('dynamic connection end', [
+                    'tunnel_uuid' => $config['uuid'],
+                    'dynamic_tunnel_uuid' => $response->getHeaderLine('Uuid'),
+                ]);
             });
 
-            $connection->on('close', function () use ($localConnection, $connection) {
-                echo 'dynamic connection close'."\n";
+            $connection->on('close', function () use ($localConnection, $config, $response) {
+                static::getLogger()->notice('dynamic connection close', [
+                    'tunnel_uuid' => $config['uuid'],
+                    'dynamic_tunnel_uuid' => $response->getHeaderLine('Uuid'),
+                ]);
                 $localConnection->close();
             });
-
 
             if ($buffer) {
                 if ($config['local_replace_host'] ?? false) {
                     $buffer = preg_replace('/^X-Forwarded.*\R?/m', '', $buffer);
                     $buffer = preg_replace('/^X-Real-Ip.*\R?/m', '', $buffer);
-                    $buffer = str_replace('Host: ' .$config['uri'], 'Host: '.$config['local_host'].':'.$config['local_port'], $buffer);
+                    $buffer = str_replace('Host: ' . $config['uri'], 'Host: ' . $config['local_host'] . ':' . $config['local_port'], $buffer);
                 }
                 $localConnection->write($buffer);
                 $buffer = '';
             }
-
-        }, function($e) use ($connection) {
+        }, function ($e) use ($connection, &$buffer, $config, $response) {
+            $buffer = '';
+            static::getLogger()->error($e->getMessage(), [
+                'class' => __CLASS__,
+                'file' => $e->getFile(),
+                'line' => $e->getLine(),
+                'tunnel_uuid' => $config['uuid'],
+                'dynamic_tunnel_uuid' => $response->getHeaderLine('Uuid'),
+            ]);
             $content = $e->getMessage();
             $headers = [
                 'HTTP/1.0 404 OK',
                 'Server: ReactPHP/1',
                 'Content-Type: text/html; charset=UTF-8',
-                'Content-Length: '.strlen($content),
+                'Content-Length: ' . strlen($content),
             ];
-            $connection->write(implode("\r\n", $headers)."\r\n\r\n".$content);
+            $header = implode("\r\n", $headers) . "\r\n\r\n";
+            $connection->write($header . $content);
         });
     }
-
-
-
-
-    // 以下服务端相关
-
-    
 }

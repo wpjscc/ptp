@@ -9,7 +9,7 @@ use Ramsey\Uuid\Uuid;
 use React\Stream\ThroughStream;
 use Wpjscc\Penetration\CompositeConnectionStream;
 
-class SingleTunnel extends EventEmitter implements ServerInterface
+class SingleTunnel extends EventEmitter implements ServerInterface, \Wpjscc\Penetration\Tunnel\SingleTunnelInterface
 {
 
     private $connections = array();

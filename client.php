@@ -3,19 +3,25 @@
 require 'vendor/autoload.php';
 
 use Wpjscc\Penetration\Client\ClientManager;
-use Wpjscc\Penetration\Parse\Ini;
+use Wpjscc\Penetration\Log\LogManager;
+use Psr\Log\LogLevel;
+use Wpjscc\Penetration\Config;
 
-$iniPath = getParam('--ini-path', './client.ini');
+$config = Config::getConfig(getParam('--ini-path', './client.ini'));
 
-if (!$iniPath || !file_exists($iniPath)) {
-    throw new \Exception('iniPath is required');
-}
+LogManager::$logLevels = [
+    // LogLevel::ALERT,
+    // LogLevel::CRITICAL,
+    // LogLevel::DEBUG,
+    // LogLevel::EMERGENCY,
+    LogLevel::ERROR,
+    // LogLevel::INFO,
+    // LogLevel::WARNING,
+    LogLevel::NOTICE,
 
-$inis = (new Ini)->parse(file_get_contents($iniPath));
-
-ClientManager::createLocalTunnelConnection(
-    $inis
-);
+];
+LogManager::setLogger(new \Wpjscc\Penetration\Log\EchoLog());
+ClientManager::createLocalTunnelConnection($config);
 
 function getParam($key, $default = null){
     foreach ($GLOBALS['argv'] as $arg) {

@@ -7,50 +7,74 @@ use function Ratchet\Client\connect;
 use Wpjscc\Penetration\CompositeConnectionStream;
 use React\Stream\ThroughStream;
 
-class WebsocketTunnel implements ConnectorInterface
+class WebsocketTunnel implements ConnectorInterface, \Wpjscc\Penetration\Log\LogManagerInterface
 {
+    use \Wpjscc\Penetration\Log\LogManagerTraitDefault;
 
     public function connect($uri)
     {
-        var_dump($uri.'/tunnel');
+
         $protocol = parse_url($uri, PHP_URL_SCHEME);
-        
-        return connect($uri.'/tunnel')->then(function ($conn) use ($protocol) {
-            echo "Connected!\n";
+        static::getLogger()->info('starting', [
+            'uri' => $uri,
+            'protocol' => $protocol,
+        ]);
+        return connect($uri . '/tunnel')->then(function ($conn) use ($uri, $protocol) {
+            static::getLogger()->info("Connected!", [
+                'uri' => $uri,
+                'protocol' => $protocol,
+            ]);
             $read = new ThroughStream;
             $write = new ThroughStream;
-            $write->on('data', function ($data) use ($conn) {
-                var_dump('sendDataToServer', $data);
+            $write->on('data', function ($data) use ($conn, $uri, $protocol) {
+                static::getLogger()->info('sendDataToServer', [
+                    'uri' => $uri,
+                    'protocol' => $protocol,
+                    'length' => strlen($data),
+                ]);
                 $conn->send(base64_encode($data));
             });
 
             $contection = new CompositeConnectionStream($read, $write, $conn->getStream(), $protocol);
-            $conn->on('message', function ($msg) use ($read) {
+            $conn->on('message', function ($msg) use ($read, $uri, $protocol) {
                 echo ('websocket tunnel receiveDataFromServer');
+                static::getLogger()->info('receiveDataFromServer', [
+                    'uri' => $uri,
+                    'protocol' => $protocol,
+                    'length' => strlen($msg),
+                ]);
                 $read->write(base64_decode($msg));
             });
 
-            $conn->on('close', function () use ($contection) {
-                echo "Connection closed\n";
-                echo microtime(true)."\n";
-
+            $conn->on('close', function () use ($contection, $uri, $protocol) {
+                static::getLogger()->info('connectionClosed-1', [
+                    'uri' => $uri,
+                    'protocol' => $protocol,
+                ]);
                 if ($contection->isReadable()) {
                     $contection->close();
                 }
             });
-            $contection->on('close', function () use ($conn) {
-                echo "Connection closed11\n";
-                echo microtime(true)."\n";
-                $conn->close();
+            $contection->on('close', function () use ($conn, $uri, $protocol) {
+                static::getLogger()->info('connectionClosed-2', [
+                    'uri' => $uri,
+                    'protocol' => $protocol,
+                ]);
 
+                $conn->close();
             });
 
             return $contection;
-        }, function ($e) {
-            echo "Could not connect: {$e->getMessage()}\n";
+        }, function ($e) use ($uri, $protocol) {
+            static::getLogger()->error($e->getMessage(), [
+                'uri' => $uri,
+                'protocol' => $protocol,
+                'current_file' => __FILE__,
+                'current_line' => __LINE__,
+                'file' => $e->getFile(),
+                'line' => $e->getLine(),
+            ]);
             return $e;
         });
     }
-    
-   
 }

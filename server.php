@@ -9,15 +9,19 @@ use Wpjscc\Penetration\Server\Http;
 use Wpjscc\Penetration\Server\TcpManager;
 use Wpjscc\Penetration\Server\Tcp;
 use Wpjscc\Penetration\Proxy\ProxyManager;
+use Wpjscc\Penetration\Log\LogManager;
 use Wpjscc\Penetration\Helper;
+
+
+LogManager::setLogger(new \Wpjscc\Penetration\Log\EchoLog());
 
 
 $inis = Config::getConfig(getParam('--ini-path', './server.ini'));
 
+// http server
 $httpPort = $inis['common']['http_port'] ?? 8080;
 $httpServer = new Http($httpPort);
 $httpServer->run();
-
 
 // tcp server
 

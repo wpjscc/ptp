@@ -6,10 +6,14 @@ use React\Promise\Deferred;
 use React\Promise\Timer\TimeoutException;
 use Wpjscc\Penetration\Tunnel\Server\Tunnel\SingleTunnel;
 use Ramsey\Uuid\Uuid;
+use Wpjscc\Penetration\Log\LogManagerInterface;
+use Wpjscc\Penetration\Log\LogManagerTrait;
+use Wpjscc\Penetration\Log\LogManager;
 
-
-class ProxyManager
+class ProxyManager implements \Wpjscc\Penetration\Log\LogManagerInterface
 {
+    use \Wpjscc\Penetration\Log\LogManagerTraitDefault;
+
     public static $proxyConnections = [];
 
     public static function createConnection($uri)

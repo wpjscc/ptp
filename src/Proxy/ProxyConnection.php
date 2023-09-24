@@ -10,6 +10,7 @@ use React\Promise\Timer\TimeoutException;
 use RingCentral\Psr7;
 use Wpjscc\Penetration\Helper;
 use React\Stream\ThroughStream;
+use Ramsey\Uuid\Uuid;
 
 class ProxyConnection
 {
@@ -74,9 +75,10 @@ class ProxyConnection
             echo "dynamic connection success ".$dynamicAddress."\n";
 
             if (($clientConnection->protocol ?? '') != 'single') {
-                // 告诉clientConnection 开始连接了
+                // 告诉clientConnection 开始连接了, 给客户端一个uuid
                 $clientConnection->write(implode("\r\n", [
                     'HTTP/1.1 201 OK',
+                    'Uuid: '. Uuid::uuid4()->toString(),
                 ]) . "\r\n\r\n");
             }
            

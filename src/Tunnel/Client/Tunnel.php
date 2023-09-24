@@ -8,8 +8,9 @@ use Wpjscc\Penetration\Tunnel\Client\Tunnel\UdpTunnel;
 use Wpjscc\Penetration\Tunnel\Client\Tunnel\WebsocketTunnel;
 
 
-class Tunnel
+class Tunnel implements \Wpjscc\Penetration\Log\LogManagerInterface
 {
+    use \Wpjscc\Penetration\Log\LogManagerTraitDefault;
     public $protocol = 'tcp';
     public $serverHost;
     public $server80port;
@@ -35,23 +36,31 @@ class Tunnel
             $protocol = $this->protocol;
         }
 
-        echo "protocol: ".$protocol."\n";
+        static::getLogger()->info(__FUNCTION__, [
+            'class' => __CLASS__,
+            'protocol' => $protocol,
+        ]);
 
         if ($protocol == 'ws') {
             $tunnel = (new WebsocketTunnel())->connect("ws://".$this->serverHost.":".$this->server80port);
         }
         elseif ($protocol == 'wss') {
             if (!$this->server443port) {
+                static::getLogger()->error('wss protocol must set server_443_port', [
+                    'server443port' => $this->server443port,
+                ]);
                 throw new \Exception('wss protocol must set server_443_port');
             }
             $tunnel = (new WebsocketTunnel())->connect("wss://".$this->serverHost.":".$this->server443port);
         }
         else if ($protocol == 'udp') {
-            var_dump($protocol);
             $tunnel = (new UdpTunnel())->connect($this->serverHost.":".$this->server80port);
         }
         elseif ($protocol == 'tls') {
             if (!$this->server443port) {
+                static::getLogger()->error('tls protocol must set server_443_port', [
+                    'server443port' => $this->server443port,
+                ]);
                 throw new \Exception('tls protocol must set server_443_port');
             }
             $tunnel = (new TcpTunnel(array('timeout' => $this->timeout)))->connect("tls://".$this->serverHost.":".$this->server443port);
