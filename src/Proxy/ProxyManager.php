@@ -217,6 +217,7 @@ class ProxyManager implements \Wpjscc\Penetration\Log\LogManagerInterface
                 $singleTunnel = new SingleTunnel();
                 $singleTunnel->overConnection($connection);
                 $singleTunnel->on('connection', function ($singleConnection) use ($connection, $uri, $request, $uuid) {
+                    // 在等待建立通道的连接
                     if (isset(static::$remoteDynamicConnections[$uri]) && static::$remoteDynamicConnections[$uri]->count() > 0) {
                         static::getLogger()->notice('add dynamic connection by single tunnel', [
                             'uri' => $request->getHeaderLine('Uri'),
@@ -255,8 +256,7 @@ class ProxyManager implements \Wpjscc\Penetration\Log\LogManagerInterface
             'remote_address' => $connection->getRemoteAddress(),
         ]);
 
-        // todo 最大数量限制
-        // 其次请求
+        // 在等待建立通道连接
         if (isset(static::$remoteDynamicConnections[$uri]) && static::$remoteDynamicConnections[$uri]->count() > 0) {
             echo ("add dynamic connection ".$connection->getRemoteAddress()."\n");
             static::getLogger()->notice('add dynamic connection', [

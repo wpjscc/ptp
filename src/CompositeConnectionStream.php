@@ -16,6 +16,7 @@ final class CompositeConnectionStream extends EventEmitter implements Connection
     private $readable;
     private $writable;
     public $protocol;
+    public $uuid;
 
     private $closed = false;
 

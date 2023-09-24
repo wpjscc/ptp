@@ -25,6 +25,9 @@ class ProxyConnection implements \Wpjscc\Penetration\Log\LogManagerInterface
     private $loop;
     private $uri;
 
+    // 当前的连接数
+    public $connections;
+
 
     public function __construct(
         $uri,
@@ -48,7 +51,6 @@ class ProxyConnection implements \Wpjscc\Penetration\Log\LogManagerInterface
             $buffer .= $chunk;
         });
         $this->getIdleConnection()->then(function (ConnectionInterface $clientConnection) use ($userConnection, &$buffer, $fn, $request) {
-
             $clientConnection->tunnelConnection->once('close', $fnclose = function () use ($clientConnection, $userConnection) {
                 static::getLogger()->warning("ProxyConnection::".__FUNCTION__, [
                     'class' => __CLASS__,
@@ -78,13 +80,25 @@ class ProxyConnection implements \Wpjscc\Penetration\Log\LogManagerInterface
             $fn = null;
             $dynamicAddress = $clientConnection->getRemoteAddress();
 
-            if (($clientConnection->protocol ?? '') != 'single') {
+            // 单通道不需要告诉客户端
+            if (($clientConnection->protocol ?? '') === 'single') {
+                // 单通道自己生成uuid
+                $uuid = $clientConnection->uuid;
+                if (!$uuid) {
+                    static::getLogger()->error("ProxyConnection::".__FUNCTION__." single tunnel uuid is empty", [
+                        'class' => __CLASS__,
+                        'uuid' => $uuid,
+                    ]);
+                }
+            } else {
                 // 告诉客户端，通道通了
                 $uuid = Uuid::uuid4()->toString();
+                $clientConnection->uuid = $uuid;
                 $clientConnection->write("HTTP/1.1 201 OK\r\nUuid: {$uuid}\r\n\r\n");
-            } else {
-                $uuid = '';
             }
+
+            // 保存当前连接
+            $this->connections[$uuid] = $clientConnection;
 
             static::getLogger()->info("dynamic connection success", [
                 'class' => __CLASS__,
@@ -108,10 +122,9 @@ class ProxyConnection implements \Wpjscc\Penetration\Log\LogManagerInterface
             // 交换数据
             $userConnection->pipe($middle)->pipe($clientConnection);
 
+            // udp 协议需要特殊处理
             if (isset($clientConnection->protocol) && $clientConnection->protocol == 'udp') {
-                // udp 协议需要特殊处理
                 $clientConnection->pipe(new ThroughStream(function ($buffer) use ($clientConnection, $uuid) {
-                    // var_dump($buffer);
                     if (strpos($buffer, 'POST /close HTTP/1.1') !== false) {
                         static::getLogger()->notice("udp dynamic connection receive close request", [
                             'class' => __CLASS__,
@@ -141,6 +154,7 @@ class ProxyConnection implements \Wpjscc\Penetration\Log\LogManagerInterface
             // pipe 关闭仅用于end事件  https://reactphp.org/stream/#pipe
             // close 要主动关闭
             $clientConnection->on('close', function () use ($dynamicAddress, $userConnection, $uuid) {
+                unset($this->connections[$uuid]);
                 static::getLogger()->notice("dynamic connection close", [
                     'class' => __CLASS__,
                     'dynamicAddress' => $dynamicAddress,
@@ -174,6 +188,7 @@ class ProxyConnection implements \Wpjscc\Penetration\Log\LogManagerInterface
             });
 
             $userConnection->on('close', function () use ($clientConnection, &$fnclose, $uuid) {
+                unset($this->connections[$uuid]);
                 static::getLogger()->notice("user connection close", [
                     'class' => __CLASS__,
                     'uuid' => $uuid,

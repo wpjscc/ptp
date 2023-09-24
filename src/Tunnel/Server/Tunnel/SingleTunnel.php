@@ -112,6 +112,13 @@ class SingleTunnel extends EventEmitter implements ServerInterface, \Wpjscc\Pene
             elseif ($response->getStatusCode() === 312) {
                 $this->handleClose($response);
             }
+            // client pong
+            elseif ($response->getStatusCode() === 301) {
+                static::getLogger()->notice("SingleTunnel::".__FUNCTION__." client pong", [
+                    'class' => __CLASS__,
+                    'response' => Helper::toString($response)
+                ]);
+            }
             
             else {
                 // ignore other response code
@@ -168,6 +175,9 @@ class SingleTunnel extends EventEmitter implements ServerInterface, \Wpjscc\Pene
             'uuid' => $uuid,
             'response' => Helper::toString($response)
         ]);
+
+        $contection->uuid = $uuid;
+
         $this->emit('connection', array($contection));
 
     }

@@ -62,6 +62,7 @@ $startTime = time();
     foreach (ProxyManager::$proxyConnections as $uri => $proxyConnection) {
         echo sprintf("%s-%s-%s", 'max_connections', $uri, $proxyConnection->max_connections)."\n";
         echo sprintf("%s-%s-%s", 'current_connections', $uri, $proxyConnection->current_connections)."\n";
+        echo sprintf("%s-%s-%s", 'current_connection_uuids', $uri, implode(',', array_keys($proxyConnection->connections)))."\n";
         echo sprintf("%s-%s-%s", 'max_wait_queue', $uri, $proxyConnection->max_wait_queue)."\n";
         echo sprintf("%s-%s-%s", 'remote:wait:queue', $uri, $proxyConnection->wait_queue->count())."\n";
     }
