@@ -315,21 +315,8 @@ class ClientManager implements \Wpjscc\Penetration\Log\LogManagerInterface
             'tunnel_uuid' => $config['uuid'],
             'dynamic_tunnel_uuid' => $response->getHeaderLine('Uuid'),
         ]);
-        $proxy = null;
 
-        if ($config['local_proxy'] ?? '') {
-            $proxy = new \Clue\React\HttpProxy\ProxyConnector($config['local_proxy']);
-        }
-
-        (new Connector(array_merge(
-            array(
-                'timeout' => $config['timeout'],
-            ),
-            ($proxy ? [
-                'tcp' => $proxy,
-                'dns' => false,
-            ] : [])
-        )))->connect((($config['local_tls'] ?? false) ? 'tls' : 'tcp') . "://" . $config['local_host'] . ":" . $config['local_port'])->then(function ($localConnection) use ($connection, &$fn, &$buffer, $config, $response) {
+       (new \Wpjscc\Penetration\Tunnel\Local\Tunnel($config))->getTunnel($config['local_protocol'] ?? 'tcp')->then(function ($localConnection) use ($connection, &$fn, &$buffer, $config, $response) {
 
             $connection->removeListener('data', $fn);
             $fn = null;
