@@ -93,10 +93,15 @@ class ProxyConnection implements \Wpjscc\Penetration\Log\LogManagerInterface
             ]);
            
 
-            $middle = new ThroughStream(function ($data) use ($proxyReplace) {
+            $middle = new ThroughStream(function ($data) use ($proxyReplace, $uuid) {
                 if ($proxyReplace) {
                     $data = str_replace("\r\nHost: " . $this->uri . "\r\n", $proxyReplace, $data);
                 }
+                static::getLogger()->notice("dynamic connection send data", [
+                    'class' => __CLASS__,
+                    'uuid' => $uuid,
+                    'length' => strlen($data),
+                ]);
                 return $data;
             });
 
@@ -116,11 +121,21 @@ class ProxyConnection implements \Wpjscc\Penetration\Log\LogManagerInterface
                         $clientConnection->close();
                         return '';
                     }
+                    static::getLogger()->notice("udp dynamic connection receive data", [
+                        'uuid' => $uuid,
+                        'length' => strlen($buffer),
+                    ]);
                     return $buffer;
                 }))->pipe($userConnection);
                
             } else {
-                $clientConnection->pipe($userConnection);
+                $clientConnection->pipe(new ThroughStream(function ($buffer) use ($uuid) {
+                    static::getLogger()->notice("dynamic connection receive data", [
+                        'uuid' => $uuid,
+                        'length' => strlen($buffer),
+                    ]);
+                    return $buffer;
+                }))->pipe($userConnection);
             }
 
             // pipe 关闭仅用于end事件  https://reactphp.org/stream/#pipe

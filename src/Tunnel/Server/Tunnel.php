@@ -156,7 +156,9 @@ class Tunnel implements \Wpjscc\Penetration\Log\LogManagerInterface
                     if ($protocol == 'tcp' || $protocol == 'tls') {
                         $upgradeHeader = $request->getHeader('Upgrade');
                         if ((1 === count($upgradeHeader) && 'websocket' === strtolower($upgradeHeader[0]))) {
-                            echo "tcp upgrade to websocket\n";
+                            static::getLogger()->notice("client: {$protocol} is upgrade to websocket ", [
+                                'remoteAddress' => $connection->getRemoteAddress(),
+                            ]);
                             $decoratedSocket = new DecorateSocket($socket);
                             $scheme = $request->getUri()->getScheme() == 'https' ? 'wss' :'ws';
                             $websocketTunnel = $that->getTunnel($scheme, $decoratedSocket);
@@ -200,7 +202,7 @@ class Tunnel implements \Wpjscc\Penetration\Log\LogManagerInterface
                         'uuid' => $uuid,
                         'request' => Helper::toString($request)
                     ]);
-                    
+
                     $headers = [
                         'HTTP/1.1 200 OK',
                         'Server: ReactPHP/1',

@@ -131,10 +131,7 @@ class SingleTunnel extends EventEmitter implements ServerInterface, \Wpjscc\Pene
     {
         $uuid = $response->getHeaderLine('Uuid');
 
-        static::getLogger()->info("SingleTunnel::".__FUNCTION__, [
-            'class' => __CLASS__,
-            'uuid' => $uuid,
-        ]);
+
 
         if (!Uuid::isValid($uuid)) {
             static::getLogger()->error("SingleTunnel::".__FUNCTION__." uuid is invalid", [
@@ -167,6 +164,10 @@ class SingleTunnel extends EventEmitter implements ServerInterface, \Wpjscc\Pene
         });
 
         $this->connections[$uuid] = $contection;
+        static::getLogger()->notice("SingleTunnel::".__FUNCTION__, [
+            'uuid' => $uuid,
+            'response' => Helper::toString($response)
+        ]);
         $this->emit('connection', array($contection));
 
     }
@@ -197,7 +198,7 @@ class SingleTunnel extends EventEmitter implements ServerInterface, \Wpjscc\Pene
         $data = base64_decode($response->getHeaderLine('Data'));
         $length = strlen($data);
 
-        static::getLogger()->notice('single tunnel receive data', [
+        static::getLogger()->info('single tunnel receive data', [
             'uuid' => $uuid,
             'length' => $length,
         ]);

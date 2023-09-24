@@ -47,13 +47,17 @@ class ProxyManager implements \Wpjscc\Penetration\Log\LogManagerInterface
 
         $deferred = new Deferred();
 
-
-        static::getLogger()->notice('create dynamic connection', [
+        static::getLogger()->notice('start create remote dynamic connection', [
             'uri' => $uri,
-            'tunnel_count' => static::$remoteTunnelConnections[$uri]->count(),
         ]);
 
+
         if (isset(static::$remoteTunnelConnections[$uri]) && static::$remoteTunnelConnections[$uri]->count() > 0) {
+
+            static::getLogger()->notice('create dynamic connection', [
+                'uri' => $uri,
+                'tunnel_count' => static::$remoteTunnelConnections[$uri]->count(),
+            ]);
 
             // 随机发送一个创建链接的请求(给他通道发送)
             $index = rand(0, static::$remoteTunnelConnections[$uri]->count()-1);

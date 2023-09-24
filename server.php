@@ -19,8 +19,8 @@ LogManager::$logLevels = [
     // LogLevel::DEBUG,
     // LogLevel::EMERGENCY,
     LogLevel::ERROR,
-    // LogLevel::INFO,
-    // LogLevel::WARNING,
+    LogLevel::INFO,
+    LogLevel::WARNING,
     LogLevel::NOTICE,
 
 ];
