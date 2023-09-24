@@ -12,7 +12,7 @@ use Wpjscc\Penetration\Tunnel\Server\Tunnel\TcpTunnel;
 use Wpjscc\Penetration\Tunnel\Server\Tunnel\UdpTunnel;
 use Wpjscc\Penetration\Tunnel\Server\Tunnel\WebsocketTunnel;
 use Wpjscc\Penetration\DecorateSocket;
-
+use Ramsey\Uuid\Uuid;
 
 class Tunnel
 {
@@ -185,6 +185,7 @@ class Tunnel
                     $headers = [
                         'HTTP/1.1 200 OK',
                         'Server: ReactPHP/1',
+                        'Uuid: '. Uuid::uuid4()->toString(),
                         'Uri: ' . $state['uri'],
                     ];
                     $connection->write(implode("\r\n", $headers) . "\r\n\r\n");

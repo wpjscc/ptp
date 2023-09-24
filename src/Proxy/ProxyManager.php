@@ -116,7 +116,7 @@ class ProxyManager
             static::$remoteTunnelConnections[$uri]->attach($connection, [
                 'Single-Tunnel' => $request->getHeaderLine('Single-Tunnel'),
                 'Local-Host' => $request->getHeaderLine('Local-Host'),
-                'Local-Tunnel-Address' => $request->getHeaderLine('Local-Tunnel-Address'),
+                'Uuid' => $request->getHeaderLine('Uuid'),
             ]);
 
             $ping = function ($connection) {
@@ -199,10 +199,10 @@ class ProxyManager
         if (isset(static::$remoteDynamicConnections[$uri]) && static::$remoteDynamicConnections[$uri]->count() > 0) {
             echo ("add dynamic connection ".$connection->getRemoteAddress()."\n");
 
-            $localTunnelAddress = $request->getHeaderLine('Local-Tunnel-Address');
+            $localTunnelAddress = $request->getHeaderLine('Uuid');
             $remoteTunnelConnection = null;
             foreach (static::$remoteTunnelConnections[$uri] as $tunnelConnection) {
-                if (static::$remoteTunnelConnections[$uri][$tunnelConnection]['Local-Tunnel-Address'] == $localTunnelAddress) {
+                if (static::$remoteTunnelConnections[$uri][$tunnelConnection]['Uuid'] == $localTunnelAddress) {
                     $remoteTunnelConnection = $tunnelConnection;
                     break;
                 }

@@ -52,7 +52,7 @@ class ClientManager
                     'Local-Host: ' . $config['local_host'] . ':' . $config['local_port'],
                     'Domain: ' . $config['domain'],
                     'Single-Tunnel: ' . ($config['single_tunnel'] ?? 0),
-                    'Local-Tunnel-Address: ' . $connection->getLocalAddress(),
+                    // 'Local-Tunnel-Address: ' . $connection->getLocalAddress(),
                 ];
                 $connection->write(implode("\r\n", $headers) . "\r\n\r\n");
 
@@ -147,10 +147,13 @@ class ClientManager
     public static function addLocalTunnelConnection($connection, $response, &$config)
     {
         $uri = $response->getHeaderLine('Uri');
+        $uuid = $response->getHeaderLine('Uuid');
         echo ('local tunnel success '.$uri."\n");
+        echo ('local tunnel success '.$uuid."\n");
         $config['uri'] = $uri;
+        $config['uuid'] = $uuid;
         echo ($connection->getLocalAddress().'=====>'. $connection->getRemoteAddress())."\n";
-
+        
         if (!isset(static::$localTunnelConnections[$uri])) {
             static::$localTunnelConnections[$uri] = new \SplObjectStorage;
         }
@@ -202,7 +205,7 @@ class ClientManager
                 'Authorization: '. ($config['token'] ?? ''),
                 'Domain: '.$config['domain'],
                 'Dynamic-Tunnel-Address: '.$connection->getLocalAddress(),
-                'Local-Tunnel-Address: '.$tunnelConnection->getLocalAddress(),
+                'Uuid: '.$config['uuid'],
             ];
             $connection->write(implode("\r\n", $headers)."\r\n\r\n");
             ClientManager::handleLocalDynamicConnection($connection, $config);
