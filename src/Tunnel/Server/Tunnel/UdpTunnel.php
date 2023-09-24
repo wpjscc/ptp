@@ -11,8 +11,9 @@ use Wpjscc\Penetration\CompositeConnectionStream;
 use React\Stream\ThroughStream;
 
 
-class UdpTunnel extends EventEmitter implements ServerInterface
+class UdpTunnel extends EventEmitter implements ServerInterface,\Wpjscc\Penetration\Log\LogManagerInterface
 {
+    use \Wpjscc\Penetration\Log\LogManagerTraitDefault;
     private $server;
 
     private $connections = array();

@@ -12,8 +12,10 @@ use Wpjscc\Penetration\Helper;
 use React\Stream\ThroughStream;
 use Ramsey\Uuid\Uuid;
 
-class ProxyConnection
+class ProxyConnection implements \Wpjscc\Penetration\Log\LogManagerInterface
 {
+    use \Wpjscc\Penetration\Log\LogManagerTraitDefault;
+
     public $max_connections;
     public $max_wait_queue;
     public $current_connections = 0;
@@ -48,7 +50,10 @@ class ProxyConnection
         $this->getIdleConnection()->then(function (ConnectionInterface $clientConnection) use ($userConnection, &$buffer, $fn, $request) {
 
             $clientConnection->tunnelConnection->once('close', $fnclose = function () use ($clientConnection, $userConnection) {
-                echo 'tunnel connection close trigger dynamic connection close' . "\n";
+                static::getLogger()->warning("ProxyConnection::".__FUNCTION__, [
+                    'class' => __CLASS__,
+                    'message' => 'tunnel connection close trigger dynamic connection close',
+                ]);
                 $clientConnection->close();
                 $userConnection->close();
             });
@@ -72,15 +77,20 @@ class ProxyConnection
             $userConnection->removeListener('data', $fn);
             $fn = null;
             $dynamicAddress = $clientConnection->getRemoteAddress();
-            echo "dynamic connection success ".$dynamicAddress."\n";
 
             if (($clientConnection->protocol ?? '') != 'single') {
-                // 告诉clientConnection 开始连接了, 给客户端一个uuid
-                $clientConnection->write(implode("\r\n", [
-                    'HTTP/1.1 201 OK',
-                    'Uuid: '. Uuid::uuid4()->toString(),
-                ]) . "\r\n\r\n");
+                // 告诉客户端，通道通了
+                $uuid = Uuid::uuid4()->toString();
+                $clientConnection->write("HTTP/1.1 201 OK\r\nUuid: {$uuid}\r\n\r\n");
+            } else {
+                $uuid = '';
             }
+
+            static::getLogger()->info("dynamic connection success", [
+                'class' => __CLASS__,
+                'dynamicAddress' => $dynamicAddress,
+                'uuid' => $uuid,
+            ]);
            
 
             $middle = new ThroughStream(function ($data) use ($proxyReplace) {
@@ -95,10 +105,14 @@ class ProxyConnection
 
             if (isset($clientConnection->protocol) && $clientConnection->protocol == 'udp') {
                 // udp 协议需要特殊处理
-                $clientConnection->pipe(new ThroughStream(function ($buffer) use ($clientConnection) {
+                $clientConnection->pipe(new ThroughStream(function ($buffer) use ($clientConnection, $uuid) {
                     // var_dump($buffer);
                     if (strpos($buffer, 'POST /close HTTP/1.1') !== false) {
-                        echo 'udp dynamic connection receive close request' . "\n";
+                        static::getLogger()->notice("udp dynamic connection receive close request", [
+                            'class' => __CLASS__,
+                            'uuid' => $uuid,
+                            'dynamicAddress' => $clientConnection->getRemoteAddress(),
+                        ]);
                         $clientConnection->close();
                         return '';
                     }
@@ -111,28 +125,44 @@ class ProxyConnection
 
             // pipe 关闭仅用于end事件  https://reactphp.org/stream/#pipe
             // close 要主动关闭
-            $clientConnection->on('close', function () use ($dynamicAddress, $userConnection) {
+            $clientConnection->on('close', function () use ($dynamicAddress, $userConnection, $uuid) {
+                static::getLogger()->notice("dynamic connection close", [
+                    'class' => __CLASS__,
+                    'dynamicAddress' => $dynamicAddress,
+                    'uuid' => $uuid,
+                ]);
                 $userConnection->close();
-                echo 'dynamic connection close ' .$dynamicAddress. "\n";
             });
 
-            $clientConnection->on('end', function () {
-                echo 'dynamic connection end' . "\n";
+            $clientConnection->on('end', function () use ($uuid) {
+                static::getLogger()->notice("dynamic connection end", [
+                    'class' => __CLASS__,
+                    'uuid' => $uuid,
+                ]);
             });
 
-            $userConnection->on('end', function () use ($clientConnection) {
-                echo 'user connection end' . "\n";
+            $userConnection->on('end', function () use ($clientConnection, $uuid) {
+
+                static::getLogger()->notice("user connection end", [
+                    'class' => __CLASS__,
+                    'uuid' => $uuid,
+                ]);
 
                 // udp 协议需要特殊处理
                 if (isset($clientConnection->protocol) && $clientConnection->protocol == 'udp') {
-                    echo 'udp dynamic connection end and try send close request' . "\n";
+                    static::getLogger()->notice("udp dynamic connection end and try send close request", [
+                        'class' => __CLASS__,
+                        'uuid' => $uuid,
+                    ]);
                     $clientConnection->write("POST /close HTTP/1.1\r\n\r\n");
                 }
             });
 
-            $userConnection->on('close', function () use ($clientConnection, &$fnclose) {
-                echo 'user connection close' . "\n";
-                
+            $userConnection->on('close', function () use ($clientConnection, &$fnclose, $uuid) {
+                static::getLogger()->notice("user connection close", [
+                    'class' => __CLASS__,
+                    'uuid' => $uuid,
+                ]);
                 $clientConnection->close();
                 $clientConnection->tunnelConnection->removeListener('close', $fnclose);
                 $fnclose = null;
@@ -150,7 +180,12 @@ class ProxyConnection
 
         }, function ($e) use ($userConnection, &$buffer) {
             $buffer = '';
-            echo $e->getMessage()."-3\n";
+            static::getLogger()->error($e->getMessage().'-1', [
+                'class' => __CLASS__,
+                'file' => $e->getFile(),
+                'line' => $e->getLine(),
+            ]);
+
             $message = $e->getMessage();
             $length = strlen($e->getMessage());
             $now = date('Y-m-d H:i:s');
@@ -158,7 +193,10 @@ class ProxyConnection
             $userConnection->end();
         })->otherwise(function ($error) use ($userConnection, &$buffer) {
             $buffer = '';
-            echo $error->getMessage()."-2\n";
+            static::getLogger()->error($error->getMessage().'-2', [
+                'class' => __CLASS__,
+                'file' => $error->getFile(),
+            ]);
             $message = $error->getMessage();
             $length = strlen($error->getMessage());
             $now = date('Y-m-d H:i:s');

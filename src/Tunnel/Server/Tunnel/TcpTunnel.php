@@ -8,8 +8,9 @@ use React\Socket\ServerInterface;
 use React\EventLoop\LoopInterface;
 
 
-class TcpTunnel extends EventEmitter implements ServerInterface
+class TcpTunnel extends EventEmitter implements ServerInterface,\Wpjscc\Penetration\Log\LogManagerInterface
 {
+    use \Wpjscc\Penetration\Log\LogManagerTraitDefault;
     private $server;
 
     public function __construct($uri, array $context = array(), LoopInterface $loop = null)

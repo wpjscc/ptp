@@ -8,10 +8,12 @@ use RingCentral\Psr7;
 use Ramsey\Uuid\Uuid;
 use React\Stream\ThroughStream;
 use Wpjscc\Penetration\CompositeConnectionStream;
+use Wpjscc\Penetration\Helper;
 
-class SingleTunnel extends EventEmitter implements ServerInterface, \Wpjscc\Penetration\Tunnel\SingleTunnelInterface
+class SingleTunnel extends EventEmitter implements ServerInterface, \Wpjscc\Penetration\Tunnel\SingleTunnelInterface,\Wpjscc\Penetration\Log\LogManagerInterface
 {
 
+    use \Wpjscc\Penetration\Log\LogManagerTraitDefault;
     private $connections = array();
     private $connection;
 
@@ -52,6 +54,9 @@ class SingleTunnel extends EventEmitter implements ServerInterface, \Wpjscc\Pene
 
     public function close()
     {
+        static::getLogger()->info("SingleTunnel::".__FUNCTION__, [
+            'class' => __CLASS__,
+        ]);
         foreach ($this->connections as $connection) {
             $connection->close();
         }
@@ -76,10 +81,16 @@ class SingleTunnel extends EventEmitter implements ServerInterface, \Wpjscc\Pene
                 $response = Psr7\parse_response(substr($this->buffer, $httpPos, $pos-$httpPos));
             } catch (\Exception $e) {
                 // invalid response message, close connection
-                echo $e->getFile()."\n";
-                echo $e->getLine()."\n";
-                echo $e->getMessage();
+                static::getLogger()->error($e->getMessage(), [
+                    'class' => __CLASS__,
+                    'file' => $e->getFile(),
+                    'line' => $e->getLine(),
+                    'buffer' => substr($this->buffer, $httpPos, $pos-$httpPos)
+                ]);
+
                 $this->buffer = substr($this->buffer, $pos + 4);
+                
+
                 // error
                 // todo close connection
                 return;
@@ -104,8 +115,10 @@ class SingleTunnel extends EventEmitter implements ServerInterface, \Wpjscc\Pene
             
             else {
                 // ignore other response code
-
-                echo "single tunnel ignore response code-{$response->getStatusCode()}\n" ."\n";
+                static::getLogger()->warning("single tunnel ignore response", [
+                    'class' => __CLASS__,
+                    'response' => Helper::toString($response)
+                ]);
 
             }
 
@@ -118,9 +131,16 @@ class SingleTunnel extends EventEmitter implements ServerInterface, \Wpjscc\Pene
     {
         $uuid = $response->getHeaderLine('Uuid');
 
-        echo "single tunnel create connection-{$uuid}\n" ."\n";
+        static::getLogger()->info("SingleTunnel::".__FUNCTION__, [
+            'class' => __CLASS__,
+            'uuid' => $uuid,
+        ]);
 
         if (!Uuid::isValid($uuid)) {
+            static::getLogger()->error("SingleTunnel::".__FUNCTION__." uuid is invalid", [
+                'class' => __CLASS__,
+                'uuid' => $uuid,
+            ]);
             return;
             // ignore
         }
@@ -130,13 +150,18 @@ class SingleTunnel extends EventEmitter implements ServerInterface, \Wpjscc\Pene
         $contection = new CompositeConnectionStream($read, $write, null, 'single');
 
         $write->on('data', function ($data) use ($uuid)  {
-            echo "single tunnel send data-{$uuid}\n" ."\n";
+            static::getLogger()->notice('single tunnel send data', [
+                'uuid' => $uuid,
+                'length' => strlen($data),
+            ]);
             $data = base64_encode($data);
             $this->connection->write("HTTP/1.1 311 OK\r\nUuid: {$uuid}\r\nData: {$data}\r\n\r\n");
         });
 
         $read->on('close', function () use ($uuid) {
-            echo "single tunnel close-{$uuid}\n" ."\n";
+            static::getLogger()->notice('single tunnel close', [
+                'uuid' => $uuid,
+            ]);
             $this->connection->write("HTTP/1.1 312 OK\r\nUuid: {$uuid}\r\n\r\n");
             unset($this->connections[$uuid]);
         });
@@ -150,9 +175,10 @@ class SingleTunnel extends EventEmitter implements ServerInterface, \Wpjscc\Pene
     {
         $uuid = $response->getHeaderLine('Uuid');
 
-        echo "single tunnel receive data-{$uuid}\n" ."\n";
-
         if (!Uuid::isValid($uuid)) {
+            static::getLogger()->warning('single tunnel receive data invalid uuid', [
+                'uuid' => $uuid,
+            ]);
             return;
             // ignore
         }
@@ -160,7 +186,10 @@ class SingleTunnel extends EventEmitter implements ServerInterface, \Wpjscc\Pene
         if (!isset($this->connections[$uuid])) {
             $data = base64_decode($response->getHeaderLine('Data'));
             $length = strlen($data);
-            echo "single tunnel after close receive data-length-{$length}\n" ."\n";
+            static::getLogger()->warning('single tunnel after close receive data connection not found', [
+                'uuid' => $uuid,
+                'length' => $length,
+            ]);
             return;
             // ignore
         }
@@ -168,7 +197,10 @@ class SingleTunnel extends EventEmitter implements ServerInterface, \Wpjscc\Pene
         $data = base64_decode($response->getHeaderLine('Data'));
         $length = strlen($data);
 
-        echo "single tunnel receive data-length-{$length}\n" ."\n";
+        static::getLogger()->notice('single tunnel receive data', [
+            'uuid' => $uuid,
+            'length' => $length,
+        ]);
 
 
         $this->connections[$uuid]->emit('data', array($data));
@@ -178,17 +210,25 @@ class SingleTunnel extends EventEmitter implements ServerInterface, \Wpjscc\Pene
     {
         $uuid = $response->getHeaderLine('Uuid');
 
-        echo "single tunnel close1-{$uuid}\n" ."\n";
-
         if (!Uuid::isValid($uuid)) {
+            static::getLogger()->warning('single tunnel close invalid uuid', [
+                'uuid' => $uuid,
+            ]);
             return;
             // ignore
         }
 
         if (!isset($this->connections[$uuid])) {
+            static::getLogger()->warning('single tunnel close connection not found', [
+                'uuid' => $uuid,
+            ]);
             return;
             // ignore
         }
+
+        static::getLogger()->info('single tunnel close', [
+            'uuid' => $uuid,
+        ]);
 
 
         $this->connections[$uuid]->close();

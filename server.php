@@ -7,12 +7,23 @@ use Wpjscc\Penetration\Config;
 use Wpjscc\Penetration\Tunnel\Server\Tunnel;
 use Wpjscc\Penetration\Server\Http;
 use Wpjscc\Penetration\Server\TcpManager;
-use Wpjscc\Penetration\Server\Tcp;
 use Wpjscc\Penetration\Proxy\ProxyManager;
 use Wpjscc\Penetration\Log\LogManager;
+use Psr\Log\LogLevel;
 use Wpjscc\Penetration\Helper;
 
 
+LogManager::$logLevels = [
+    // LogLevel::ALERT,
+    // LogLevel::CRITICAL,
+    // LogLevel::DEBUG,
+    // LogLevel::EMERGENCY,
+    LogLevel::ERROR,
+    // LogLevel::INFO,
+    // LogLevel::WARNING,
+    LogLevel::NOTICE,
+
+];
 LogManager::setLogger(new \Wpjscc\Penetration\Log\EchoLog());
 
 

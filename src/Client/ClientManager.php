@@ -208,8 +208,11 @@ class ClientManager implements \Wpjscc\Penetration\Log\LogManagerInterface
     public static function addLocalDynamicConnection($connection, $response)
     {
         $uri = $response->getHeaderLine('Uri');
-        static::getLogger()->info('local proxy success ' . $uri . "\n");
-        static::getLogger()->info($connection->getRemoteAddress() . '=>' . $connection->getLocalAddress()) . "\n";
+        static::getLogger()->info('dynamic tunnel success ', [
+            'class' => __CLASS__,
+            'uri' => $uri,
+            'response' => Helper::toString($response)
+        ]);
 
         if (!isset(static::$localDynamicConnections[$uri])) {
             static::$localDynamicConnections[$uri] = new \SplObjectStorage;

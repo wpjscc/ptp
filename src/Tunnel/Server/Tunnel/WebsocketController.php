@@ -8,8 +8,9 @@ use Evenement\EventEmitter;
 use Wpjscc\Penetration\CompositeConnectionStream;
 use React\Stream\ThroughStream;
 
-class WebsocketController extends EventEmitter implements  MessageComponentInterface
+class WebsocketController extends EventEmitter implements  MessageComponentInterface,\Wpjscc\Penetration\Log\LogManagerInterface
 {
+    use \Wpjscc\Penetration\Log\LogManagerTraitDefault;
 
     protected $clients;
 

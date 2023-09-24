@@ -12,10 +12,13 @@ use Wpjscc\Penetration\Tunnel\Server\Tunnel\TcpTunnel;
 use Wpjscc\Penetration\Tunnel\Server\Tunnel\UdpTunnel;
 use Wpjscc\Penetration\Tunnel\Server\Tunnel\WebsocketTunnel;
 use Wpjscc\Penetration\DecorateSocket;
+use Wpjscc\Penetration\Helper;
 use Ramsey\Uuid\Uuid;
 
-class Tunnel
+class Tunnel implements \Wpjscc\Penetration\Log\LogManagerInterface
 {
+    use \Wpjscc\Penetration\Log\LogManagerTraitDefault;
+
     public $protocol = 'tcp';
     public $host = 'localhost';
     public $server80port;
@@ -109,13 +112,13 @@ class Tunnel
             $this->listenTunnel($protocol, $this->getTunnel($protocol));
 
             if ($protocol == 'tls') {
-                echo "Client Server is running at {$protocol}:{$this->server443port}...\n";
+                static::getLogger()->notice("Client Server is running at {$protocol}:{$this->server443port}...");
             }
             else if ($protocol == 'tcp') {
-                echo "Client Server is running at {$protocol}:{$this->server80port}...\n";
+                static::getLogger()->notice("Client Server is running at {$protocol}:{$this->server80port}...");
             }
             else if ($protocol == 'udp') {
-                echo "Client Server is running at {$protocol}:{$this->server80port}...\n";
+                static::getLogger()->notice("Client Server is running at {$protocol}:{$this->server80port}...");
             }
             
         }
@@ -124,8 +127,10 @@ class Tunnel
     protected function listenTunnel($protocol, $socket)
     {
         $socket->on('connection', function (ConnectionInterface $connection) use ($protocol, $socket) {
-            echo 'client: is connected ';
-            echo $connection->getRemoteAddress() . ' ' . "\n";
+
+            static::getLogger()->notice("client: {$protocol} is connected ", [
+                'remoteAddress' => $connection->getRemoteAddress(),
+            ]);
 
             $buffer = '';
             $that = $this;
@@ -168,10 +173,17 @@ class Tunnel
                     try {
                         $state =  $that->validate($request);
                     } catch (\Throwable $th) {
-                        echo $th->getMessage();
+                        static::getLogger()->error($th->getMessage(), [
+                            'class' => __CLASS__,
+                            'file' => $th->getFile(),
+                            'line' => $th->getLine(),
+                        ]);
                     }
 
                     if (!$state) {
+                        static::getLogger()->error("client: {$protocol} is unauthorized ", [
+                            'request' => Helper::toString($request)
+                        ]);
                         echo 'client: ' . $connection->getRemoteAddress() . ' is unauthorized' . "\n";
                         $headers = [
                             'HTTP/1.1 401 Unauthorized',
@@ -182,17 +194,26 @@ class Tunnel
                         return;
                     }
 
+                    $uuid = Uuid::uuid4()->toString();
+
+                    static::getLogger()->notice("client: {$protocol} is authorized ", [
+                        'uuid' => $uuid,
+                        'request' => Helper::toString($request)
+                    ]);
+                    
                     $headers = [
                         'HTTP/1.1 200 OK',
                         'Server: ReactPHP/1',
-                        'Uuid: '. Uuid::uuid4()->toString(),
+                        'Uuid: '. $uuid,
                         'Uri: ' . $state['uri'],
                     ];
                     $connection->write(implode("\r\n", $headers) . "\r\n\r\n");
+
+
                     $request = $request->withoutHeader('Uri');
                     $request = $request->withHeader('Uri', $state['uri']);
 
-                    ProxyManager::handleClientConnection($connection, $request);
+                    ProxyManager::handleClientConnection($connection, $request, $uuid);
                 }
             });
         });

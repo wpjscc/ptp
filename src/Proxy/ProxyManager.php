@@ -6,9 +6,7 @@ use React\Promise\Deferred;
 use React\Promise\Timer\TimeoutException;
 use Wpjscc\Penetration\Tunnel\Server\Tunnel\SingleTunnel;
 use Ramsey\Uuid\Uuid;
-use Wpjscc\Penetration\Log\LogManagerInterface;
-use Wpjscc\Penetration\Log\LogManagerTrait;
-use Wpjscc\Penetration\Log\LogManager;
+use Wpjscc\Penetration\Helper;
 
 class ProxyManager implements \Wpjscc\Penetration\Log\LogManagerInterface
 {
@@ -48,38 +46,51 @@ class ProxyManager implements \Wpjscc\Penetration\Log\LogManagerInterface
     {
 
         $deferred = new Deferred();
-        echo 'start create dynamic connection'. $uri."\n";
-        if (isset(static::$remoteTunnelConnections[$uri]) && static::$remoteTunnelConnections[$uri]->count() > 0) {
-            echo ('create dynamic connection'."\n");
-            $headers = [
-                'HTTP/1.1 201 OK',
-                'Uri: '.$uri
-            ];
 
-            echo ('remote tunnel connection count '.static::$remoteTunnelConnections[$uri]->count()."\n");
+
+        static::getLogger()->notice('create dynamic connection', [
+            'uri' => $uri,
+            'tunnel_count' => static::$remoteTunnelConnections[$uri]->count(),
+        ]);
+
+        if (isset(static::$remoteTunnelConnections[$uri]) && static::$remoteTunnelConnections[$uri]->count() > 0) {
 
             // 随机发送一个创建链接的请求(给他通道发送)
             $index = rand(0, static::$remoteTunnelConnections[$uri]->count()-1);
 
-            echo ('random index '.$index."\n");
+            static::getLogger()->notice('random tunnel index', [
+                'uri' => $uri,
+                'index' => $index,
+            ]);
 
             foreach (static::$remoteTunnelConnections[$uri] as $key=>$tunnelConnection) {
                 if ($key === $index){
                     $singleTunnel = static::$remoteTunnelConnections[$uri][$tunnelConnection]['Single-Tunnel'] ?? false;
+                    $uuid = Uuid::uuid4()->toString();
                     if ($singleTunnel) {
-                        $uuid = Uuid::uuid4()->toString();
-                        echo ("send create dynamic connection by single tunnel ".$tunnelConnection->getRemoteAddress()."\n");
+                        static::getLogger()->notice('send create dynamic connection by single tunnel', [
+                            'uri' => $uri,
+                            'uuid' => $uuid,
+                            'remote_address' => $tunnelConnection->getRemoteAddress(),
+                        ]);
+                        // 通知客户端创建一个单通道
                         $tunnelConnection->write("HTTP/1.1 310 OK\r\nUuid:{$uuid}"."\r\n\r\n");
                     } else {
-                        echo ("send create dynamic connection by ".$tunnelConnection->getRemoteAddress()."\n");
-                        $tunnelConnection->write(implode("\r\n", $headers)."\r\n\r\n");
+                        static::getLogger()->notice('send create dynamic connection', [
+                            'uri' => $uri,
+                            'remote_address' => $tunnelConnection->getRemoteAddress(),
+                        ]);
+                        // 通知客户端发起一个动态连接请求
+                        $tunnelConnection->write("HTTP/1.1 201 OK\r\n\r\n");
                     }
                    
                     break;
                 }
             }
         } else {
-            echo "no tunnel connection\r\n";
+            static::getLogger()->warning('no tunnel connection', [
+                'uri' => $uri,
+            ]);
             return \React\Promise\reject(new \Exception('no tunnel connection, please try again later'));
         }
 
@@ -95,7 +106,7 @@ class ProxyManager implements \Wpjscc\Penetration\Log\LogManagerInterface
 
             if ($e instanceof TimeoutException) {
                 throw new \RuntimeException(
-                    'remoteDynamicConnections wait timed out after ' . $e->getTimeout() . ' seconds (ETIMEDOUT)',
+                    'remote dynamic tunnel connection  wait timed out after ' . $e->getTimeout() . ' seconds (ETIMEDOUT)',
                     \defined('SOCKET_ETIMEDOUT') ? \SOCKET_ETIMEDOUT : 110
                 );
             }
@@ -103,14 +114,20 @@ class ProxyManager implements \Wpjscc\Penetration\Log\LogManagerInterface
         });
     }
 
-    public static function handleClientConnection($connection, $request)
+    public static function handleClientConnection($connection, $request, $uuid)
     {
 
         $uri = $request->getHeaderLine('Uri');
 
+        // $uuid 服务端生成的
+
         // 是通道
         if (!isset(static::$remoteTunnelConnections[$uri]) || $request->hasHeader('Tunnel')) {
-            echo ("add tunnel connection ".$connection->getRemoteAddress()."\n");
+            static::getLogger()->notice('add tunnel connection', [
+                'uuid' => $uuid,
+                'uri' => $uri,
+                'request' => Helper::toString($request)
+            ]);
 
             if (!isset(static::$remoteTunnelConnections[$uri])) {
                 static::$remoteTunnelConnections[$uri] = new \SplObjectStorage;
@@ -120,14 +137,14 @@ class ProxyManager implements \Wpjscc\Penetration\Log\LogManagerInterface
             static::$remoteTunnelConnections[$uri]->attach($connection, [
                 'Single-Tunnel' => $request->getHeaderLine('Single-Tunnel'),
                 'Local-Host' => $request->getHeaderLine('Local-Host'),
-                'Uuid' => $request->getHeaderLine('Uuid'),
+                'Uuid' => $uuid,
             ]);
 
             $ping = function ($connection) {
                 $connection->write("HTTP/1.1 300 OK\r\n\r\n");
             };
 
-            $pong = function ($connection) {
+            $pong = function ($connection) use ($request) {
                 $deferred = new Deferred();
 
                 $connection->once('data', $fn = function ($buffer) use ($deferred) {
@@ -137,11 +154,10 @@ class ProxyManager implements \Wpjscc\Penetration\Log\LogManagerInterface
                 });
 
                 \React\Promise\Timer\timeout($deferred->promise(), 3)->then(null, function ($e) use ($connection, $fn, $deferred) {
-                    echo ("ping pong timeout\n");
                     $connection->removeListener('data', $fn);
                     if ($e instanceof TimeoutException) {
                         $e =  new \RuntimeException(
-                            'wait timed out after ' . $e->getTimeout() . ' seconds (ETIMEDOUT)',
+                            'ping wait timed out after ' . $e->getTimeout() . ' seconds (ETIMEDOUT)',
                             \defined('SOCKET_ETIMEDOUT') ? \SOCKET_ETIMEDOUT : 110
                         );
                     }
@@ -151,22 +167,37 @@ class ProxyManager implements \Wpjscc\Penetration\Log\LogManagerInterface
                 return $deferred->promise();
             };
 
-            $timer = \React\EventLoop\Loop::addPeriodicTimer(10, function () use ($ping, $pong, $connection) {
+            $timer = \React\EventLoop\Loop::addPeriodicTimer(10, function () use ($ping, $pong, $connection, $request, $uuid) {
                 echo ("start ping pong".$connection->getRemoteAddress()."\n");
                 $ping($connection);
-                $pong($connection)->then(function () {
+                $pong($connection)->then(function () use ($request, $uuid) {
                     echo ("ping pong success\n\n");
-                }, function ($e) use ($connection) {
-                    echo ("ping pong fail\n\n");
+                    static::getLogger()->info('ping pong success', [
+                        'class' => __CLASS__,
+                        'uri' => $request->getHeaderLine('Uri'),
+                        'uuid' => $uuid,
+
+                    ]);
+                }, function ($e) use ($connection,$request, $uuid) {
+                    static::getLogger()->error($e->getMessage(), [
+                        'class' => __CLASS__,
+                        'file' => $e->getFile(),
+                        'line' => $e->getLine(),
+                        'uri' => $request->getHeaderLine('Uri'),
+                        'uuid' => $uuid,
+                    ]);
                     $connection->close();
                 });
             });
 
-            $connection->on('close', function () use ($uri, $connection, $timer) {
+            $connection->on('close', function () use ($uri, $connection, $timer, $request, $uuid) {
                 \React\EventLoop\Loop::cancelTimer($timer);
                 static::$remoteTunnelConnections[$uri]->detach($connection);
+                static::getLogger()->notice('remove tunnel connection', [
+                    'uri' => $request->getHeaderLine('Uri'),
+                    'uuid' => $uuid,
+                ]);
                 if (static::$remoteTunnelConnections[$uri]->count() == 0) {
-                    echo ("tunnel connection close\n");
                     unset(static::$remoteTunnelConnections[$uri]);
                     unset(static::$uriToToken[$uri]);
                 }
@@ -174,19 +205,37 @@ class ProxyManager implements \Wpjscc\Penetration\Log\LogManagerInterface
 
 
             if ($request->getHeaderLine('Single-Tunnel')) {
+                static::getLogger()->notice('create single tunnel', [
+                    'uri' => $request->getHeaderLine('Uri'),
+                    'uuid' => $uuid,
+                ]);
+
                 $singleTunnel = new SingleTunnel();
                 $singleTunnel->overConnection($connection);
-                $singleTunnel->on('connection', function ($singleConnection) use ($connection, $uri) {
+                $singleTunnel->on('connection', function ($singleConnection) use ($connection, $uri, $request, $uuid) {
                     if (isset(static::$remoteDynamicConnections[$uri]) && static::$remoteDynamicConnections[$uri]->count() > 0) {
-                        echo ("add dynamic connection by single tunnel".$singleConnection->getRemoteAddress()."\n");
+                        static::getLogger()->notice('add dynamic connection by single tunnel', [
+                            'uri' => $request->getHeaderLine('Uri'),
+                            'uuid' => $uuid,
+                            'remote_address' => $singleConnection->getRemoteAddress(),
+                        ]);
                         static::$remoteDynamicConnections[$uri]->rewind();
                         $deferred = static::$remoteDynamicConnections[$uri]->current();
                         static::$remoteDynamicConnections[$uri]->detach($deferred);
-                        echo ('deferred dynamic connection single-tunnel '.$singleConnection->getRemoteAddress()."\n");
+                        static::getLogger()->notice('deferred dynamic connection single-tunnel', [
+                            'uri' => $request->getHeaderLine('Uri'),
+                            'uuid' => $uuid,
+                            'remote_address' => $singleConnection->getRemoteAddress(),
+                        ]);
                         $singleConnection->tunnelConnection = $connection;
                         $deferred->resolve($singleConnection);
                     } else {
                         echo ("no dynamic connection by single tunnel".$singleConnection->getRemoteAddress()."\n");
+                        static::getLogger()->notice('no dynamic connection by single tunnel', [
+                            'uri' => $request->getHeaderLine('Uri'),
+                            'uuid' => $uuid,
+                            'remote_address' => $singleConnection->getRemoteAddress(),
+                        ]);
                         $singleConnection->write("HTTP/1.1 205 Not Support Created\r\n\r\n");
                         $singleConnection->end();
                     }
@@ -196,17 +245,26 @@ class ProxyManager implements \Wpjscc\Penetration\Log\LogManagerInterface
             return ;
         }
 
-        echo ("\ndynamic connection connected ".$connection->getRemoteAddress()."\n");
+        static::getLogger()->notice('dynamic is arriving', [
+            'uri' => $request->getHeaderLine('Uri'),
+            'uuid' => $request->getHeaderLine('Uuid'),
+            'remote_address' => $connection->getRemoteAddress(),
+        ]);
 
         // todo 最大数量限制
         // 其次请求
         if (isset(static::$remoteDynamicConnections[$uri]) && static::$remoteDynamicConnections[$uri]->count() > 0) {
             echo ("add dynamic connection ".$connection->getRemoteAddress()."\n");
-
-            $localTunnelAddress = $request->getHeaderLine('Uuid');
+            static::getLogger()->notice('add dynamic connection', [
+                'uri' => $request->getHeaderLine('Uri'),
+                'uuid' => $request->getHeaderLine('Uuid'),
+                'remote_address' => $connection->getRemoteAddress(),
+            ]);
+            // parent uuid
+            $uuid = $request->getHeaderLine('Uuid');
             $remoteTunnelConnection = null;
             foreach (static::$remoteTunnelConnections[$uri] as $tunnelConnection) {
-                if (static::$remoteTunnelConnections[$uri][$tunnelConnection]['Uuid'] == $localTunnelAddress) {
+                if (static::$remoteTunnelConnections[$uri][$tunnelConnection]['Uuid'] == $uuid) {
                     $remoteTunnelConnection = $tunnelConnection;
                     break;
                 }
@@ -215,9 +273,23 @@ class ProxyManager implements \Wpjscc\Penetration\Log\LogManagerInterface
             static::$remoteDynamicConnections[$uri]->rewind();
             $deferred = static::$remoteDynamicConnections[$uri]->current();
             static::$remoteDynamicConnections[$uri]->detach($deferred);
-            echo ('deferred dynamic connection '.$connection->getRemoteAddress()."\n");
-            $connection->tunnelConnection = $remoteTunnelConnection;
-            $deferred->resolve($connection);
+            static::getLogger()->notice('deferred dynamic connection', [
+                'uri' => $request->getHeaderLine('Uri'),
+                'uuid' => $request->getHeaderLine('Uuid'),
+                'remote_address' => $connection->getRemoteAddress(),
+            ]);
+            if (empty($remoteTunnelConnection)) {
+                static::getLogger()->error('tunnel connection not found by uuid', [
+                    'uri' => $request->getHeaderLine('Uri'),
+                    'uuid' => $request->getHeaderLine('Uuid'),
+                    'remote_address' => $connection->getRemoteAddress(),
+                ]);
+                $deferred->reject(new \Exception('tunnel connection not found by uuid, please try again later'));
+            } else {
+                $connection->tunnelConnection = $remoteTunnelConnection;
+                $deferred->resolve($connection);
+            }
+         
             return ;
         }
         $connection->write("HTTP/1.1 205 Not Support Created\r\n\r\n");

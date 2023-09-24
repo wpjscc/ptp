@@ -9,8 +9,9 @@ use React\EventLoop\LoopInterface;
 use React\EventLoop\Loop;
 use Wpjscc\Penetration\CompositeConnectionStream;
 
-class WebsocketTunnel extends EventEmitter implements ServerInterface
+class WebsocketTunnel extends EventEmitter implements ServerInterface,\Wpjscc\Penetration\Log\LogManagerInterface
 {
+    use \Wpjscc\Penetration\Log\LogManagerTraitDefault;
     private $server;
 
     public function __construct($httpHost = 'localhost', $port = 8080, $address = '127.0.0.1', LoopInterface $loop = null, $context = array(), $socket = null)
