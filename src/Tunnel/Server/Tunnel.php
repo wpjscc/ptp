@@ -186,7 +186,6 @@ class Tunnel implements \Wpjscc\Penetration\Log\LogManagerInterface
                         static::getLogger()->error("client: {$protocol} is unauthorized ", [
                             'request' => Helper::toString($request)
                         ]);
-                        echo 'client: ' . $connection->getRemoteAddress() . ' is unauthorized' . "\n";
                         $headers = [
                             'HTTP/1.1 401 Unauthorized',
                             'Server: ReactPHP/1',
