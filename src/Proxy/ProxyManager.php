@@ -151,8 +151,9 @@ class ProxyManager implements \Wpjscc\Penetration\Log\LogManagerInterface
             $pong = function ($connection) use ($request) {
                 $deferred = new Deferred();
 
-                $connection->once('data', $fn = function ($buffer) use ($deferred) {
+                $connection->once('data', $fn = function ($buffer) use ($deferred, &$fn, $connection) {
                     if (strpos($buffer, 'HTTP/1.1 301 OK') !== false) {
+                        $connection->removeListener('data', $fn);
                         $deferred->resolve();
                     }
                 });
