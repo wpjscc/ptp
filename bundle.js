@@ -908,7 +908,6 @@ require=(function(){function r(e,n,t){function o(i,f){if(!n[i]){if(!e[i]){var c=
                 } catch (e) {
                     console.error(e, $bufferObj.buffer)
                 }
-
                 if ($request) {
                     console.log('parse requesr success', $request)
 
@@ -916,29 +915,42 @@ require=(function(){function r(e,n,t){function o(i,f){if(!n[i]){if(!e[i]){var c=
 
                         const statusLine = `HTTP/1.1 ${res.statusCode} ${res.statusMessage}`;
                         let isChunked = false
-                        let isGzip = false
+                        let isZip = false
+
                         if (res.headers['transfer-encoding'] == 'chunked') {
                             // delete res.headers['transfer-encoding']
                             // delete res.headers['content-encoding']
                             isChunked = true
 
-                            if (res.headers['content-encoding'] == 'gzip') { 
-                                isGzip = true
-                                delete res.headers['content-encoding']
-
-                            } else {
-                                delete res.headers['content-encoding']
+                            if (res.headers['content-encoding']) {
+                                isZip = true
                             }
+                            res.headers['delete-content-encoding'] = res.headers['content-encoding']
+                            delete res.headers['content-encoding']
                         } else {
+                            if (res.headers['content-encoding']) {
+                                isZip = true
+                                delete res.headers['content-encoding']
+                                res.headers['transfer-encoding'] = 'chunked'
+                                res.headers['Append'] = 'chunked'
+                                isChunked = true
+                              
+                            }
+
 
                         }
-                        let headers = Object.entries(res.headers)
-                            .map(([name, value]) => `${name}: ${value}`)
-                            .join('\r\n');
-                        // 将它们拼接成源字符串
-                        let sourceString = `${statusLine}\r\n${headers}\r\n\r\n`;
-                        console.log(sourceString);
-                        $connection.write(sourceString);
+
+                        if (isChunked) {
+                            let headers = Object.entries(res.headers)
+                                .map(([name, value]) => `${name}: ${value}`)
+                                .join('\r\n');
+                            // 将它们拼接成源字符串
+                            let sourceString = `${statusLine}\r\n${headers}\r\n\r\n`;
+                            console.log(sourceString);
+                            $connection.write(sourceString);
+                        }
+
+
 
                         res.on('data', function (buf) {
                             // console.log(res)
@@ -947,7 +959,7 @@ require=(function(){function r(e,n,t){function o(i,f){if(!n[i]){if(!e[i]){var c=
                             // console.log(buf)
                             var string = new TextDecoder().decode(buf);
                             if (isChunked) {
-                                if (isGzip) {
+                                if (isZip) {
                                     console.log('gzip')
                                     // zlib.gzip(buf, function (err, result) { 
                                     //     if (err) throw err;
@@ -965,7 +977,7 @@ require=(function(){function r(e,n,t){function o(i,f){if(!n[i]){if(!e[i]){var c=
                                     let length = buf.length.toString(16);
                                     $connection.write(length + `\r\n` + string + `\r\n`);
                                 }
-                               
+
                             } else {
                                 $connection.write(string);
                             }
@@ -981,7 +993,7 @@ require=(function(){function r(e,n,t){function o(i,f){if(!n[i]){if(!e[i]){var c=
                         });
                     })
 
-                    req.end()
+                    req.end($request.body)
 
                 } else {
                     console.error('timeout' + "\n");
