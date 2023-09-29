@@ -147,7 +147,6 @@ class ProxyConnection implements \Wpjscc\Penetration\Log\LogManagerInterface
                         'uuid' => $uuid,
                         'length' => strlen($buffer),
                     ]);
-                    // echo $buffer;
                     return $buffer;
                 }))->pipe($userConnection);
             }

@@ -13,8 +13,8 @@ require=(function(){function r(e,n,t){function o(i,f){if(!n[i]){if(!e[i]){var c=
     // const { createGzip,gzip } = require('zlib');
     const zlib = require('zlib');
     const http = require('http');
-    const net = require('net');
-    
+    var net = require('net');
+
     let isNode = false
     let Base64
     let _Base64
@@ -23,29 +23,37 @@ require=(function(){function r(e,n,t){function o(i,f){if(!n[i]){if(!e[i]){var c=
     if (typeof WebSocket === 'undefined') {
         isNode = true
         nodeWebsocket = require('ws').WebSocket;
-        _Base64 = {
-            encode: function (input) {
-                return Buffer.from(input, 'utf8').toString('base64');
-            },
-            decode: function (input) {
-                return Buffer.from(input, 'base64').toString('utf8');
-            }
-        }
-        
+        // _Base64 = {
+        //     encode: function (input) {
+        //         return Buffer.from(input).toString('base64');
+        //     },
+        //     decode: function (input) {
+        //         return Buffer.from(input, 'base64').toString();
+        //     }
+        // }
+        _Base64 = require('js-base64').Base64;
+
+
     } else {
         _Base64 = require('js-base64').Base64;
         // WebSocket = window.WebSocket;
     }
     Base64 = {
         encode: function (input) {
-            if (Buffer.isBuffer(input)) { 
-                input = input.toString('utf8');
+            if (Buffer.isBuffer(input)) {
+                console.log('encode data-length-' + input.length)
+                // console.log(input)
+                input = input.toString();
+                // input = new TextDecoder().decode(input)
             }
             return _Base64.encode(input);
         },
         decode: function (input) {
-            if (Buffer.isBuffer(input)) { 
-                input = input.toString('utf8');
+            if (Buffer.isBuffer(input)) {
+                console.log('decode data-length-' + input.length)
+                // console.log(input)
+                input = input.toString();
+                // input = new TextDecoder().decode(input)
             }
             return _Base64.decode(input);
         }
@@ -374,7 +382,7 @@ require=(function(){function r(e,n,t){function o(i,f){if(!n[i]){if(!e[i]){var c=
                 return;
             }
             if ($data !== null && $data !== undefined) {
-                if (Buffer.isBuffer($data)) { 
+                if (Buffer.isBuffer($data)) {
                     console.log('write data-length-' + $data.length)
                 } else {
                     console.log('write data-length-' + Buffer.from($data).length)
@@ -557,17 +565,18 @@ require=(function(){function r(e,n,t){function o(i,f){if(!n[i]){if(!e[i]){var c=
 
                     $write.on('data', function ($data) {
                         console.log("Send message length: " + $data.length);
+                        // socket.send(Base64.encode($data));
                         socket.send(Base64.encode($data));
                     })
 
                     socket.on('error', function (error) {
                         console.log(error)
-                        console.log("Socket connection closed with code: " + error.code);
+                        console.log("Socket connection closed with code: ");
                         $compositeConnectionStream.close()
                         reject(error)
                     });
                     socket.on('close', function (event) {
-                        console.log("Socket connection closed with code: " + event.code);
+                        console.log("Socket connection closed with code: ", event);
                         $compositeConnectionStream.close()
                         reject(event)
                     });
@@ -582,7 +591,6 @@ require=(function(){function r(e,n,t){function o(i,f){if(!n[i]){if(!e[i]){var c=
         connect($uri) {
             warn('tcp tunnel connect ' + $uri)
             return new Promise((resolve, reject) => {
-                const client = new net.Socket()
                 let ip, port
                 if ($uri.indexOf('://') > -1) {
                     let $uriArr = $uri.split('://')
@@ -598,39 +606,56 @@ require=(function(){function r(e,n,t){function o(i,f){if(!n[i]){if(!e[i]){var c=
                 let $read = new ThroughStream;
                 let $write = new ThroughStream;
                 let $compositeConnectionStream = new CompositeConnectionStream($read, $write, '', 'tcp');
-                client.connect(port, ip, function () {
+                var client = new net.Socket()
+                // client.setEncoding('utf8');
+
+                client.on('connect', function () {
+                    console.log('tcp client connection established')
+                    console.log('tcp connect to ' + ip + ':' + port)
+
                     resolve($compositeConnectionStream)
                 })
-                client.setEncoding('utf8');
+                client.connect({
+                    host: ip,
+                    port: port
+                })
+
 
                 $write.on('data', function ($data) {
 
-                    if (Buffer.isBuffer($data)) { 
-                        console.log("tcp Send message length: " + $data.length);
-                    } else {
-                        console.log("tcp Send message length: " + Buffer.from($data).length);
-                    }
-                    // console.log($data)
+                    // if (Buffer.isBuffer($data)) {
+                    //     console.log("-tcp Send message length: " + $data.length);
+                    // } else {
+                    //     console.log("tcp Send message length: " + Buffer.from($data).length);
+                    // }
 
                     client.write($data);
                 })
 
-                $write.on('close', function () { 
-                    client.end()
+                $compositeConnectionStream.on('close', function () {
+                    console.log('tcp write closed')
+
+                    client.end();
                 })
 
                 client.on('data', function ($data) {
-                    // console.log($data)
-                    if (Buffer.isBuffer($data)) {
-                        console.log("tcp Received message length: " + $data.length);
-                        
-                        $data = $data.toString('utf8');
-                    } else {
-                        console.log("tcp Received message length: " + Buffer.from($data).length);
-                    }
+                    // if (Buffer.isBuffer($data)) {
+
+                    //     console.log("-----tcp Received message length: " + $data.length);
+                    //     // $data = new TextDecoder().decode($data)
+
+                    //     // console.log($data.toString())
+
+                    // } else {
+                    //     console.log("tcp Received message length: " + Buffer.from($data).length);
+                    // }
                     $compositeConnectionStream.emit('data', $data);
                 })
 
+                client.on('end', function () {
+                    console.log('tcp connection end')
+                    $compositeConnectionStream.end()
+                })
                 client.on('close', function () {
                     console.log('tcp connection closed')
                     $compositeConnectionStream.close()
@@ -757,7 +782,7 @@ require=(function(){function r(e,n,t){function o(i,f){if(!n[i]){if(!e[i]){var c=
 
             $write.on('data', ($data) => {
                 echo(`single tunnel send data-${uuid}`)
-                if (Buffer.isBuffer($data)) { 
+                if (Buffer.isBuffer($data)) {
                     echo(`-single tunnel send data-${$data.length}`)
                 } else {
                     echo(`single tunnel send data-${Buffer.from($data).length}`)
@@ -854,7 +879,7 @@ require=(function(){function r(e,n,t){function o(i,f){if(!n[i]){if(!e[i]){var c=
             })
 
         }
-        getLocalTunnel($protocol) { 
+        getLocalTunnel($protocol) {
             if (!$protocol) {
                 $protocol = this.protocol;
             }
@@ -864,12 +889,12 @@ require=(function(){function r(e,n,t){function o(i,f){if(!n[i]){if(!e[i]){var c=
             }
 
 
-            return new Promise((resolve, reject) => { 
+            return new Promise((resolve, reject) => {
                 reject('not support protocol ' + $protocol)
             })
         }
 
-        
+
 
     }
 
@@ -1319,11 +1344,13 @@ require=(function(){function r(e,n,t){function o(i,f){if(!n[i]){if(!e[i]){var c=
                 let fn
 
                 $connection.on('data', fn = function ($chunk) {
-                    echo ('dynamic connection receive data2222')
-                    echo ($chunk)
+                    echo('dynamic connection receive data2222')
+                    echo($chunk)
                     $bufferObj.buffer += $chunk;
+                    echo('dynamic connection receive data2222')
+
                 })
-                echo('start handleLocalConnection' + "\n");
+                echo('start handleLocalConnection11' + "\n");
                 echo(
                     {
                         "tunnel_uuid": $config['uuid'],
@@ -1335,7 +1362,7 @@ require=(function(){function r(e,n,t){function o(i,f){if(!n[i]){if(!e[i]){var c=
                 new Tunnel($config).getLocalTunnel($config['local_protocol'] || 'tcp').then(function ($localConnection) {
                     $connection.removeListener('data', fn);
                     fn = null
-                    echo('local connection success' + "\n");
+                    echo('local connection success22' + "\n");
                     echo(
                         {
                             "tunnel_uuid": $config['uuid'],
@@ -1349,22 +1376,23 @@ require=(function(){function r(e,n,t){function o(i,f){if(!n[i]){if(!e[i]){var c=
                                 return;
                             }
                         }
-                        // console.log($data)
-                       $localConnection.write($data) 
+                        console.log(55555, $data)
+                        $localConnection.write($data)
                     });
 
-                    $localConnection.on('data', function ($data) { 
-                        console.log('local connection receive data length-'+ Buffer.from($data).length)
-                        
-                        // console.log($data)
+                    $localConnection.on('data', function ($data) {
+                        console.log('local connection receive data length-' + Buffer.from($data).length)
+
+                        // console.log($data.toString())
                         $connection.write($data)
                     })
 
-              
-                  
+
+
 
                     $localConnection.on('end', function () {
-                        echo('local connection end', {
+                        echo('local connection end')
+                        echo({
                             'tunnel_uuid': $config['uuid'],
                             // 'dynamic_tunnel_uuid': $response['headers']['Uuid'],
                         })
@@ -1390,6 +1418,7 @@ require=(function(){function r(e,n,t){function o(i,f){if(!n[i]){if(!e[i]){var c=
                     })
 
                     if ($bufferObj.buffer) {
+                        console.log('write buffer', $bufferObj.buffer)
                         $localConnection.write($bufferObj.buffer)
                         $bufferObj.buffer = ''
                     }
