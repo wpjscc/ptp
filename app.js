@@ -1,8 +1,9 @@
 
-(function () {
+(function (that) {
 
 
     let echo = console.log
+    let warn = console.warn
 
     var EventEmitter = require('events')
     const { Transform, pipeline } = require('stream');
@@ -11,17 +12,54 @@
     // const { createGzip,gzip } = require('zlib');
     const zlib = require('zlib');
     const http = require('http');
-    const { Base64 } = require('js-base64');
+    const net = require('net');
+    
+    let isNode = false
+    let Base64
+    let _Base64
+    let nodeWebsocket
+    // 在node中
+    if (typeof WebSocket === 'undefined') {
+        isNode = true
+        nodeWebsocket = require('ws').WebSocket;
+        _Base64 = {
+            encode: function (input) {
+                return Buffer.from(input, 'utf8').toString('base64');
+            },
+            decode: function (input) {
+                return Buffer.from(input, 'base64').toString('utf8');
+            }
+        }
+        
+    } else {
+        _Base64 = require('js-base64').Base64;
+        // WebSocket = window.WebSocket;
+    }
+    Base64 = {
+        encode: function (input) {
+            if (Buffer.isBuffer(input)) { 
+                input = input.toString('utf8');
+            }
+            return _Base64.encode(input);
+        },
+        decode: function (input) {
+            if (Buffer.isBuffer(input)) { 
+                input = input.toString('utf8');
+            }
+            return _Base64.decode(input);
+        }
+    }
 
     class ThroughStream extends Transform {
-        constructor() {
+        constructor(fn) {
             super();
+            this.fn = fn;
         }
         // 重写_transform方法来处理输入数据
         _transform(chunk, encoding, callback) {
             // 对输入数据进行处理
             // const transformedChunk = chunk.toString().toUpperCase();
-            const transformedChunk = chunk;
+            const transformedChunk = this.fn ? this.fn(chunk) : chunk;
             // 将处理后的数据传递给可写流
             this.push(transformedChunk);
             // 回调函数通知流处理完毕
@@ -331,10 +369,15 @@
         write($data) {
 
             if (this.closed) {
+                console.log('after close write')
                 return;
             }
             if ($data !== null && $data !== undefined) {
-                console.log('write data ')
+                if (Buffer.isBuffer($data)) { 
+                    console.log('write data-length-' + $data.length)
+                } else {
+                    console.log('write data-length-' + Buffer.from($data).length)
+                }
                 this._write.write($data);
             }
         }
@@ -396,8 +439,8 @@
 
         }
 
-        isWritable() {
-            return this.writable.isWritable();
+        isReadable() {
+            return this.readable.isReadable();
         }
 
         pause() {
@@ -457,39 +500,184 @@
         connect($uri) {
             return new Promise((resolve, reject) => {
 
-                let socket = new WebSocket($uri);
+                if (!isNode) {
 
+                    let socket = new WebSocket($uri);
+
+                    let $read = new ThroughStream;
+                    let $write = new ThroughStream;
+
+                    let $compositeConnectionStream = new CompositeConnectionStream($read, $write, '', 'ws');
+
+
+                    socket.onopen = function () {
+                        console.log("Socket connection established");
+                        resolve(
+                            $compositeConnectionStream
+                        );
+                    };
+
+                    socket.onmessage = function (event) {
+                        var message = event.data;
+                        console.log("Received message: " + Base64.decode(message));
+                        $compositeConnectionStream.emit('data', Base64.decode(message));
+                    };
+
+                    $write.on('data', function ($data) {
+                        console.log("Send message length: " + $data.length);
+                        socket.send(Base64.encode($data));
+                    })
+
+                    socket.onclose = function (event) {
+                        console.log("Socket connection closed with code: " + event.code);
+                        $compositeConnectionStream.close()
+                        reject(event)
+                    };
+                } else {
+                    let socket = new nodeWebsocket($uri);
+
+                    let $read = new ThroughStream;
+                    let $write = new ThroughStream;
+
+                    let $compositeConnectionStream = new CompositeConnectionStream($read, $write, '', 'ws');
+
+
+                    socket.on('open', function () {
+                        console.log("Socket connection established");
+                        resolve(
+                            $compositeConnectionStream
+                        );
+                    })
+
+                    socket.on('message', function (data) {
+                        console.log("Received message1111: " + Base64.decode(data));
+                        $compositeConnectionStream.emit('data', Base64.decode(data));
+                    })
+
+                    $write.on('data', function ($data) {
+                        console.log("Send message length: " + $data.length);
+                        socket.send(Base64.encode($data));
+                    })
+
+                    socket.on('error', function (error) {
+                        console.log(error)
+                        console.log("Socket connection closed with code: " + error.code);
+                        $compositeConnectionStream.close()
+                        reject(error)
+                    });
+                    socket.on('close', function (event) {
+                        console.log("Socket connection closed with code: " + event.code);
+                        $compositeConnectionStream.close()
+                        reject(event)
+                    });
+                }
+
+
+            })
+        }
+    }
+
+    class TcpTunnel {
+        connect($uri) {
+            warn('tcp tunnel connect ' + $uri)
+            return new Promise((resolve, reject) => {
+                const client = new net.Socket()
+                let ip, port
+                if ($uri.indexOf('://') > -1) {
+                    let $uriArr = $uri.split('://')
+                    let $host = $uriArr[1]
+                    let $hostArr = $host.split(':')
+                    ip = $hostArr[0]
+                    port = $hostArr[1]
+                } else {
+                    let $hostArr = $uri.split(':')
+                    ip = $hostArr[0]
+                    port = $hostArr[1]
+                }
                 let $read = new ThroughStream;
                 let $write = new ThroughStream;
+                let $compositeConnectionStream = new CompositeConnectionStream($read, $write, '', 'tcp');
+                client.connect(port, ip, function () {
+                    resolve($compositeConnectionStream)
+                })
+                client.setEncoding('utf8');
 
-                let $compositeConnectionStream = new CompositeConnectionStream($read, $write, '', 'ws');
+                $write.on('data', function ($data) {
 
+                    if (Buffer.isBuffer($data)) { 
+                        console.log("tcp Send message length: " + $data.length);
+                    } else {
+                        console.log("tcp Send message length: " + Buffer.from($data).length);
+                    }
+                    // console.log($data)
 
-                socket.onopen = function () {
-                    console.log("Socket connection established");
-                    resolve(
-                        $compositeConnectionStream
-                    );
-                };
+                    client.write($data);
+                })
 
-                socket.onmessage = function (event) {
-                    var message = event.data;
-                    console.log("Received message: " + Base64.decode(message));
-                    $compositeConnectionStream.emit('data', Base64.decode(message));
-                };
+                $write.on('close', function () { 
+                    client.end()
+                })
+
+                client.on('data', function ($data) {
+                    // console.log($data)
+                    if (Buffer.isBuffer($data)) {
+                        console.log("tcp Received message length: " + $data.length);
+                        
+                        $data = $data.toString('utf8');
+                    } else {
+                        console.log("tcp Received message length: " + Buffer.from($data).length);
+                    }
+                    $compositeConnectionStream.emit('data', $data);
+                })
+
+                client.on('close', function () {
+                    console.log('tcp connection closed')
+                    $compositeConnectionStream.close()
+                })
+
+            })
+        }
+    }
+
+    class UdpTunnel {
+        connect($uri) {
+            return new Promise((resolve, reject) => {
+                const client = udp.createSocket('udp4');
+                let ip, port
+                port = $uri.split(':')[1]
+                ip = $uri.split(':')[0]
+                let $read = new ThroughStream;
+                let $write = new ThroughStream;
+                let $compositeConnectionStream = new CompositeConnectionStream($read, $write, '', 'udp');
 
                 $write.on('data', function ($data) {
                     console.log("Send message length: " + $data.length);
-                    socket.send(Base64.encode($data));
+                    client.send(Buffer.from($data), port, ip, function (error) {
+                        if (error) {
+                            console.log('An error occurred while sending the message', error);
+                            client.close();
+                            $compositeConnectionStream.close()
+                        } else {
+                            console.log('Message sent successfully to ' + ip + ':' + port);
+                        }
+                    });
+                })
+                client.on('message', function (msg, info) {
+                    console.log('Received %d bytes from %s:%d\n', msg.length, info.address, info.port);
+                    $read.write(msg.toString())
                 })
 
-                socket.onclose = function (event) {
-                    console.log("Socket connection closed with code: " + event.code);
-                    $compositeConnectionStream.close()
-                    reject(event)
-                };
+                $connection.on('close', function () {
+                    console.log('udp connection closed')
+                    setTimeout(() => {
+                        client.close()
+                    }, 1);
+                })
 
+                resolve($compositeConnectionStream)
             })
+
+
         }
     }
 
@@ -567,8 +755,13 @@
             let $connection = new CompositeConnectionStream($read, $write, null, 'single');
 
             $write.on('data', ($data) => {
-                echo(`single tunnel send data-${uuid}\n`)
-                echo(`single tunnel send data-${$data}\n`)
+                echo(`single tunnel send data-${uuid}`)
+                if (Buffer.isBuffer($data)) { 
+                    echo(`-single tunnel send data-${$data.length}`)
+                } else {
+                    echo(`single tunnel send data-${Buffer.from($data).length}`)
+                }
+                // echo(`single tunnel send data-${$data}\n`)
                 $data = Base64.encode($data);
                 this.connection.write(`HTTP/1.1 311 OK\r\nUuid: ${uuid}\r\nData: ${$data}\r\n\r\n`);
             })
@@ -593,7 +786,8 @@
                 echo(`single tunnel receive data-${uuid}\n`);
 
                 let $data = Base64.decode($response['headers']['Data']);
-                this.connections[uuid].emit('data', [$data]);
+                console.log($data)
+                this.connections[uuid].emit('data', $data);
             }
             else {
                 echo('connection not found ' + uuid + "\n")
@@ -628,6 +822,9 @@
             this.server_443_port = $config['server_443_port'];
             this.timeout = $config['timeout'] || 6;
 
+            this.local_host = $config['local_host'];
+            this.local_port = $config['local_port'];
+
         }
 
         getTunnel($protocol) {
@@ -641,8 +838,14 @@
             if ($protocol == 'ws') {
                 return new WebSocketTunnel().connect('ws://' + this.server_host + ':' + this.server_80_port + '/tunnel');
             }
-            else if ($protocol == 'wsss') {
+            else if ($protocol == 'wss') {
                 return new WebSocketTunnel().connect('wss://' + this.server_host + ':' + this.server_443_port + '/tunnel');
+            }
+            else if ($protocol == 'tcp') {
+                return new TcpTunnel().connect(this.server_host + ':' + this.server_80_port);
+            }
+            else if ($protocol == 'udp') {
+                return new UdpTunnel().connect(this.server_host + ':' + this.server_80_port);
             }
 
             return new Promise((resolve, reject) => {
@@ -650,6 +853,22 @@
             })
 
         }
+        getLocalTunnel($protocol) { 
+            if (!$protocol) {
+                $protocol = this.protocol;
+            }
+
+            if ($protocol == 'tcp') {
+                return new TcpTunnel().connect(this.local_host + ':' + this.local_port);
+            }
+
+
+            return new Promise((resolve, reject) => { 
+                reject('not support protocol ' + $protocol)
+            })
+        }
+
+        
 
     }
 
@@ -664,7 +883,7 @@
     server_80_port = 32126
     server_443_port = 32125
     protocol = ws
-    tunnel_protocol = udp
+    tunnel_protocol = ws
     single_tunnel = true
 
     [web]
@@ -815,7 +1034,7 @@
                     ClientManager.addLocalTunnelConnection($connection, $response, $config);
                 }
                 else if ($response['statusCode'] === 201) {
-
+                    ClientManager.createLocalDynamicConnections($connection, $config);
                 }
                 else if ($response['statusCode'] === 300) {
 
@@ -835,8 +1054,10 @@
 
         static addLocalTunnelConnection($connection, $response, $config) {
             let $uri = $response['headers']['Uri'];
+            let $uuid = $response['headers']['Uuid'];
             echo('local tunnel success ' + $uri + "\n");
             $config['uri'] = $uri;
+            $config['uuid'] = $uuid;
 
             if (!ClientManager.$localTunnelConnections[$uri]) {
                 ClientManager.$localTunnelConnections[$uri] = [];
@@ -861,157 +1082,332 @@
                     ClientManager.handleLocalConnection($connection, $config, $bufferObj, null);
                 });
             }
+        }
+
+        static addLocalDynamicConnection($connection, $response) {
+            let $uri = $response['headers']['Uri'];
+            if (!ClientManager.$localDynamicConnections[$uri]) {
+                ClientManager.$localDynamicConnections[$uri] = [];
+            }
+            ClientManager.$localDynamicConnections[$uri].push($connection);
+
+            $connection.on('close', function () {
+                let $index = ClientManager.$localDynamicConnections[$uri].indexOf($connection);
+                if ($index > -1) {
+                    ClientManager.$localDynamicConnections[$uri].splice($index, 1);
+                }
+            })
+        }
+        static createLocalDynamicConnections($tunnelConnection, $config) {
+            let $protocol = $config['protocol']
+
+            let $tunnel_protocol = $config['tunnel_protocol']
+                (new Tunnel($config)).getTunnel($tunnel_protocol || $protocol).then(function ($connection) {
+                    $headers = [
+                        'GET /client HTTP/1.1',
+                        'Host: ' + $config['server_host'],
+                        'User-Agent: ReactPHP',
+                        'Authorization: ' + ($config['token'] || ''),
+                        'Domain: ' + $config['domain'],
+                        'Uuid: ' + $config['uuid'],
+                    ];
+                    $connection.write($headers.join(`\r\n`) + '\r\n\r\n');
+                    ClientManager.handleLocalDynamicConnection($connection, $config);
+                })
+        }
+
+        static handleLocalDynamicConnection($connection, $config) {
+            let $bufferObj = {
+                buffer: ''
+            };
+            let fn
+            $connection.on('data', fn = function ($chunk) {
+                $bufferObj.buffer += $chunk;
+                while ($bufferObj.buffer) {
+
+                    let $pos = $bufferObj.buffer.indexOf("\r\n\r\n");
+                    if ($pos > -1) {
+
+                        let $httpPos = $bufferObj.buffer.indexOf("HTTP/1.1")
+                        if ($httpPos == -1) {
+                            $httpPos = 0
+                        }
+
+                        let $headers = $bufferObj.buffer.substr($httpPos, $pos - $httpPos + 4);
+                        console.log($headers)
+                        let $response = null
+                        try {
+                            $response = Util.parseResponse($headers);
+                        } catch (e) {
+                            console.log(e)
+                            $connection.close();
+                            return;
+                        }
+
+                        $bufferObj.buffer = $bufferObj.buffer.substr($pos + 4);
+
+                        if ($response['statusCode'] === 200) {
+                            ClientManager.addLocalDynamicConnection($connection, $response);
+                        }
+                        else if ($response['statusCode'] === 201) {
+                            $connection.removeListener('data', fn);
+                            fn = null
+                            ClientManager.handleLocalConnection($connection, $config, $bufferObj, $response);
+                        }
+
+                        else {
+                            console.error($response)
+                            $connection.removeListener('data', fn);
+                            $fn = null
+                            $connection.close();
+                            return
+                        }
+
+                    } else {
+                        break
+                    }
+                }
+
+
+            });
 
 
         }
 
+
         static async handleLocalConnection($connection, $config, $bufferObj, $response) {
 
-            $connection.on('data', async ($chunk) => {
-                $bufferObj.buffer += $chunk;
-
+            if (!isNode) {
                 echo('start handleLocalConnection' + "\n");
-                let $proxy = null
+                $connection.on('data', async ($chunk) => {
+                    $bufferObj.buffer += $chunk;
 
-                if ($config['local-proxy']) {
-                    // todo $proxy
+                    echo('start handleLocalConnection' + "\n");
+                    let $proxy = null
 
-                }
-                let $r = function () {
-                    return new Promise((resolve, reject) => {
-                        try {
-                            let $request = Util.parseRequest($bufferObj.buffer);
-                            $bufferObj.buffer = '';
-                            resolve($request)
-                        } catch (e) {
-                            console.error(e)
-                            console.log('current buffer: ' + $bufferObj.buffer)
-                            reject(e)
-                        }
-                    })
-                }
+                    if ($config['local-proxy']) {
+                        // todo $proxy
 
-                let $request = null
-
-                if (!$bufferObj.buffer) {
-                    console.error('no buffer')
-                    return;
-                }
-                try {
-
-                    console.log('try parse')
-                    console.log('current buffer ' + $bufferObj.buffer)
-                    $request = await $r();
-
-                    $bufferObj.buffer = ''
-                } catch (e) {
-                    console.error(e, $bufferObj.buffer)
-                }
-                if ($request) {
-                    console.log('parse requesr success', $request)
-
-                    let req = http.request($request, (res) => {
-
-                        const statusLine = `HTTP/1.1 ${res.statusCode} ${res.statusMessage}`;
-                        let isChunked = false
-                        let isZip = false
-
-                        if (res.headers['transfer-encoding'] == 'chunked') {
-                            // delete res.headers['transfer-encoding']
-                            // delete res.headers['content-encoding']
-                            isChunked = true
-
-                            if (res.headers['content-encoding']) {
-                                isZip = true
+                    }
+                    let $r = function () {
+                        return new Promise((resolve, reject) => {
+                            try {
+                                let $request = Util.parseRequest($bufferObj.buffer);
+                                $bufferObj.buffer = '';
+                                resolve($request)
+                            } catch (e) {
+                                console.error(e)
+                                console.log('current buffer: ' + $bufferObj.buffer)
+                                reject(e)
                             }
-                            res.headers['delete-content-encoding'] = res.headers['content-encoding']
-                            delete res.headers['content-encoding']
-                        } else {
-                            if (res.headers['content-encoding']) {
-                                isZip = true
-                                res.headers['delete-content-encoding'] = res.headers['content-encoding']
-                              
-                                delete res.headers['content-encoding']
-                                res.headers['transfer-encoding'] = 'chunked'
-                                res.headers['Append'] = 'chunked'
+                        })
+                    }
+
+                    let $request = null
+
+                    if (!$bufferObj.buffer) {
+                        console.error('no buffer')
+                        return;
+                    }
+                    try {
+
+                        console.log('try parse')
+                        console.log('current buffer ' + $bufferObj.buffer)
+                        $request = await $r();
+
+                        $bufferObj.buffer = ''
+                    } catch (e) {
+                        console.error(e, $bufferObj.buffer)
+                    }
+                    if ($request) {
+                        console.log('parse requesr success', $request)
+
+                        let req = http.request($request, (res) => {
+
+                            const statusLine = `HTTP/1.1 ${res.statusCode} ${res.statusMessage}`;
+                            let isChunked = false
+                            let isZip = false
+
+                            if (res.headers['transfer-encoding'] == 'chunked') {
+                                // delete res.headers['transfer-encoding']
+                                // delete res.headers['content-encoding']
                                 isChunked = true
-                              
-                            }
 
+                                if (res.headers['content-encoding']) {
+                                    isZip = true
+                                }
+                                res.headers['delete-content-encoding'] = res.headers['content-encoding']
+                                delete res.headers['content-encoding']
+                            } else {
+                                if (res.headers['content-encoding']) {
+                                    isZip = true
+                                    res.headers['delete-content-encoding'] = res.headers['content-encoding']
 
-                        }
+                                    delete res.headers['content-encoding']
+                                    res.headers['transfer-encoding'] = 'chunked'
+                                    res.headers['Append'] = 'chunked'
+                                    isChunked = true
 
-                        if (isChunked) {
-                            let headers = Object.entries(res.headers)
-                                .map(([name, value]) => `${name}: ${value}`)
-                                .join('\r\n');
-                            // 将它们拼接成源字符串
-                            let sourceString = `${statusLine}\r\n${headers}\r\n\r\n`;
-                            console.log(sourceString);
-                            $connection.write(sourceString);
-                        }
-
-
-
-                        res.on('data', function (buf) {
-                            // console.log(res)
-                            // console.log(res.statusCode)
-                            // console.log(res.headers)
-                            // console.log(buf)
-                            var string = new TextDecoder().decode(buf);
-                            if (isChunked) {
-                                if (isZip) {
-                                    console.log('gzip')
-                                    // zlib.gzip(buf, function (err, result) { 
-                                    //     if (err) throw err;
-                                    //     console.log(2321321321321,result)
-                                    //     let length = result.length.toString(16);
-                                    //     let _string = result.toString()
-                                    //     console.log(555555555,_string)
-
-                                    //     $connection.write(length + `\r\n` + _string + `\r\n`);
-                                    // })
-                                  let length = buf.length.toString(16);
-                                    $connection.write(length + `\r\n` + string + `\r\n`);
-                                } else {
-                                    // let length = string.length.toString(16);
-                                  let length = buf.length.toString(16);
-                                  
-                                    $connection.write(length + `\r\n` + string + `\r\n`);
                                 }
 
-                            } else {
-                                $connection.write(string);
-                            }
-                        });
 
-                        res.on('end', function () {
-                            console.log('end')
+                            }
 
                             if (isChunked) {
-                                $connection.write(`0\r\n\r\n`);
+                                let headers = Object.entries(res.headers)
+                                    .map(([name, value]) => `${name}: ${value}`)
+                                    .join('\r\n');
+                                // 将它们拼接成源字符串
+                                let sourceString = `${statusLine}\r\n${headers}\r\n\r\n`;
+                                console.log(sourceString);
+                                $connection.write(sourceString);
                             }
 
-                        });
+
+
+                            res.on('data', function (buf) {
+                                // console.log(res)
+                                // console.log(res.statusCode)
+                                // console.log(res.headers)
+                                // console.log(buf)
+                                var string = new TextDecoder().decode(buf);
+                                if (isChunked) {
+                                    if (isZip) {
+                                        console.log('gzip')
+                                        // zlib.gzip(buf, function (err, result) { 
+                                        //     if (err) throw err;
+                                        //     console.log(2321321321321,result)
+                                        //     let length = result.length.toString(16);
+                                        //     let _string = result.toString()
+                                        //     console.log(555555555,_string)
+
+                                        //     $connection.write(length + `\r\n` + _string + `\r\n`);
+                                        // })
+                                        let length = buf.length.toString(16);
+                                        $connection.write(length + `\r\n` + string + `\r\n`);
+                                    } else {
+                                        // let length = string.length.toString(16);
+                                        let length = buf.length.toString(16);
+
+                                        $connection.write(length + `\r\n` + string + `\r\n`);
+                                    }
+
+                                } else {
+                                    $connection.write(string);
+                                }
+                            });
+
+                            res.on('end', function () {
+                                console.log('end')
+
+                                if (isChunked) {
+                                    $connection.write(`0\r\n\r\n`);
+                                }
+
+                            });
+                        })
+
+                        req.end($request.body)
+
+                    } else {
+                        console.error('timeout' + "\n");
+                        $connection.close();
+                    }
+                });
+            } else {
+                let fn
+
+                $connection.on('data', fn = function ($chunk) {
+                    echo ('dynamic connection receive data2222')
+                    echo ($chunk)
+                    $bufferObj.buffer += $chunk;
+                })
+                echo('start handleLocalConnection' + "\n");
+                echo(
+                    {
+                        "tunnel_uuid": $config['uuid'],
+                        // "dynamic_tunnel_uuid": $response['headers']['Uuid'],
+                    }
+                )
+                // return;
+                console.error('start handleLocalConnection' + "\n")
+                new Tunnel($config).getLocalTunnel($config['local_protocol'] || 'tcp').then(function ($localConnection) {
+                    $connection.removeListener('data', fn);
+                    fn = null
+                    echo('local connection success' + "\n");
+                    echo(
+                        {
+                            "tunnel_uuid": $config['uuid'],
+                            // "dynamic_tunnel_uuid": $response['headers']['Uuid'],
+                        }
+                    )
+                    $connection.on('data', function ($data) {
+                        if ($connection.protocol == 'udp') {
+                            if ($data.indexOf('POST /close HTTP/1.1') > -1) {
+                                $connection.close()
+                                return;
+                            }
+                        }
+                        // console.log($data)
+                       $localConnection.write($data) 
+                    });
+
+                    $localConnection.on('data', function ($data) { 
+                        console.log('local connection receive data length-'+ Buffer.from($data).length)
+                        
+                        // console.log($data)
+                        $connection.write($data)
                     })
 
-                    req.end($request.body)
+              
+                  
 
-                } else {
-                    console.error('timeout' + "\n");
-                    $connection.close();
-                }
-            });
+                    $localConnection.on('end', function () {
+                        echo('local connection end', {
+                            'tunnel_uuid': $config['uuid'],
+                            // 'dynamic_tunnel_uuid': $response['headers']['Uuid'],
+                        })
 
+                        if ($connection.protocol == 'udp') {
+                            console.warn('udp dynamic connection close and try send close requset')
+                            $connection.write(`POST /close HTTP/1.1\r\n\r\n`)
+                        }
+                    })
 
+                    $localConnection.on('close', function () {
+                        echo('local connection close')
+                        $connection.close()
+                    })
 
+                    $connection.on('end', function () {
+                        echo('udp dynamic connection end')
+                    })
 
+                    $connection.on('close', function () {
+                        echo('udp dynamic connection close')
+                        $localConnection.close()
+                    })
 
+                    if ($bufferObj.buffer) {
+                        $localConnection.write($bufferObj.buffer)
+                        $bufferObj.buffer = ''
+                    }
 
+                }).catch(function ($error) {
+                    console.log($error)
+                    let $content = $error.toString();
 
+                    $headers = [
+                        'HTTP/1.0 404 OK',
+                        'Server: ReactPHP/1',
+                        'Content-Type: text/html; charset=UTF-8',
+                        'Content-Length: ' + ($content.length),
+                    ];
+                    $header = $headers.join(`\r\n`) + "\r\n\r\n";
+                    $connection.write($header.$content);
+                })
 
-
-
+            }
 
         }
 
@@ -1025,4 +1421,4 @@
 
     ClientManager.createLocalTunnelConnection(parseINIString(inisString));
 
-})();
+})(this);

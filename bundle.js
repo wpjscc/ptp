@@ -1,9 +1,10 @@
 require=(function(){function r(e,n,t){function o(i,f){if(!n[i]){if(!e[i]){var c="function"==typeof require&&require;if(!f&&c)return c(i,!0);if(u)return u(i,!0);var a=new Error("Cannot find module '"+i+"'");throw a.code="MODULE_NOT_FOUND",a}var p=n[i]={exports:{}};e[i][0].call(p.exports,function(r){var n=e[i][1][r];return o(n||r)},p,p.exports,r,e,n,t)}return n[i].exports}for(var u="function"==typeof require&&require,i=0;i<t.length;i++)o(t[i]);return o}return r})()({1:[function(require,module,exports){
 
-(function () {
+(function (that) {
 
 
     let echo = console.log
+    let warn = console.warn
 
     var EventEmitter = require('events')
     const { Transform, pipeline } = require('stream');
@@ -12,17 +13,54 @@ require=(function(){function r(e,n,t){function o(i,f){if(!n[i]){if(!e[i]){var c=
     // const { createGzip,gzip } = require('zlib');
     const zlib = require('zlib');
     const http = require('http');
-    const { Base64 } = require('js-base64');
+    const net = require('net');
+    
+    let isNode = false
+    let Base64
+    let _Base64
+    let nodeWebsocket
+    // 在node中
+    if (typeof WebSocket === 'undefined') {
+        isNode = true
+        nodeWebsocket = require('ws').WebSocket;
+        _Base64 = {
+            encode: function (input) {
+                return Buffer.from(input, 'utf8').toString('base64');
+            },
+            decode: function (input) {
+                return Buffer.from(input, 'base64').toString('utf8');
+            }
+        }
+        
+    } else {
+        _Base64 = require('js-base64').Base64;
+        // WebSocket = window.WebSocket;
+    }
+    Base64 = {
+        encode: function (input) {
+            if (Buffer.isBuffer(input)) { 
+                input = input.toString('utf8');
+            }
+            return _Base64.encode(input);
+        },
+        decode: function (input) {
+            if (Buffer.isBuffer(input)) { 
+                input = input.toString('utf8');
+            }
+            return _Base64.decode(input);
+        }
+    }
 
     class ThroughStream extends Transform {
-        constructor() {
+        constructor(fn) {
             super();
+            this.fn = fn;
         }
         // 重写_transform方法来处理输入数据
         _transform(chunk, encoding, callback) {
             // 对输入数据进行处理
             // const transformedChunk = chunk.toString().toUpperCase();
-            const transformedChunk = chunk;
+            const transformedChunk = this.fn ? this.fn(chunk) : chunk;
             // 将处理后的数据传递给可写流
             this.push(transformedChunk);
             // 回调函数通知流处理完毕
@@ -332,10 +370,15 @@ require=(function(){function r(e,n,t){function o(i,f){if(!n[i]){if(!e[i]){var c=
         write($data) {
 
             if (this.closed) {
+                console.log('after close write')
                 return;
             }
             if ($data !== null && $data !== undefined) {
-                console.log('write data ')
+                if (Buffer.isBuffer($data)) { 
+                    console.log('write data-length-' + $data.length)
+                } else {
+                    console.log('write data-length-' + Buffer.from($data).length)
+                }
                 this._write.write($data);
             }
         }
@@ -397,8 +440,8 @@ require=(function(){function r(e,n,t){function o(i,f){if(!n[i]){if(!e[i]){var c=
 
         }
 
-        isWritable() {
-            return this.writable.isWritable();
+        isReadable() {
+            return this.readable.isReadable();
         }
 
         pause() {
@@ -458,39 +501,184 @@ require=(function(){function r(e,n,t){function o(i,f){if(!n[i]){if(!e[i]){var c=
         connect($uri) {
             return new Promise((resolve, reject) => {
 
-                let socket = new WebSocket($uri);
+                if (!isNode) {
 
+                    let socket = new WebSocket($uri);
+
+                    let $read = new ThroughStream;
+                    let $write = new ThroughStream;
+
+                    let $compositeConnectionStream = new CompositeConnectionStream($read, $write, '', 'ws');
+
+
+                    socket.onopen = function () {
+                        console.log("Socket connection established");
+                        resolve(
+                            $compositeConnectionStream
+                        );
+                    };
+
+                    socket.onmessage = function (event) {
+                        var message = event.data;
+                        console.log("Received message: " + Base64.decode(message));
+                        $compositeConnectionStream.emit('data', Base64.decode(message));
+                    };
+
+                    $write.on('data', function ($data) {
+                        console.log("Send message length: " + $data.length);
+                        socket.send(Base64.encode($data));
+                    })
+
+                    socket.onclose = function (event) {
+                        console.log("Socket connection closed with code: " + event.code);
+                        $compositeConnectionStream.close()
+                        reject(event)
+                    };
+                } else {
+                    let socket = new nodeWebsocket($uri);
+
+                    let $read = new ThroughStream;
+                    let $write = new ThroughStream;
+
+                    let $compositeConnectionStream = new CompositeConnectionStream($read, $write, '', 'ws');
+
+
+                    socket.on('open', function () {
+                        console.log("Socket connection established");
+                        resolve(
+                            $compositeConnectionStream
+                        );
+                    })
+
+                    socket.on('message', function (data) {
+                        console.log("Received message1111: " + Base64.decode(data));
+                        $compositeConnectionStream.emit('data', Base64.decode(data));
+                    })
+
+                    $write.on('data', function ($data) {
+                        console.log("Send message length: " + $data.length);
+                        socket.send(Base64.encode($data));
+                    })
+
+                    socket.on('error', function (error) {
+                        console.log(error)
+                        console.log("Socket connection closed with code: " + error.code);
+                        $compositeConnectionStream.close()
+                        reject(error)
+                    });
+                    socket.on('close', function (event) {
+                        console.log("Socket connection closed with code: " + event.code);
+                        $compositeConnectionStream.close()
+                        reject(event)
+                    });
+                }
+
+
+            })
+        }
+    }
+
+    class TcpTunnel {
+        connect($uri) {
+            warn('tcp tunnel connect ' + $uri)
+            return new Promise((resolve, reject) => {
+                const client = new net.Socket()
+                let ip, port
+                if ($uri.indexOf('://') > -1) {
+                    let $uriArr = $uri.split('://')
+                    let $host = $uriArr[1]
+                    let $hostArr = $host.split(':')
+                    ip = $hostArr[0]
+                    port = $hostArr[1]
+                } else {
+                    let $hostArr = $uri.split(':')
+                    ip = $hostArr[0]
+                    port = $hostArr[1]
+                }
                 let $read = new ThroughStream;
                 let $write = new ThroughStream;
+                let $compositeConnectionStream = new CompositeConnectionStream($read, $write, '', 'tcp');
+                client.connect(port, ip, function () {
+                    resolve($compositeConnectionStream)
+                })
+                client.setEncoding('utf8');
 
-                let $compositeConnectionStream = new CompositeConnectionStream($read, $write, '', 'ws');
+                $write.on('data', function ($data) {
 
+                    if (Buffer.isBuffer($data)) { 
+                        console.log("tcp Send message length: " + $data.length);
+                    } else {
+                        console.log("tcp Send message length: " + Buffer.from($data).length);
+                    }
+                    // console.log($data)
 
-                socket.onopen = function () {
-                    console.log("Socket connection established");
-                    resolve(
-                        $compositeConnectionStream
-                    );
-                };
+                    client.write($data);
+                })
 
-                socket.onmessage = function (event) {
-                    var message = event.data;
-                    console.log("Received message: " + Base64.decode(message));
-                    $compositeConnectionStream.emit('data', Base64.decode(message));
-                };
+                $write.on('close', function () { 
+                    client.end()
+                })
+
+                client.on('data', function ($data) {
+                    // console.log($data)
+                    if (Buffer.isBuffer($data)) {
+                        console.log("tcp Received message length: " + $data.length);
+                        
+                        $data = $data.toString('utf8');
+                    } else {
+                        console.log("tcp Received message length: " + Buffer.from($data).length);
+                    }
+                    $compositeConnectionStream.emit('data', $data);
+                })
+
+                client.on('close', function () {
+                    console.log('tcp connection closed')
+                    $compositeConnectionStream.close()
+                })
+
+            })
+        }
+    }
+
+    class UdpTunnel {
+        connect($uri) {
+            return new Promise((resolve, reject) => {
+                const client = udp.createSocket('udp4');
+                let ip, port
+                port = $uri.split(':')[1]
+                ip = $uri.split(':')[0]
+                let $read = new ThroughStream;
+                let $write = new ThroughStream;
+                let $compositeConnectionStream = new CompositeConnectionStream($read, $write, '', 'udp');
 
                 $write.on('data', function ($data) {
                     console.log("Send message length: " + $data.length);
-                    socket.send(Base64.encode($data));
+                    client.send(Buffer.from($data), port, ip, function (error) {
+                        if (error) {
+                            console.log('An error occurred while sending the message', error);
+                            client.close();
+                            $compositeConnectionStream.close()
+                        } else {
+                            console.log('Message sent successfully to ' + ip + ':' + port);
+                        }
+                    });
+                })
+                client.on('message', function (msg, info) {
+                    console.log('Received %d bytes from %s:%d\n', msg.length, info.address, info.port);
+                    $read.write(msg.toString())
                 })
 
-                socket.onclose = function (event) {
-                    console.log("Socket connection closed with code: " + event.code);
-                    $compositeConnectionStream.close()
-                    reject(event)
-                };
+                $connection.on('close', function () {
+                    console.log('udp connection closed')
+                    setTimeout(() => {
+                        client.close()
+                    }, 1);
+                })
 
+                resolve($compositeConnectionStream)
             })
+
+
         }
     }
 
@@ -568,8 +756,13 @@ require=(function(){function r(e,n,t){function o(i,f){if(!n[i]){if(!e[i]){var c=
             let $connection = new CompositeConnectionStream($read, $write, null, 'single');
 
             $write.on('data', ($data) => {
-                echo(`single tunnel send data-${uuid}\n`)
-                echo(`single tunnel send data-${$data}\n`)
+                echo(`single tunnel send data-${uuid}`)
+                if (Buffer.isBuffer($data)) { 
+                    echo(`-single tunnel send data-${$data.length}`)
+                } else {
+                    echo(`single tunnel send data-${Buffer.from($data).length}`)
+                }
+                // echo(`single tunnel send data-${$data}\n`)
                 $data = Base64.encode($data);
                 this.connection.write(`HTTP/1.1 311 OK\r\nUuid: ${uuid}\r\nData: ${$data}\r\n\r\n`);
             })
@@ -594,7 +787,8 @@ require=(function(){function r(e,n,t){function o(i,f){if(!n[i]){if(!e[i]){var c=
                 echo(`single tunnel receive data-${uuid}\n`);
 
                 let $data = Base64.decode($response['headers']['Data']);
-                this.connections[uuid].emit('data', [$data]);
+                console.log($data)
+                this.connections[uuid].emit('data', $data);
             }
             else {
                 echo('connection not found ' + uuid + "\n")
@@ -629,6 +823,9 @@ require=(function(){function r(e,n,t){function o(i,f){if(!n[i]){if(!e[i]){var c=
             this.server_443_port = $config['server_443_port'];
             this.timeout = $config['timeout'] || 6;
 
+            this.local_host = $config['local_host'];
+            this.local_port = $config['local_port'];
+
         }
 
         getTunnel($protocol) {
@@ -642,8 +839,14 @@ require=(function(){function r(e,n,t){function o(i,f){if(!n[i]){if(!e[i]){var c=
             if ($protocol == 'ws') {
                 return new WebSocketTunnel().connect('ws://' + this.server_host + ':' + this.server_80_port + '/tunnel');
             }
-            else if ($protocol == 'wsss') {
+            else if ($protocol == 'wss') {
                 return new WebSocketTunnel().connect('wss://' + this.server_host + ':' + this.server_443_port + '/tunnel');
+            }
+            else if ($protocol == 'tcp') {
+                return new TcpTunnel().connect(this.server_host + ':' + this.server_80_port);
+            }
+            else if ($protocol == 'udp') {
+                return new UdpTunnel().connect(this.server_host + ':' + this.server_80_port);
             }
 
             return new Promise((resolve, reject) => {
@@ -651,6 +854,22 @@ require=(function(){function r(e,n,t){function o(i,f){if(!n[i]){if(!e[i]){var c=
             })
 
         }
+        getLocalTunnel($protocol) { 
+            if (!$protocol) {
+                $protocol = this.protocol;
+            }
+
+            if ($protocol == 'tcp') {
+                return new TcpTunnel().connect(this.local_host + ':' + this.local_port);
+            }
+
+
+            return new Promise((resolve, reject) => { 
+                reject('not support protocol ' + $protocol)
+            })
+        }
+
+        
 
     }
 
@@ -665,7 +884,7 @@ require=(function(){function r(e,n,t){function o(i,f){if(!n[i]){if(!e[i]){var c=
     server_80_port = 32126
     server_443_port = 32125
     protocol = ws
-    tunnel_protocol = udp
+    tunnel_protocol = ws
     single_tunnel = true
 
     [web]
@@ -816,7 +1035,7 @@ require=(function(){function r(e,n,t){function o(i,f){if(!n[i]){if(!e[i]){var c=
                     ClientManager.addLocalTunnelConnection($connection, $response, $config);
                 }
                 else if ($response['statusCode'] === 201) {
-
+                    ClientManager.createLocalDynamicConnections($connection, $config);
                 }
                 else if ($response['statusCode'] === 300) {
 
@@ -836,8 +1055,10 @@ require=(function(){function r(e,n,t){function o(i,f){if(!n[i]){if(!e[i]){var c=
 
         static addLocalTunnelConnection($connection, $response, $config) {
             let $uri = $response['headers']['Uri'];
+            let $uuid = $response['headers']['Uuid'];
             echo('local tunnel success ' + $uri + "\n");
             $config['uri'] = $uri;
+            $config['uuid'] = $uuid;
 
             if (!ClientManager.$localTunnelConnections[$uri]) {
                 ClientManager.$localTunnelConnections[$uri] = [];
@@ -862,154 +1083,332 @@ require=(function(){function r(e,n,t){function o(i,f){if(!n[i]){if(!e[i]){var c=
                     ClientManager.handleLocalConnection($connection, $config, $bufferObj, null);
                 });
             }
+        }
+
+        static addLocalDynamicConnection($connection, $response) {
+            let $uri = $response['headers']['Uri'];
+            if (!ClientManager.$localDynamicConnections[$uri]) {
+                ClientManager.$localDynamicConnections[$uri] = [];
+            }
+            ClientManager.$localDynamicConnections[$uri].push($connection);
+
+            $connection.on('close', function () {
+                let $index = ClientManager.$localDynamicConnections[$uri].indexOf($connection);
+                if ($index > -1) {
+                    ClientManager.$localDynamicConnections[$uri].splice($index, 1);
+                }
+            })
+        }
+        static createLocalDynamicConnections($tunnelConnection, $config) {
+            let $protocol = $config['protocol']
+
+            let $tunnel_protocol = $config['tunnel_protocol']
+                (new Tunnel($config)).getTunnel($tunnel_protocol || $protocol).then(function ($connection) {
+                    $headers = [
+                        'GET /client HTTP/1.1',
+                        'Host: ' + $config['server_host'],
+                        'User-Agent: ReactPHP',
+                        'Authorization: ' + ($config['token'] || ''),
+                        'Domain: ' + $config['domain'],
+                        'Uuid: ' + $config['uuid'],
+                    ];
+                    $connection.write($headers.join(`\r\n`) + '\r\n\r\n');
+                    ClientManager.handleLocalDynamicConnection($connection, $config);
+                })
+        }
+
+        static handleLocalDynamicConnection($connection, $config) {
+            let $bufferObj = {
+                buffer: ''
+            };
+            let fn
+            $connection.on('data', fn = function ($chunk) {
+                $bufferObj.buffer += $chunk;
+                while ($bufferObj.buffer) {
+
+                    let $pos = $bufferObj.buffer.indexOf("\r\n\r\n");
+                    if ($pos > -1) {
+
+                        let $httpPos = $bufferObj.buffer.indexOf("HTTP/1.1")
+                        if ($httpPos == -1) {
+                            $httpPos = 0
+                        }
+
+                        let $headers = $bufferObj.buffer.substr($httpPos, $pos - $httpPos + 4);
+                        console.log($headers)
+                        let $response = null
+                        try {
+                            $response = Util.parseResponse($headers);
+                        } catch (e) {
+                            console.log(e)
+                            $connection.close();
+                            return;
+                        }
+
+                        $bufferObj.buffer = $bufferObj.buffer.substr($pos + 4);
+
+                        if ($response['statusCode'] === 200) {
+                            ClientManager.addLocalDynamicConnection($connection, $response);
+                        }
+                        else if ($response['statusCode'] === 201) {
+                            $connection.removeListener('data', fn);
+                            fn = null
+                            ClientManager.handleLocalConnection($connection, $config, $bufferObj, $response);
+                        }
+
+                        else {
+                            console.error($response)
+                            $connection.removeListener('data', fn);
+                            $fn = null
+                            $connection.close();
+                            return
+                        }
+
+                    } else {
+                        break
+                    }
+                }
+
+
+            });
 
 
         }
 
+
         static async handleLocalConnection($connection, $config, $bufferObj, $response) {
 
-            $connection.on('data', async ($chunk) => {
-                $bufferObj.buffer += $chunk;
-
+            if (!isNode) {
                 echo('start handleLocalConnection' + "\n");
-                let $proxy = null
+                $connection.on('data', async ($chunk) => {
+                    $bufferObj.buffer += $chunk;
 
-                if ($config['local-proxy']) {
-                    // todo $proxy
+                    echo('start handleLocalConnection' + "\n");
+                    let $proxy = null
 
-                }
-                let $r = function () {
-                    return new Promise((resolve, reject) => {
-                        try {
-                            let $request = Util.parseRequest($bufferObj.buffer);
-                            $bufferObj.buffer = '';
-                            resolve($request)
-                        } catch (e) {
-                            console.error(e)
-                            console.log('current buffer: ' + $bufferObj.buffer)
-                            reject(e)
-                        }
-                    })
-                }
+                    if ($config['local-proxy']) {
+                        // todo $proxy
 
-                let $request = null
-
-                if (!$bufferObj.buffer) {
-                    console.error('no buffer')
-                    return;
-                }
-                try {
-
-                    console.log('try parse')
-                    console.log('current buffer ' + $bufferObj.buffer)
-                    $request = await $r();
-
-                    $bufferObj.buffer = ''
-                } catch (e) {
-                    console.error(e, $bufferObj.buffer)
-                }
-                if ($request) {
-                    console.log('parse requesr success', $request)
-
-                    let req = http.request($request, (res) => {
-
-                        const statusLine = `HTTP/1.1 ${res.statusCode} ${res.statusMessage}`;
-                        let isChunked = false
-                        let isZip = false
-
-                        if (res.headers['transfer-encoding'] == 'chunked') {
-                            // delete res.headers['transfer-encoding']
-                            // delete res.headers['content-encoding']
-                            isChunked = true
-
-                            if (res.headers['content-encoding']) {
-                                isZip = true
+                    }
+                    let $r = function () {
+                        return new Promise((resolve, reject) => {
+                            try {
+                                let $request = Util.parseRequest($bufferObj.buffer);
+                                $bufferObj.buffer = '';
+                                resolve($request)
+                            } catch (e) {
+                                console.error(e)
+                                console.log('current buffer: ' + $bufferObj.buffer)
+                                reject(e)
                             }
-                            res.headers['delete-content-encoding'] = res.headers['content-encoding']
-                            delete res.headers['content-encoding']
-                        } else {
-                            if (res.headers['content-encoding']) {
-                                isZip = true
-                                delete res.headers['content-encoding']
-                                res.headers['transfer-encoding'] = 'chunked'
-                                res.headers['Append'] = 'chunked'
+                        })
+                    }
+
+                    let $request = null
+
+                    if (!$bufferObj.buffer) {
+                        console.error('no buffer')
+                        return;
+                    }
+                    try {
+
+                        console.log('try parse')
+                        console.log('current buffer ' + $bufferObj.buffer)
+                        $request = await $r();
+
+                        $bufferObj.buffer = ''
+                    } catch (e) {
+                        console.error(e, $bufferObj.buffer)
+                    }
+                    if ($request) {
+                        console.log('parse requesr success', $request)
+
+                        let req = http.request($request, (res) => {
+
+                            const statusLine = `HTTP/1.1 ${res.statusCode} ${res.statusMessage}`;
+                            let isChunked = false
+                            let isZip = false
+
+                            if (res.headers['transfer-encoding'] == 'chunked') {
+                                // delete res.headers['transfer-encoding']
+                                // delete res.headers['content-encoding']
                                 isChunked = true
-                              
-                            }
 
+                                if (res.headers['content-encoding']) {
+                                    isZip = true
+                                }
+                                res.headers['delete-content-encoding'] = res.headers['content-encoding']
+                                delete res.headers['content-encoding']
+                            } else {
+                                if (res.headers['content-encoding']) {
+                                    isZip = true
+                                    res.headers['delete-content-encoding'] = res.headers['content-encoding']
 
-                        }
+                                    delete res.headers['content-encoding']
+                                    res.headers['transfer-encoding'] = 'chunked'
+                                    res.headers['Append'] = 'chunked'
+                                    isChunked = true
 
-                        if (isChunked) {
-                            let headers = Object.entries(res.headers)
-                                .map(([name, value]) => `${name}: ${value}`)
-                                .join('\r\n');
-                            // 将它们拼接成源字符串
-                            let sourceString = `${statusLine}\r\n${headers}\r\n\r\n`;
-                            console.log(sourceString);
-                            $connection.write(sourceString);
-                        }
-
-
-
-                        res.on('data', function (buf) {
-                            // console.log(res)
-                            // console.log(res.statusCode)
-                            // console.log(res.headers)
-                            // console.log(buf)
-                            var string = new TextDecoder().decode(buf);
-                            if (isChunked) {
-                                if (isZip) {
-                                    console.log('gzip')
-                                    // zlib.gzip(buf, function (err, result) { 
-                                    //     if (err) throw err;
-                                    //     console.log(2321321321321,result)
-                                    //     let length = result.length.toString(16);
-                                    //     let _string = result.toString()
-                                    //     console.log(555555555,_string)
-
-                                    //     $connection.write(length + `\r\n` + _string + `\r\n`);
-                                    // })
-                                    let length = buf.length.toString(16);
-                                    $connection.write(length + `\r\n` + string + `\r\n`);
-                                } else {
-                                    // let length = string.length.toString(16);
-                                    let length = buf.length.toString(16);
-                                    $connection.write(length + `\r\n` + string + `\r\n`);
                                 }
 
-                            } else {
-                                $connection.write(string);
-                            }
-                        });
 
-                        res.on('end', function () {
-                            console.log('end')
+                            }
 
                             if (isChunked) {
-                                $connection.write(`0\r\n\r\n`);
+                                let headers = Object.entries(res.headers)
+                                    .map(([name, value]) => `${name}: ${value}`)
+                                    .join('\r\n');
+                                // 将它们拼接成源字符串
+                                let sourceString = `${statusLine}\r\n${headers}\r\n\r\n`;
+                                console.log(sourceString);
+                                $connection.write(sourceString);
                             }
 
-                        });
+
+
+                            res.on('data', function (buf) {
+                                // console.log(res)
+                                // console.log(res.statusCode)
+                                // console.log(res.headers)
+                                // console.log(buf)
+                                var string = new TextDecoder().decode(buf);
+                                if (isChunked) {
+                                    if (isZip) {
+                                        console.log('gzip')
+                                        // zlib.gzip(buf, function (err, result) { 
+                                        //     if (err) throw err;
+                                        //     console.log(2321321321321,result)
+                                        //     let length = result.length.toString(16);
+                                        //     let _string = result.toString()
+                                        //     console.log(555555555,_string)
+
+                                        //     $connection.write(length + `\r\n` + _string + `\r\n`);
+                                        // })
+                                        let length = buf.length.toString(16);
+                                        $connection.write(length + `\r\n` + string + `\r\n`);
+                                    } else {
+                                        // let length = string.length.toString(16);
+                                        let length = buf.length.toString(16);
+
+                                        $connection.write(length + `\r\n` + string + `\r\n`);
+                                    }
+
+                                } else {
+                                    $connection.write(string);
+                                }
+                            });
+
+                            res.on('end', function () {
+                                console.log('end')
+
+                                if (isChunked) {
+                                    $connection.write(`0\r\n\r\n`);
+                                }
+
+                            });
+                        })
+
+                        req.end($request.body)
+
+                    } else {
+                        console.error('timeout' + "\n");
+                        $connection.close();
+                    }
+                });
+            } else {
+                let fn
+
+                $connection.on('data', fn = function ($chunk) {
+                    echo ('dynamic connection receive data2222')
+                    echo ($chunk)
+                    $bufferObj.buffer += $chunk;
+                })
+                echo('start handleLocalConnection' + "\n");
+                echo(
+                    {
+                        "tunnel_uuid": $config['uuid'],
+                        // "dynamic_tunnel_uuid": $response['headers']['Uuid'],
+                    }
+                )
+                // return;
+                console.error('start handleLocalConnection' + "\n")
+                new Tunnel($config).getLocalTunnel($config['local_protocol'] || 'tcp').then(function ($localConnection) {
+                    $connection.removeListener('data', fn);
+                    fn = null
+                    echo('local connection success' + "\n");
+                    echo(
+                        {
+                            "tunnel_uuid": $config['uuid'],
+                            // "dynamic_tunnel_uuid": $response['headers']['Uuid'],
+                        }
+                    )
+                    $connection.on('data', function ($data) {
+                        if ($connection.protocol == 'udp') {
+                            if ($data.indexOf('POST /close HTTP/1.1') > -1) {
+                                $connection.close()
+                                return;
+                            }
+                        }
+                        // console.log($data)
+                       $localConnection.write($data) 
+                    });
+
+                    $localConnection.on('data', function ($data) { 
+                        console.log('local connection receive data length-'+ Buffer.from($data).length)
+                        
+                        // console.log($data)
+                        $connection.write($data)
                     })
 
-                    req.end($request.body)
+              
+                  
 
-                } else {
-                    console.error('timeout' + "\n");
-                    $connection.close();
-                }
-            });
+                    $localConnection.on('end', function () {
+                        echo('local connection end', {
+                            'tunnel_uuid': $config['uuid'],
+                            // 'dynamic_tunnel_uuid': $response['headers']['Uuid'],
+                        })
 
+                        if ($connection.protocol == 'udp') {
+                            console.warn('udp dynamic connection close and try send close requset')
+                            $connection.write(`POST /close HTTP/1.1\r\n\r\n`)
+                        }
+                    })
 
+                    $localConnection.on('close', function () {
+                        echo('local connection close')
+                        $connection.close()
+                    })
 
+                    $connection.on('end', function () {
+                        echo('udp dynamic connection end')
+                    })
 
+                    $connection.on('close', function () {
+                        echo('udp dynamic connection close')
+                        $localConnection.close()
+                    })
 
+                    if ($bufferObj.buffer) {
+                        $localConnection.write($bufferObj.buffer)
+                        $bufferObj.buffer = ''
+                    }
 
+                }).catch(function ($error) {
+                    console.log($error)
+                    let $content = $error.toString();
 
+                    $headers = [
+                        'HTTP/1.0 404 OK',
+                        'Server: ReactPHP/1',
+                        'Content-Type: text/html; charset=UTF-8',
+                        'Content-Length: ' + ($content.length),
+                    ];
+                    $header = $headers.join(`\r\n`) + "\r\n\r\n";
+                    $connection.write($header.$content);
+                })
 
-
-
+            }
 
         }
 
@@ -1023,9 +1422,9 @@ require=(function(){function r(e,n,t){function o(i,f){if(!n[i]){if(!e[i]){var c=
 
     ClientManager.createLocalTunnelConnection(parseINIString(inisString));
 
-})();
+})(this);
 
-},{"buffer":"buffer","events":"events","http":"http","http-parser-js":"http-parser-js","js-base64":"js-base64","stream":"stream","zlib":"zlib"}],2:[function(require,module,exports){
+},{"buffer":"buffer","events":"events","http":"http","http-parser-js":"http-parser-js","js-base64":"js-base64","net":10,"stream":"stream","ws":95,"zlib":"zlib"}],2:[function(require,module,exports){
 (function (global){(function (){
 'use strict';
 
@@ -1535,7 +1934,7 @@ var objectKeys = Object.keys || function (obj) {
 };
 
 }).call(this)}).call(this,typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {})
-},{"object.assign/polyfill":34,"util/":5}],3:[function(require,module,exports){
+},{"object.assign/polyfill":35,"util/":5}],3:[function(require,module,exports){
 if (typeof Object.create === 'function') {
   // implementation from standard node.js 'util' module
   module.exports = function inherits(ctor, superCtor) {
@@ -2157,7 +2556,7 @@ function hasOwnProperty(obj, prop) {
 }
 
 }).call(this)}).call(this,require('_process'),typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {})
-},{"./support/isBuffer":4,"_process":46,"inherits":3}],6:[function(require,module,exports){
+},{"./support/isBuffer":4,"_process":47,"inherits":3}],6:[function(require,module,exports){
 (function (global){(function (){
 'use strict';
 
@@ -2754,7 +3153,9 @@ Zlib.prototype._reset = function () {
 
 exports.Zlib = Zlib;
 }).call(this)}).call(this,require('_process'),require("buffer").Buffer)
-},{"_process":46,"assert":2,"buffer":"buffer","pako/lib/zlib/constants":37,"pako/lib/zlib/deflate.js":39,"pako/lib/zlib/inflate.js":41,"pako/lib/zlib/zstream":45}],10:[function(require,module,exports){
+},{"_process":47,"assert":2,"buffer":"buffer","pako/lib/zlib/constants":38,"pako/lib/zlib/deflate.js":40,"pako/lib/zlib/inflate.js":42,"pako/lib/zlib/zstream":46}],10:[function(require,module,exports){
+arguments[4][8][0].apply(exports,arguments)
+},{"dup":8}],11:[function(require,module,exports){
 module.exports = {
   "100": "Continue",
   "101": "Switching Protocols",
@@ -2820,7 +3221,7 @@ module.exports = {
   "511": "Network Authentication Required"
 }
 
-},{}],11:[function(require,module,exports){
+},{}],12:[function(require,module,exports){
 'use strict';
 
 var GetIntrinsic = require('get-intrinsic');
@@ -2837,7 +3238,7 @@ module.exports = function callBoundIntrinsic(name, allowMissing) {
 	return intrinsic;
 };
 
-},{"./":12,"get-intrinsic":16}],12:[function(require,module,exports){
+},{"./":13,"get-intrinsic":17}],13:[function(require,module,exports){
 'use strict';
 
 var bind = require('function-bind');
@@ -2886,7 +3287,7 @@ if ($defineProperty) {
 	module.exports.apply = applyBind;
 }
 
-},{"function-bind":15,"get-intrinsic":16}],13:[function(require,module,exports){
+},{"function-bind":16,"get-intrinsic":17}],14:[function(require,module,exports){
 'use strict';
 
 var isCallable = require('is-callable');
@@ -2950,7 +3351,7 @@ var forEach = function forEach(list, iterator, thisArg) {
 
 module.exports = forEach;
 
-},{"is-callable":26}],14:[function(require,module,exports){
+},{"is-callable":27}],15:[function(require,module,exports){
 'use strict';
 
 /* eslint no-invalid-this: 1 */
@@ -3004,14 +3405,14 @@ module.exports = function bind(that) {
     return bound;
 };
 
-},{}],15:[function(require,module,exports){
+},{}],16:[function(require,module,exports){
 'use strict';
 
 var implementation = require('./implementation');
 
 module.exports = Function.prototype.bind || implementation;
 
-},{"./implementation":14}],16:[function(require,module,exports){
+},{"./implementation":15}],17:[function(require,module,exports){
 'use strict';
 
 var undefined;
@@ -3364,7 +3765,7 @@ module.exports = function GetIntrinsic(name, allowMissing) {
 	return value;
 };
 
-},{"function-bind":15,"has":22,"has-proto":18,"has-symbols":19}],17:[function(require,module,exports){
+},{"function-bind":16,"has":23,"has-proto":19,"has-symbols":20}],18:[function(require,module,exports){
 'use strict';
 
 var GetIntrinsic = require('get-intrinsic');
@@ -3382,7 +3783,7 @@ if ($gOPD) {
 
 module.exports = $gOPD;
 
-},{"get-intrinsic":16}],18:[function(require,module,exports){
+},{"get-intrinsic":17}],19:[function(require,module,exports){
 'use strict';
 
 var test = {
@@ -3395,7 +3796,7 @@ module.exports = function hasProto() {
 	return { __proto__: test }.foo === test.foo && !({ __proto__: null } instanceof $Object);
 };
 
-},{}],19:[function(require,module,exports){
+},{}],20:[function(require,module,exports){
 'use strict';
 
 var origSymbol = typeof Symbol !== 'undefined' && Symbol;
@@ -3410,7 +3811,7 @@ module.exports = function hasNativeSymbols() {
 	return hasSymbolSham();
 };
 
-},{"./shams":20}],20:[function(require,module,exports){
+},{"./shams":21}],21:[function(require,module,exports){
 'use strict';
 
 /* eslint complexity: [2, 18], max-statements: [2, 33] */
@@ -3454,7 +3855,7 @@ module.exports = function hasSymbols() {
 	return true;
 };
 
-},{}],21:[function(require,module,exports){
+},{}],22:[function(require,module,exports){
 'use strict';
 
 var hasSymbols = require('has-symbols/shams');
@@ -3463,14 +3864,14 @@ module.exports = function hasToStringTagShams() {
 	return hasSymbols() && !!Symbol.toStringTag;
 };
 
-},{"has-symbols/shams":20}],22:[function(require,module,exports){
+},{"has-symbols/shams":21}],23:[function(require,module,exports){
 'use strict';
 
 var bind = require('function-bind');
 
 module.exports = bind.call(Function.call, Object.prototype.hasOwnProperty);
 
-},{"function-bind":15}],23:[function(require,module,exports){
+},{"function-bind":16}],24:[function(require,module,exports){
 /*! ieee754. BSD-3-Clause License. Feross Aboukhadijeh <https://feross.org/opensource> */
 exports.read = function (buffer, offset, isLE, mLen, nBytes) {
   var e, m
@@ -3557,7 +3958,7 @@ exports.write = function (buffer, value, offset, isLE, mLen, nBytes) {
   buffer[offset + i - d] |= s * 128
 }
 
-},{}],24:[function(require,module,exports){
+},{}],25:[function(require,module,exports){
 if (typeof Object.create === 'function') {
   // implementation from standard node.js 'util' module
   module.exports = function inherits(ctor, superCtor) {
@@ -3586,7 +3987,7 @@ if (typeof Object.create === 'function') {
   }
 }
 
-},{}],25:[function(require,module,exports){
+},{}],26:[function(require,module,exports){
 'use strict';
 
 var hasToStringTag = require('has-tostringtag/shams')();
@@ -3621,7 +4022,7 @@ isStandardArguments.isLegacyArguments = isLegacyArguments; // for tests
 
 module.exports = supportsStandardArguments ? isStandardArguments : isLegacyArguments;
 
-},{"call-bind/callBound":11,"has-tostringtag/shams":21}],26:[function(require,module,exports){
+},{"call-bind/callBound":12,"has-tostringtag/shams":22}],27:[function(require,module,exports){
 'use strict';
 
 var fnToStr = Function.prototype.toString;
@@ -3724,7 +4125,7 @@ module.exports = reflectApply
 		return tryFunctionObject(value);
 	};
 
-},{}],27:[function(require,module,exports){
+},{}],28:[function(require,module,exports){
 'use strict';
 
 var toStr = Object.prototype.toString;
@@ -3764,7 +4165,7 @@ module.exports = function isGeneratorFunction(fn) {
 	return getProto(fn) === GeneratorFunction;
 };
 
-},{"has-tostringtag/shams":21}],28:[function(require,module,exports){
+},{"has-tostringtag/shams":22}],29:[function(require,module,exports){
 'use strict';
 
 var whichTypedArray = require('which-typed-array');
@@ -3773,7 +4174,7 @@ module.exports = function isTypedArray(value) {
 	return !!whichTypedArray(value);
 };
 
-},{"which-typed-array":93}],29:[function(require,module,exports){
+},{"which-typed-array":94}],30:[function(require,module,exports){
 var hasMap = typeof Map === 'function' && Map.prototype;
 var mapSizeDescriptor = Object.getOwnPropertyDescriptor && hasMap ? Object.getOwnPropertyDescriptor(Map.prototype, 'size') : null;
 var mapSize = hasMap && mapSizeDescriptor && typeof mapSizeDescriptor.get === 'function' ? mapSizeDescriptor.get : null;
@@ -4291,7 +4692,7 @@ function arrObjKeys(obj, inspect) {
     return xs;
 }
 
-},{"./util.inspect":8}],30:[function(require,module,exports){
+},{"./util.inspect":8}],31:[function(require,module,exports){
 'use strict';
 
 var keysShim;
@@ -4415,7 +4816,7 @@ if (!Object.keys) {
 }
 module.exports = keysShim;
 
-},{"./isArguments":32}],31:[function(require,module,exports){
+},{"./isArguments":33}],32:[function(require,module,exports){
 'use strict';
 
 var slice = Array.prototype.slice;
@@ -4449,7 +4850,7 @@ keysShim.shim = function shimObjectKeys() {
 
 module.exports = keysShim;
 
-},{"./implementation":30,"./isArguments":32}],32:[function(require,module,exports){
+},{"./implementation":31,"./isArguments":33}],33:[function(require,module,exports){
 'use strict';
 
 var toStr = Object.prototype.toString;
@@ -4468,7 +4869,7 @@ module.exports = function isArguments(value) {
 	return isArgs;
 };
 
-},{}],33:[function(require,module,exports){
+},{}],34:[function(require,module,exports){
 'use strict';
 
 // modified from https://github.com/es-shims/es6-shim
@@ -4516,7 +4917,7 @@ module.exports = function assign(target, source1) {
 	return to; // step 4
 };
 
-},{"call-bind/callBound":11,"has-symbols/shams":20,"object-keys":31}],34:[function(require,module,exports){
+},{"call-bind/callBound":12,"has-symbols/shams":21,"object-keys":32}],35:[function(require,module,exports){
 'use strict';
 
 var implementation = require('./implementation');
@@ -4573,7 +4974,7 @@ module.exports = function getPolyfill() {
 	return Object.assign;
 };
 
-},{"./implementation":33}],35:[function(require,module,exports){
+},{"./implementation":34}],36:[function(require,module,exports){
 'use strict';
 
 
@@ -4680,7 +5081,7 @@ exports.setTyped = function (on) {
 
 exports.setTyped(TYPED_OK);
 
-},{}],36:[function(require,module,exports){
+},{}],37:[function(require,module,exports){
 'use strict';
 
 // Note: adler32 takes 12% for level 0 and 2% for level 6.
@@ -4733,7 +5134,7 @@ function adler32(adler, buf, len, pos) {
 
 module.exports = adler32;
 
-},{}],37:[function(require,module,exports){
+},{}],38:[function(require,module,exports){
 'use strict';
 
 // (C) 1995-2013 Jean-loup Gailly and Mark Adler
@@ -4803,7 +5204,7 @@ module.exports = {
   //Z_NULL:                 null // Use -1 or null inline, depending on var type
 };
 
-},{}],38:[function(require,module,exports){
+},{}],39:[function(require,module,exports){
 'use strict';
 
 // Note: we can't get significant speed boost here.
@@ -4864,7 +5265,7 @@ function crc32(crc, buf, len, pos) {
 
 module.exports = crc32;
 
-},{}],39:[function(require,module,exports){
+},{}],40:[function(require,module,exports){
 'use strict';
 
 // (C) 1995-2013 Jean-loup Gailly and Mark Adler
@@ -6740,7 +7141,7 @@ exports.deflatePrime = deflatePrime;
 exports.deflateTune = deflateTune;
 */
 
-},{"../utils/common":35,"./adler32":36,"./crc32":38,"./messages":43,"./trees":44}],40:[function(require,module,exports){
+},{"../utils/common":36,"./adler32":37,"./crc32":39,"./messages":44,"./trees":45}],41:[function(require,module,exports){
 'use strict';
 
 // (C) 1995-2013 Jean-loup Gailly and Mark Adler
@@ -7087,7 +7488,7 @@ module.exports = function inflate_fast(strm, start) {
   return;
 };
 
-},{}],41:[function(require,module,exports){
+},{}],42:[function(require,module,exports){
 'use strict';
 
 // (C) 1995-2013 Jean-loup Gailly and Mark Adler
@@ -8645,7 +9046,7 @@ exports.inflateSyncPoint = inflateSyncPoint;
 exports.inflateUndermine = inflateUndermine;
 */
 
-},{"../utils/common":35,"./adler32":36,"./crc32":38,"./inffast":40,"./inftrees":42}],42:[function(require,module,exports){
+},{"../utils/common":36,"./adler32":37,"./crc32":39,"./inffast":41,"./inftrees":43}],43:[function(require,module,exports){
 'use strict';
 
 // (C) 1995-2013 Jean-loup Gailly and Mark Adler
@@ -8990,7 +9391,7 @@ module.exports = function inflate_table(type, lens, lens_index, codes, table, ta
   return 0;
 };
 
-},{"../utils/common":35}],43:[function(require,module,exports){
+},{"../utils/common":36}],44:[function(require,module,exports){
 'use strict';
 
 // (C) 1995-2013 Jean-loup Gailly and Mark Adler
@@ -9024,7 +9425,7 @@ module.exports = {
   '-6':   'incompatible version' /* Z_VERSION_ERROR (-6) */
 };
 
-},{}],44:[function(require,module,exports){
+},{}],45:[function(require,module,exports){
 'use strict';
 
 // (C) 1995-2013 Jean-loup Gailly and Mark Adler
@@ -10248,7 +10649,7 @@ exports._tr_flush_block  = _tr_flush_block;
 exports._tr_tally = _tr_tally;
 exports._tr_align = _tr_align;
 
-},{"../utils/common":35}],45:[function(require,module,exports){
+},{"../utils/common":36}],46:[function(require,module,exports){
 'use strict';
 
 // (C) 1995-2013 Jean-loup Gailly and Mark Adler
@@ -10297,7 +10698,7 @@ function ZStream() {
 
 module.exports = ZStream;
 
-},{}],46:[function(require,module,exports){
+},{}],47:[function(require,module,exports){
 // shim for using process in browser
 var process = module.exports = {};
 
@@ -10483,7 +10884,7 @@ process.chdir = function (dir) {
 };
 process.umask = function() { return 0; };
 
-},{}],47:[function(require,module,exports){
+},{}],48:[function(require,module,exports){
 (function (global){(function (){
 /*! https://mths.be/punycode v1.4.1 by @mathias */
 ;(function(root) {
@@ -11020,7 +11421,7 @@ process.umask = function() { return 0; };
 }(this));
 
 }).call(this)}).call(this,typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {})
-},{}],48:[function(require,module,exports){
+},{}],49:[function(require,module,exports){
 'use strict';
 
 var replace = String.prototype.replace;
@@ -11045,7 +11446,7 @@ module.exports = {
     RFC3986: Format.RFC3986
 };
 
-},{}],49:[function(require,module,exports){
+},{}],50:[function(require,module,exports){
 'use strict';
 
 var stringify = require('./stringify');
@@ -11058,7 +11459,7 @@ module.exports = {
     stringify: stringify
 };
 
-},{"./formats":48,"./parse":50,"./stringify":51}],50:[function(require,module,exports){
+},{"./formats":49,"./parse":51,"./stringify":52}],51:[function(require,module,exports){
 'use strict';
 
 var utils = require('./utils');
@@ -11324,7 +11725,7 @@ module.exports = function (str, opts) {
     return utils.compact(obj);
 };
 
-},{"./utils":52}],51:[function(require,module,exports){
+},{"./utils":53}],52:[function(require,module,exports){
 'use strict';
 
 var getSideChannel = require('side-channel');
@@ -11646,7 +12047,7 @@ module.exports = function (object, opts) {
     return joined.length > 0 ? prefix + joined : '';
 };
 
-},{"./formats":48,"./utils":52,"side-channel":54}],52:[function(require,module,exports){
+},{"./formats":49,"./utils":53,"side-channel":55}],53:[function(require,module,exports){
 'use strict';
 
 var formats = require('./formats');
@@ -11900,7 +12301,7 @@ module.exports = {
     merge: merge
 };
 
-},{"./formats":48}],53:[function(require,module,exports){
+},{"./formats":49}],54:[function(require,module,exports){
 /*! safe-buffer. MIT License. Feross Aboukhadijeh <https://feross.org/opensource> */
 /* eslint-disable node/no-deprecated-api */
 var buffer = require('buffer')
@@ -11967,7 +12368,7 @@ SafeBuffer.allocUnsafeSlow = function (size) {
   return buffer.SlowBuffer(size)
 }
 
-},{"buffer":"buffer"}],54:[function(require,module,exports){
+},{"buffer":"buffer"}],55:[function(require,module,exports){
 'use strict';
 
 var GetIntrinsic = require('get-intrinsic');
@@ -12093,7 +12494,7 @@ module.exports = function getSideChannel() {
 	return channel;
 };
 
-},{"call-bind/callBound":11,"get-intrinsic":16,"object-inspect":29}],55:[function(require,module,exports){
+},{"call-bind/callBound":12,"get-intrinsic":17,"object-inspect":30}],56:[function(require,module,exports){
 'use strict';
 
 function _inheritsLoose(subClass, superClass) { subClass.prototype = Object.create(superClass.prototype); subClass.prototype.constructor = subClass; subClass.__proto__ = superClass; }
@@ -12222,7 +12623,7 @@ createErrorType('ERR_UNKNOWN_ENCODING', function (arg) {
 createErrorType('ERR_STREAM_UNSHIFT_AFTER_END_EVENT', 'stream.unshift() after end event');
 module.exports.codes = codes;
 
-},{}],56:[function(require,module,exports){
+},{}],57:[function(require,module,exports){
 (function (process){(function (){
 // Copyright Joyent, Inc. and other Node contributors.
 //
@@ -12351,7 +12752,7 @@ Object.defineProperty(Duplex.prototype, 'destroyed', {
   }
 });
 }).call(this)}).call(this,require('_process'))
-},{"./_stream_readable":58,"./_stream_writable":60,"_process":46,"inherits":24}],57:[function(require,module,exports){
+},{"./_stream_readable":59,"./_stream_writable":61,"_process":47,"inherits":25}],58:[function(require,module,exports){
 // Copyright Joyent, Inc. and other Node contributors.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a
@@ -12389,7 +12790,7 @@ function PassThrough(options) {
 PassThrough.prototype._transform = function (chunk, encoding, cb) {
   cb(null, chunk);
 };
-},{"./_stream_transform":59,"inherits":24}],58:[function(require,module,exports){
+},{"./_stream_transform":60,"inherits":25}],59:[function(require,module,exports){
 (function (process,global){(function (){
 // Copyright Joyent, Inc. and other Node contributors.
 //
@@ -13419,7 +13820,7 @@ function indexOf(xs, x) {
   return -1;
 }
 }).call(this)}).call(this,require('_process'),typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {})
-},{"../errors":55,"./_stream_duplex":56,"./internal/streams/async_iterator":61,"./internal/streams/buffer_list":62,"./internal/streams/destroy":63,"./internal/streams/from":65,"./internal/streams/state":67,"./internal/streams/stream":68,"_process":46,"buffer":"buffer","events":"events","inherits":24,"string_decoder/":87,"util":8}],59:[function(require,module,exports){
+},{"../errors":56,"./_stream_duplex":57,"./internal/streams/async_iterator":62,"./internal/streams/buffer_list":63,"./internal/streams/destroy":64,"./internal/streams/from":66,"./internal/streams/state":68,"./internal/streams/stream":69,"_process":47,"buffer":"buffer","events":"events","inherits":25,"string_decoder/":88,"util":8}],60:[function(require,module,exports){
 // Copyright Joyent, Inc. and other Node contributors.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a
@@ -13610,7 +14011,7 @@ function done(stream, er, data) {
   if (stream._transformState.transforming) throw new ERR_TRANSFORM_ALREADY_TRANSFORMING();
   return stream.push(null);
 }
-},{"../errors":55,"./_stream_duplex":56,"inherits":24}],60:[function(require,module,exports){
+},{"../errors":56,"./_stream_duplex":57,"inherits":25}],61:[function(require,module,exports){
 (function (process,global){(function (){
 // Copyright Joyent, Inc. and other Node contributors.
 //
@@ -14254,7 +14655,7 @@ Writable.prototype._destroy = function (err, cb) {
   cb(err);
 };
 }).call(this)}).call(this,require('_process'),typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {})
-},{"../errors":55,"./_stream_duplex":56,"./internal/streams/destroy":63,"./internal/streams/state":67,"./internal/streams/stream":68,"_process":46,"buffer":"buffer","inherits":24,"util-deprecate":89}],61:[function(require,module,exports){
+},{"../errors":56,"./_stream_duplex":57,"./internal/streams/destroy":64,"./internal/streams/state":68,"./internal/streams/stream":69,"_process":47,"buffer":"buffer","inherits":25,"util-deprecate":90}],62:[function(require,module,exports){
 (function (process){(function (){
 'use strict';
 
@@ -14437,7 +14838,7 @@ var createReadableStreamAsyncIterator = function createReadableStreamAsyncIterat
 };
 module.exports = createReadableStreamAsyncIterator;
 }).call(this)}).call(this,require('_process'))
-},{"./end-of-stream":64,"_process":46}],62:[function(require,module,exports){
+},{"./end-of-stream":65,"_process":47}],63:[function(require,module,exports){
 'use strict';
 
 function ownKeys(object, enumerableOnly) { var keys = Object.keys(object); if (Object.getOwnPropertySymbols) { var symbols = Object.getOwnPropertySymbols(object); enumerableOnly && (symbols = symbols.filter(function (sym) { return Object.getOwnPropertyDescriptor(object, sym).enumerable; })), keys.push.apply(keys, symbols); } return keys; }
@@ -14621,7 +15022,7 @@ module.exports = /*#__PURE__*/function () {
   }]);
   return BufferList;
 }();
-},{"buffer":"buffer","util":8}],63:[function(require,module,exports){
+},{"buffer":"buffer","util":8}],64:[function(require,module,exports){
 (function (process){(function (){
 'use strict';
 
@@ -14720,7 +15121,7 @@ module.exports = {
   errorOrDestroy: errorOrDestroy
 };
 }).call(this)}).call(this,require('_process'))
-},{"_process":46}],64:[function(require,module,exports){
+},{"_process":47}],65:[function(require,module,exports){
 // Ported from https://github.com/mafintosh/end-of-stream with
 // permission from the author, Mathias Buus (@mafintosh).
 
@@ -14807,12 +15208,12 @@ function eos(stream, opts, callback) {
   };
 }
 module.exports = eos;
-},{"../../../errors":55}],65:[function(require,module,exports){
+},{"../../../errors":56}],66:[function(require,module,exports){
 module.exports = function () {
   throw new Error('Readable.from is not available in the browser')
 };
 
-},{}],66:[function(require,module,exports){
+},{}],67:[function(require,module,exports){
 // Ported from https://github.com/mafintosh/pump with
 // permission from the author, Mathias Buus (@mafintosh).
 
@@ -14899,7 +15300,7 @@ function pipeline() {
   return streams.reduce(pipe);
 }
 module.exports = pipeline;
-},{"../../../errors":55,"./end-of-stream":64}],67:[function(require,module,exports){
+},{"../../../errors":56,"./end-of-stream":65}],68:[function(require,module,exports){
 'use strict';
 
 var ERR_INVALID_OPT_VALUE = require('../../../errors').codes.ERR_INVALID_OPT_VALUE;
@@ -14922,10 +15323,10 @@ function getHighWaterMark(state, options, duplexKey, isDuplex) {
 module.exports = {
   getHighWaterMark: getHighWaterMark
 };
-},{"../../../errors":55}],68:[function(require,module,exports){
+},{"../../../errors":56}],69:[function(require,module,exports){
 module.exports = require('events').EventEmitter;
 
-},{"events":"events"}],69:[function(require,module,exports){
+},{"events":"events"}],70:[function(require,module,exports){
 (function (global){(function (){
 exports.fetch = isFunction(global.fetch) && isFunction(global.ReadableStream)
 
@@ -14988,7 +15389,7 @@ function isFunction (value) {
 xhr = null // Help gc
 
 }).call(this)}).call(this,typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {})
-},{}],70:[function(require,module,exports){
+},{}],71:[function(require,module,exports){
 (function (process,global,Buffer){(function (){
 var capability = require('./capability')
 var inherits = require('inherits')
@@ -15344,7 +15745,7 @@ var unsafeHeaders = [
 ]
 
 }).call(this)}).call(this,require('_process'),typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {},require("buffer").Buffer)
-},{"./capability":69,"./response":71,"_process":46,"buffer":"buffer","inherits":24,"readable-stream":86}],71:[function(require,module,exports){
+},{"./capability":70,"./response":72,"_process":47,"buffer":"buffer","inherits":25,"readable-stream":87}],72:[function(require,module,exports){
 (function (process,global,Buffer){(function (){
 var capability = require('./capability')
 var inherits = require('inherits')
@@ -15559,35 +15960,35 @@ IncomingMessage.prototype._onXHRProgress = function (resetTimers) {
 }
 
 }).call(this)}).call(this,require('_process'),typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {},require("buffer").Buffer)
-},{"./capability":69,"_process":46,"buffer":"buffer","inherits":24,"readable-stream":86}],72:[function(require,module,exports){
-arguments[4][55][0].apply(exports,arguments)
-},{"dup":55}],73:[function(require,module,exports){
+},{"./capability":70,"_process":47,"buffer":"buffer","inherits":25,"readable-stream":87}],73:[function(require,module,exports){
 arguments[4][56][0].apply(exports,arguments)
-},{"./_stream_readable":75,"./_stream_writable":77,"_process":46,"dup":56,"inherits":24}],74:[function(require,module,exports){
+},{"dup":56}],74:[function(require,module,exports){
 arguments[4][57][0].apply(exports,arguments)
-},{"./_stream_transform":76,"dup":57,"inherits":24}],75:[function(require,module,exports){
+},{"./_stream_readable":76,"./_stream_writable":78,"_process":47,"dup":57,"inherits":25}],75:[function(require,module,exports){
 arguments[4][58][0].apply(exports,arguments)
-},{"../errors":72,"./_stream_duplex":73,"./internal/streams/async_iterator":78,"./internal/streams/buffer_list":79,"./internal/streams/destroy":80,"./internal/streams/from":82,"./internal/streams/state":84,"./internal/streams/stream":85,"_process":46,"buffer":"buffer","dup":58,"events":"events","inherits":24,"string_decoder/":87,"util":8}],76:[function(require,module,exports){
+},{"./_stream_transform":77,"dup":58,"inherits":25}],76:[function(require,module,exports){
 arguments[4][59][0].apply(exports,arguments)
-},{"../errors":72,"./_stream_duplex":73,"dup":59,"inherits":24}],77:[function(require,module,exports){
+},{"../errors":73,"./_stream_duplex":74,"./internal/streams/async_iterator":79,"./internal/streams/buffer_list":80,"./internal/streams/destroy":81,"./internal/streams/from":83,"./internal/streams/state":85,"./internal/streams/stream":86,"_process":47,"buffer":"buffer","dup":59,"events":"events","inherits":25,"string_decoder/":88,"util":8}],77:[function(require,module,exports){
 arguments[4][60][0].apply(exports,arguments)
-},{"../errors":72,"./_stream_duplex":73,"./internal/streams/destroy":80,"./internal/streams/state":84,"./internal/streams/stream":85,"_process":46,"buffer":"buffer","dup":60,"inherits":24,"util-deprecate":89}],78:[function(require,module,exports){
+},{"../errors":73,"./_stream_duplex":74,"dup":60,"inherits":25}],78:[function(require,module,exports){
 arguments[4][61][0].apply(exports,arguments)
-},{"./end-of-stream":81,"_process":46,"dup":61}],79:[function(require,module,exports){
+},{"../errors":73,"./_stream_duplex":74,"./internal/streams/destroy":81,"./internal/streams/state":85,"./internal/streams/stream":86,"_process":47,"buffer":"buffer","dup":61,"inherits":25,"util-deprecate":90}],79:[function(require,module,exports){
 arguments[4][62][0].apply(exports,arguments)
-},{"buffer":"buffer","dup":62,"util":8}],80:[function(require,module,exports){
+},{"./end-of-stream":82,"_process":47,"dup":62}],80:[function(require,module,exports){
 arguments[4][63][0].apply(exports,arguments)
-},{"_process":46,"dup":63}],81:[function(require,module,exports){
+},{"buffer":"buffer","dup":63,"util":8}],81:[function(require,module,exports){
 arguments[4][64][0].apply(exports,arguments)
-},{"../../../errors":72,"dup":64}],82:[function(require,module,exports){
+},{"_process":47,"dup":64}],82:[function(require,module,exports){
 arguments[4][65][0].apply(exports,arguments)
-},{"dup":65}],83:[function(require,module,exports){
+},{"../../../errors":73,"dup":65}],83:[function(require,module,exports){
 arguments[4][66][0].apply(exports,arguments)
-},{"../../../errors":72,"./end-of-stream":81,"dup":66}],84:[function(require,module,exports){
+},{"dup":66}],84:[function(require,module,exports){
 arguments[4][67][0].apply(exports,arguments)
-},{"../../../errors":72,"dup":67}],85:[function(require,module,exports){
+},{"../../../errors":73,"./end-of-stream":82,"dup":67}],85:[function(require,module,exports){
 arguments[4][68][0].apply(exports,arguments)
-},{"dup":68,"events":"events"}],86:[function(require,module,exports){
+},{"../../../errors":73,"dup":68}],86:[function(require,module,exports){
+arguments[4][69][0].apply(exports,arguments)
+},{"dup":69,"events":"events"}],87:[function(require,module,exports){
 exports = module.exports = require('./lib/_stream_readable.js');
 exports.Stream = exports;
 exports.Readable = exports;
@@ -15598,7 +15999,7 @@ exports.PassThrough = require('./lib/_stream_passthrough.js');
 exports.finished = require('./lib/internal/streams/end-of-stream.js');
 exports.pipeline = require('./lib/internal/streams/pipeline.js');
 
-},{"./lib/_stream_duplex.js":73,"./lib/_stream_passthrough.js":74,"./lib/_stream_readable.js":75,"./lib/_stream_transform.js":76,"./lib/_stream_writable.js":77,"./lib/internal/streams/end-of-stream.js":81,"./lib/internal/streams/pipeline.js":83}],87:[function(require,module,exports){
+},{"./lib/_stream_duplex.js":74,"./lib/_stream_passthrough.js":75,"./lib/_stream_readable.js":76,"./lib/_stream_transform.js":77,"./lib/_stream_writable.js":78,"./lib/internal/streams/end-of-stream.js":82,"./lib/internal/streams/pipeline.js":84}],88:[function(require,module,exports){
 // Copyright Joyent, Inc. and other Node contributors.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a
@@ -15895,7 +16296,7 @@ function simpleWrite(buf) {
 function simpleEnd(buf) {
   return buf && buf.length ? this.write(buf) : '';
 }
-},{"safe-buffer":53}],88:[function(require,module,exports){
+},{"safe-buffer":54}],89:[function(require,module,exports){
 /*
  * Copyright Joyent, Inc. and other Node contributors.
  *
@@ -16673,7 +17074,7 @@ exports.format = urlFormat;
 
 exports.Url = Url;
 
-},{"punycode":47,"qs":49}],89:[function(require,module,exports){
+},{"punycode":48,"qs":50}],90:[function(require,module,exports){
 (function (global){(function (){
 
 /**
@@ -16744,9 +17145,9 @@ function config (name) {
 }
 
 }).call(this)}).call(this,typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {})
-},{}],90:[function(require,module,exports){
+},{}],91:[function(require,module,exports){
 arguments[4][4][0].apply(exports,arguments)
-},{"dup":4}],91:[function(require,module,exports){
+},{"dup":4}],92:[function(require,module,exports){
 // Currently in sync with Node.js lib/internal/util/types.js
 // https://github.com/nodejs/node/commit/112cc7c27551254aa2b17098fb774867f05ed0d9
 
@@ -17082,7 +17483,7 @@ exports.isAnyArrayBuffer = isAnyArrayBuffer;
   });
 });
 
-},{"is-arguments":25,"is-generator-function":27,"is-typed-array":28,"which-typed-array":93}],92:[function(require,module,exports){
+},{"is-arguments":26,"is-generator-function":28,"is-typed-array":29,"which-typed-array":94}],93:[function(require,module,exports){
 (function (process){(function (){
 // Copyright Joyent, Inc. and other Node contributors.
 //
@@ -17801,7 +18202,7 @@ function callbackify(original) {
 exports.callbackify = callbackify;
 
 }).call(this)}).call(this,require('_process'))
-},{"./support/isBuffer":90,"./support/types":91,"_process":46,"inherits":24}],93:[function(require,module,exports){
+},{"./support/isBuffer":91,"./support/types":92,"_process":47,"inherits":25}],94:[function(require,module,exports){
 (function (global){(function (){
 'use strict';
 
@@ -17894,7 +18295,17 @@ module.exports = function whichTypedArray(value) {
 };
 
 }).call(this)}).call(this,typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {})
-},{"available-typed-arrays":6,"call-bind":12,"call-bind/callBound":11,"for-each":13,"gopd":17,"has-tostringtag/shams":21}],94:[function(require,module,exports){
+},{"available-typed-arrays":6,"call-bind":13,"call-bind/callBound":12,"for-each":14,"gopd":18,"has-tostringtag/shams":22}],95:[function(require,module,exports){
+'use strict';
+
+module.exports = function () {
+  throw new Error(
+    'ws does not work in the browser. Browser clients must use the native ' +
+      'WebSocket object'
+  );
+};
+
+},{}],96:[function(require,module,exports){
 module.exports = extend
 
 var hasOwnProperty = Object.prototype.hasOwnProperty;
@@ -19696,7 +20107,7 @@ function numberIsNaN (obj) {
 }
 
 }).call(this)}).call(this,require("buffer").Buffer)
-},{"base64-js":7,"buffer":"buffer","ieee754":23}],"events":[function(require,module,exports){
+},{"base64-js":7,"buffer":"buffer","ieee754":24}],"events":[function(require,module,exports){
 // Copyright Joyent, Inc. and other Node contributors.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a
@@ -20748,7 +21159,7 @@ http.METHODS = [
 	'UNSUBSCRIBE'
 ]
 }).call(this)}).call(this,typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {})
-},{"./lib/request":70,"./lib/response":71,"builtin-status-codes":10,"url":88,"xtend":94}],"js-base64":[function(require,module,exports){
+},{"./lib/request":71,"./lib/response":72,"builtin-status-codes":11,"url":89,"xtend":96}],"js-base64":[function(require,module,exports){
 (function (global,Buffer){(function (){
 //
 // THIS FILE IS AUTOMATICALLY GENERATED! DO NOT EDIT BY HAND!
@@ -21199,7 +21610,7 @@ Stream.prototype.pipe = function(dest, options) {
   return dest;
 };
 
-},{"events":"events","inherits":24,"readable-stream/lib/_stream_duplex.js":56,"readable-stream/lib/_stream_passthrough.js":57,"readable-stream/lib/_stream_readable.js":58,"readable-stream/lib/_stream_transform.js":59,"readable-stream/lib/_stream_writable.js":60,"readable-stream/lib/internal/streams/end-of-stream.js":64,"readable-stream/lib/internal/streams/pipeline.js":66}],"zlib":[function(require,module,exports){
+},{"events":"events","inherits":25,"readable-stream/lib/_stream_duplex.js":57,"readable-stream/lib/_stream_passthrough.js":58,"readable-stream/lib/_stream_readable.js":59,"readable-stream/lib/_stream_transform.js":60,"readable-stream/lib/_stream_writable.js":61,"readable-stream/lib/internal/streams/end-of-stream.js":65,"readable-stream/lib/internal/streams/pipeline.js":67}],"zlib":[function(require,module,exports){
 (function (process){(function (){
 'use strict';
 
@@ -21811,4 +22222,4 @@ util.inherits(DeflateRaw, Zlib);
 util.inherits(InflateRaw, Zlib);
 util.inherits(Unzip, Zlib);
 }).call(this)}).call(this,require('_process'))
-},{"./binding":9,"_process":46,"assert":2,"buffer":"buffer","stream":"stream","util":92}]},{},[1]);
+},{"./binding":9,"_process":47,"assert":2,"buffer":"buffer","stream":"stream","util":93}]},{},[1]);

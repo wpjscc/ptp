@@ -2,6 +2,7 @@
   "dependencies": {
     "browserify": "^17.0.0",
     "http-parser-js": "^0.5.8",
-    "js-base64": "^3.7.5"
+    "js-base64": "^3.7.5",
+    "ws": "^8.14.2"
   }
 }
