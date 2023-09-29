@@ -556,17 +556,18 @@
 
                     $write.on('data', function ($data) {
                         console.log("Send message length: " + $data.length);
+                        // socket.send(Base64.encode($data));
                         socket.send(Base64.encode($data));
                     })
 
                     socket.on('error', function (error) {
                         console.log(error)
-                        console.log("Socket connection closed with code: " + error.code);
+                        console.log("Socket connection closed with code: ");
                         $compositeConnectionStream.close()
                         reject(error)
                     });
                     socket.on('close', function (event) {
-                        console.log("Socket connection closed with code: " + event.code);
+                        console.log("Socket connection closed with code: ", event);
                         $compositeConnectionStream.close()
                         reject(event)
                     });
@@ -597,32 +598,31 @@
                 let $read = new ThroughStream;
                 let $write = new ThroughStream;
                 let $compositeConnectionStream = new CompositeConnectionStream($read, $write, '', 'tcp');
+                client.setEncoding('utf8');
+
                 client.connect(port, ip, function () {
                     resolve($compositeConnectionStream)
                 })
-                client.setEncoding('utf8');
 
                 $write.on('data', function ($data) {
 
                     if (Buffer.isBuffer($data)) { 
-                        console.log("tcp Send message length: " + $data.length);
+                        console.log("-tcp Send message length: " + $data.length);
                     } else {
                         console.log("tcp Send message length: " + Buffer.from($data).length);
                     }
-                    // console.log($data)
 
                     client.write($data);
                 })
 
                 $write.on('close', function () { 
                     client.end()
+                    console.log('tcp write closed')
                 })
 
                 client.on('data', function ($data) {
-                    // console.log($data)
                     if (Buffer.isBuffer($data)) {
-                        console.log("tcp Received message length: " + $data.length);
-                        
+                        console.log("-tcp Received message length: " + $data.length);
                         $data = $data.toString('utf8');
                     } else {
                         console.log("tcp Received message length: " + Buffer.from($data).length);
@@ -1348,7 +1348,7 @@
                                 return;
                             }
                         }
-                        // console.log($data)
+                        console.log($data)
                        $localConnection.write($data) 
                     });
 
@@ -1363,7 +1363,8 @@
                   
 
                     $localConnection.on('end', function () {
-                        echo('local connection end', {
+                        echo('local connection end')
+                        echo({
                             'tunnel_uuid': $config['uuid'],
                             // 'dynamic_tunnel_uuid': $response['headers']['Uuid'],
                         })
