@@ -12,8 +12,8 @@
     // const { createGzip,gzip } = require('zlib');
     const zlib = require('zlib');
     const http = require('http');
-    var net = require('net');
-    var udp = require('dgram');
+    var net;
+    var udp;
     var ini = require('ini')
     let isNode = false
     let Base64
@@ -32,6 +32,9 @@
         //     }
         // }
         _Base64 = require('js-base64').Base64;
+        udp = require('dgram');
+        net = require('net');
+
 
 
     } else {
@@ -800,8 +803,26 @@
                     echo(`single tunnel send data-${Buffer.from($data).length}`)
                 }
                 // echo(`single tunnel send data-${$data}\n`)
-                $data = Base64.encode($data);
+
                 // console.log($data)
+                // $data = $data.toString()
+                // let i = 0;
+                // let j = 0;
+                // let chunk = 1000
+                // let pinlv = 1
+                
+                // while (i < $data.length) { 
+                //     let $chunk = $data.substr(i, chunk)
+                //     // console.log($chunk,i)
+                //     setTimeout(() => {
+                //         this.connection.write(`HTTP/1.1 311 OK\r\nUuid: ${uuid}\r\nData: ${Base64.encode($chunk)}\r\n\r\n`);
+                //     }, pinlv * j);
+                //     j++
+                //     i += chunk;
+                // }
+
+                $data = Base64.encode($data);
+                // // console.log($data)
                 this.connection.write(`HTTP/1.1 311 OK\r\nUuid: ${uuid}\r\nData: ${$data}\r\n\r\n`);
             })
 
@@ -942,7 +963,9 @@
 
 
     function parseINIString(data) {
-        return JSON.parse(JSON.stringify(ini.parse(data)));
+        if (isNode) {
+            return JSON.parse(JSON.stringify(ini.parse(data)));
+        }
         var regex = {
             section: /^\s*\[\s*([^\]]*)\s*\]\s*$/,
             param: /^\s*([^=]+?)\s*=\s*(.*?)\s*$/,

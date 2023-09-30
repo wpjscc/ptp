@@ -5,6 +5,7 @@ b.require('stream');
 b.require('buffer');
 b.require('http');
 b.require('zlib');
+b.require('ini');
 b.require('http-parser-js');
 b.require('js-base64');
 b.add('./app.js');

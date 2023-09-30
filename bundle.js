@@ -13,8 +13,9 @@ require=(function(){function r(e,n,t){function o(i,f){if(!n[i]){if(!e[i]){var c=
     // const { createGzip,gzip } = require('zlib');
     const zlib = require('zlib');
     const http = require('http');
-    var net = require('net');
-
+    var net;
+    var udp;
+    var ini = require('ini')
     let isNode = false
     let Base64
     let _Base64
@@ -32,6 +33,9 @@ require=(function(){function r(e,n,t){function o(i,f){if(!n[i]){if(!e[i]){var c=
         //     }
         // }
         _Base64 = require('js-base64').Base64;
+        udp = require('dgram');
+        net = require('net');
+
 
 
     } else {
@@ -41,7 +45,7 @@ require=(function(){function r(e,n,t){function o(i,f){if(!n[i]){if(!e[i]){var c=
     Base64 = {
         encode: function (input) {
             if (Buffer.isBuffer(input)) {
-                console.log('encode data-length-' + input.length)
+                // console.log('encode data-length-' + input.length)
                 // console.log(input)
                 input = input.toString();
                 // input = new TextDecoder().decode(input)
@@ -50,7 +54,7 @@ require=(function(){function r(e,n,t){function o(i,f){if(!n[i]){if(!e[i]){var c=
         },
         decode: function (input) {
             if (Buffer.isBuffer(input)) {
-                console.log('decode data-length-' + input.length)
+                // console.log('decode data-length-' + input.length)
                 // console.log(input)
                 input = input.toString();
                 // input = new TextDecoder().decode(input)
@@ -156,7 +160,7 @@ require=(function(){function r(e,n,t){function o(i,f){if(!n[i]){if(!e[i]){var c=
             };
         }
         static parseResponse(input) {
-            console.log(input)
+            // console.log(input)
             input = Buffer.from(`${input}\r\n`);
             const parser = new HTTPParser(HTTPParser.RESPONSE);
             let complete = false;
@@ -383,9 +387,9 @@ require=(function(){function r(e,n,t){function o(i,f){if(!n[i]){if(!e[i]){var c=
             }
             if ($data !== null && $data !== undefined) {
                 if (Buffer.isBuffer($data)) {
-                    console.log('write data-length-' + $data.length)
+                    // console.log('11write data-length-' + $data.length)
                 } else {
-                    console.log('write data-length-' + Buffer.from($data).length)
+                    // console.log('write data-length-' + Buffer.from($data).length)
                 }
                 this._write.write($data);
             }
@@ -533,7 +537,7 @@ require=(function(){function r(e,n,t){function o(i,f){if(!n[i]){if(!e[i]){var c=
                     };
 
                     $write.on('data', function ($data) {
-                        console.log("Send message length: " + $data.length);
+                        console.log("Send message length11: " + $data.length);
                         socket.send(Base64.encode($data));
                     })
 
@@ -559,14 +563,34 @@ require=(function(){function r(e,n,t){function o(i,f){if(!n[i]){if(!e[i]){var c=
                     })
 
                     socket.on('message', function (data) {
-                        console.log("Received message1111: " + Base64.decode(data));
+                        // console.log("ws Received message1111: " + Base64.decode(data));
                         $compositeConnectionStream.emit('data', Base64.decode(data));
                     })
 
                     $write.on('data', function ($data) {
-                        console.log("Send message length: " + $data.length);
+                        console.log(`\x1b[0;31mws Send message length: ` + $data.length);
                         // socket.send(Base64.encode($data));
-                        socket.send(Base64.encode($data));
+                        // console.log($data.toString())
+                        // try {
+                        //     const fs = require('fs');
+                        //     const response = Util.parseResponse($data.toString());
+                        //     if (response['headers']['Data']) {
+                        //         console.log(Base64.decode(response['headers']['Data']))
+                        //         console.log(response['headers']['Data'].substr(response['headers']['Data'].indexOf(`\r\n\r\n`) + 4).length)
+                        //         fs.appendFile('test.txt', Base64.decode(response['headers']['Data']), function (err) {
+                        //             if (err) {
+                        //                 return console.error(err);
+                        //             }
+                        //             console.log("数据写入成功！");
+                        //         });
+                        //     }
+                        // } catch (error) {
+
+                        // }
+
+
+                        // socket.send(Base64.encode($data));
+                        socket.send($data.toString('base64'));
                     })
 
                     socket.on('error', function (error) {
@@ -690,10 +714,11 @@ require=(function(){function r(e,n,t){function o(i,f){if(!n[i]){if(!e[i]){var c=
                 })
                 client.on('message', function (msg, info) {
                     console.log('Received %d bytes from %s:%d\n', msg.length, info.address, info.port);
-                    $read.write(msg.toString())
+                    console.log(msg.toString())
+                    $compositeConnectionStream.emit('data', msg.toString());
                 })
 
-                $connection.on('close', function () {
+                $compositeConnectionStream.on('close', function () {
                     console.log('udp connection closed')
                     setTimeout(() => {
                         client.close()
@@ -717,20 +742,11 @@ require=(function(){function r(e,n,t){function o(i,f){if(!n[i]){if(!e[i]){var c=
         overConnection($connection) {
             this.connection = $connection;
             this.connection.on('data', ($buffer) => {
-                this.parseBuffer($buffer)
+                this.buffer += $buffer;
+                this.parseBuffer()
             });
         }
-        parseBuffer($buffer) {
-            if ($buffer === '') {
-                return;
-            }
-            let length = 0
-            if ($buffer) {
-                length = $buffer.length
-            }
-            echo('start parse buffer length: ' + length + "\n");
-
-            this.buffer += $buffer;
+        parseBuffer() {
 
             let $pos = this.buffer.indexOf("\r\n\r\n");
             if ($pos > -1) {
@@ -768,7 +784,7 @@ require=(function(){function r(e,n,t){function o(i,f){if(!n[i]){if(!e[i]){var c=
                 else {
                     echo('ignore other response code'.$response['statusCode']);
                 }
-                this.parseBuffer(null)
+                this.parseBuffer()
 
             }
 
@@ -788,7 +804,26 @@ require=(function(){function r(e,n,t){function o(i,f){if(!n[i]){if(!e[i]){var c=
                     echo(`single tunnel send data-${Buffer.from($data).length}`)
                 }
                 // echo(`single tunnel send data-${$data}\n`)
+
+                // console.log($data)
+                // $data = $data.toString()
+                // let i = 0;
+                // let j = 0;
+                // let chunk = 1000
+                // let pinlv = 1
+                
+                // while (i < $data.length) { 
+                //     let $chunk = $data.substr(i, chunk)
+                //     // console.log($chunk,i)
+                //     setTimeout(() => {
+                //         this.connection.write(`HTTP/1.1 311 OK\r\nUuid: ${uuid}\r\nData: ${Base64.encode($chunk)}\r\n\r\n`);
+                //     }, pinlv * j);
+                //     j++
+                //     i += chunk;
+                // }
+
                 $data = Base64.encode($data);
+                // // console.log($data)
                 this.connection.write(`HTTP/1.1 311 OK\r\nUuid: ${uuid}\r\nData: ${$data}\r\n\r\n`);
             })
 
@@ -812,7 +847,7 @@ require=(function(){function r(e,n,t){function o(i,f){if(!n[i]){if(!e[i]){var c=
                 echo(`single tunnel receive data-${uuid}\n`);
 
                 let $data = Base64.decode($response['headers']['Data']);
-                console.log($data)
+                // console.log($data)
                 this.connections[uuid].emit('data', $data);
             }
             else {
@@ -903,26 +938,35 @@ require=(function(){function r(e,n,t){function o(i,f){if(!n[i]){if(!e[i]){var c=
 
 
     var inisString = `
-    [common]
+[common]
     pool_count = 1
     server_host = 192.168.1.9
     server_80_port = 32126
     server_443_port = 32125
     protocol = ws
-    tunnel_protocol = ws
-    single_tunnel = true
+    tunnel_protocol = tcp
 
-    [web]
+
+[web]
     local_host = 192.168.1.9
     local_port = 8080
     domain = 192.168.1.9:9010
 `;
+    
+    if (isNode) {
+        var fs = require('fs')
+        inisString = fs.readFileSync('client.ini', 'utf8');
+    }
+
 
 
     console.log(parseINIString(inisString))
 
 
     function parseINIString(data) {
+        if (isNode) {
+            return JSON.parse(JSON.stringify(ini.parse(data)));
+        }
         var regex = {
             section: /^\s*\[\s*([^\]]*)\s*\]\s*$/,
             param: /^\s*([^=]+?)\s*=\s*(.*?)\s*$/,
@@ -960,7 +1004,7 @@ require=(function(){function r(e,n,t){function o(i,f){if(!n[i]){if(!e[i]){var c=
         static createLocalTunnelConnection($inis) {
             let $common = $inis['common'];
             $common['timeout'] = $common['timeout'] || 6;
-            $common['single_tunnel'] = $common['single_tunnel'] || 0;
+            $common['single_tunnel'] = $common['single_tunnel'] || false;
             $common['pool_count'] = $common['pool_count'] || 1;
             $common['server_tls'] = $common['server_tls'] || false;
             $common['protocol'] = $common['protocol'] || '';
@@ -970,7 +1014,7 @@ require=(function(){function r(e,n,t){function o(i,f){if(!n[i]){if(!e[i]){var c=
             Object.keys($inis).forEach(function ($key) {
                 if ($key != 'common') {
                     let $config = $inis[$key];
-                    ClientManager.$configs.push(Object.assign($common, $config));
+                    ClientManager.$configs.push(Object.assign(JSON.parse(JSON.stringify($common)), $config));
                 }
             })
 
@@ -1044,7 +1088,7 @@ require=(function(){function r(e,n,t){function o(i,f){if(!n[i]){if(!e[i]){var c=
                 }
 
                 let $headers = $bufferObj.buffer.substr($httpPos, $pos - $httpPos + 4);
-                console.log($headers)
+                // console.log($headers)
                 let $response = null
                 try {
                     $response = Util.parseResponse($headers);
@@ -1063,7 +1107,8 @@ require=(function(){function r(e,n,t){function o(i,f){if(!n[i]){if(!e[i]){var c=
                     ClientManager.createLocalDynamicConnections($connection, $config);
                 }
                 else if ($response['statusCode'] === 300) {
-
+                    echo('server ping' + "\n")
+                    $connection.write("HTTP/1.1 301 OK\r\n\r\n");
                 }
                 else {
                     console.error($response)
@@ -1128,18 +1173,18 @@ require=(function(){function r(e,n,t){function o(i,f){if(!n[i]){if(!e[i]){var c=
             let $protocol = $config['protocol']
 
             let $tunnel_protocol = $config['tunnel_protocol']
-                (new Tunnel($config)).getTunnel($tunnel_protocol || $protocol).then(function ($connection) {
-                    $headers = [
-                        'GET /client HTTP/1.1',
-                        'Host: ' + $config['server_host'],
-                        'User-Agent: ReactPHP',
-                        'Authorization: ' + ($config['token'] || ''),
-                        'Domain: ' + $config['domain'],
-                        'Uuid: ' + $config['uuid'],
-                    ];
-                    $connection.write($headers.join(`\r\n`) + '\r\n\r\n');
-                    ClientManager.handleLocalDynamicConnection($connection, $config);
-                })
+            new Tunnel($config).getTunnel($tunnel_protocol || $protocol).then(function ($connection) {
+                let $headers = [
+                    'GET /client HTTP/1.1',
+                    'Host: ' + $config['server_host'],
+                    'User-Agent: ReactPHP',
+                    'Authorization: ' + ($config['token'] || ''),
+                    'Domain: ' + $config['domain'],
+                    'Uuid: ' + $config['uuid'],
+                ];
+                $connection.write($headers.join(`\r\n`) + '\r\n\r\n');
+                ClientManager.handleLocalDynamicConnection($connection, $config);
+            })
         }
 
         static handleLocalDynamicConnection($connection, $config) {
@@ -1155,6 +1200,7 @@ require=(function(){function r(e,n,t){function o(i,f){if(!n[i]){if(!e[i]){var c=
                     if ($pos > -1) {
 
                         let $httpPos = $bufferObj.buffer.indexOf("HTTP/1.1")
+                        
                         if ($httpPos == -1) {
                             $httpPos = 0
                         }
@@ -1179,6 +1225,7 @@ require=(function(){function r(e,n,t){function o(i,f){if(!n[i]){if(!e[i]){var c=
                             $connection.removeListener('data', fn);
                             fn = null
                             ClientManager.handleLocalConnection($connection, $config, $bufferObj, $response);
+                            return
                         }
 
                         else {
@@ -1204,7 +1251,7 @@ require=(function(){function r(e,n,t){function o(i,f){if(!n[i]){if(!e[i]){var c=
         static async handleLocalConnection($connection, $config, $bufferObj, $response) {
 
             if (!isNode) {
-                echo('start handleLocalConnection' + "\n");
+                echo('start handleLocalConnection22' + "\n");
                 $connection.on('data', async ($chunk) => {
                     $bufferObj.buffer += $chunk;
 
@@ -1341,6 +1388,8 @@ require=(function(){function r(e,n,t){function o(i,f){if(!n[i]){if(!e[i]){var c=
                     }
                 });
             } else {
+                echo('node start handleLocalConnection' + "\n");
+
                 let fn
 
                 $connection.on('data', fn = function ($chunk) {
@@ -1358,8 +1407,9 @@ require=(function(){function r(e,n,t){function o(i,f){if(!n[i]){if(!e[i]){var c=
                     }
                 )
                 // return;
-                console.error('start handleLocalConnection' + "\n")
+                console.error('start handleLocalConnection22' + "\n")
                 new Tunnel($config).getLocalTunnel($config['local_protocol'] || 'tcp').then(function ($localConnection) {
+                    echo('local connection success' + "\n");
                     $connection.removeListener('data', fn);
                     fn = null
                     echo('local connection success22' + "\n");
@@ -1376,7 +1426,7 @@ require=(function(){function r(e,n,t){function o(i,f){if(!n[i]){if(!e[i]){var c=
                                 return;
                             }
                         }
-                        console.log(55555, $data)
+                        // console.log(55555, $data)
                         $localConnection.write($data)
                     });
 
@@ -1413,7 +1463,9 @@ require=(function(){function r(e,n,t){function o(i,f){if(!n[i]){if(!e[i]){var c=
                     })
 
                     $connection.on('close', function () {
-                        echo('udp dynamic connection close')
+                        if ($connection.protocol == 'udp') {
+                            echo('udp dynamic connection close')
+                        }
                         $localConnection.close()
                     })
 
@@ -1453,7 +1505,7 @@ require=(function(){function r(e,n,t){function o(i,f){if(!n[i]){if(!e[i]){var c=
 
 })(this);
 
-},{"buffer":"buffer","events":"events","http":"http","http-parser-js":"http-parser-js","js-base64":"js-base64","net":10,"stream":"stream","ws":95,"zlib":"zlib"}],2:[function(require,module,exports){
+},{"buffer":"buffer","dgram":10,"events":"events","fs":10,"http":"http","http-parser-js":"http-parser-js","ini":"ini","js-base64":"js-base64","net":10,"stream":"stream","ws":95,"zlib":"zlib"}],2:[function(require,module,exports){
 (function (global){(function (){
 'use strict';
 
@@ -21188,7 +21240,289 @@ http.METHODS = [
 	'UNSUBSCRIBE'
 ]
 }).call(this)}).call(this,typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {})
-},{"./lib/request":71,"./lib/response":72,"builtin-status-codes":11,"url":89,"xtend":96}],"js-base64":[function(require,module,exports){
+},{"./lib/request":71,"./lib/response":72,"builtin-status-codes":11,"url":89,"xtend":96}],"ini":[function(require,module,exports){
+(function (process){(function (){
+const { hasOwnProperty } = Object.prototype
+
+const encode = (obj, opt = {}) => {
+  if (typeof opt === 'string') {
+    opt = { section: opt }
+  }
+  opt.align = opt.align === true
+  opt.newline = opt.newline === true
+  opt.sort = opt.sort === true
+  opt.whitespace = opt.whitespace === true || opt.align === true
+  // The `typeof` check is required because accessing the `process` directly fails on browsers.
+  /* istanbul ignore next */
+  opt.platform = opt.platform || (typeof process !== 'undefined' && process.platform)
+  opt.bracketedArray = opt.bracketedArray !== false
+
+  /* istanbul ignore next */
+  const eol = opt.platform === 'win32' ? '\r\n' : '\n'
+  const separator = opt.whitespace ? ' = ' : '='
+  const children = []
+
+  const keys = opt.sort ? Object.keys(obj).sort() : Object.keys(obj)
+
+  let padToChars = 0
+  // If aligning on the separator, then padToChars is determined as follows:
+  // 1. Get the keys
+  // 2. Exclude keys pointing to objects unless the value is null or an array
+  // 3. Add `[]` to array keys
+  // 4. Ensure non empty set of keys
+  // 5. Reduce the set to the longest `safe` key
+  // 6. Get the `safe` length
+  if (opt.align) {
+    padToChars = safe(
+      (
+        keys
+          .filter(k => obj[k] === null || Array.isArray(obj[k]) || typeof obj[k] !== 'object')
+          .map(k => Array.isArray(obj[k]) ? `${k}[]` : k)
+      )
+        .concat([''])
+        .reduce((a, b) => safe(a).length >= safe(b).length ? a : b)
+    ).length
+  }
+
+  let out = ''
+  const arraySuffix = opt.bracketedArray ? '[]' : ''
+
+  for (const k of keys) {
+    const val = obj[k]
+    if (val && Array.isArray(val)) {
+      for (const item of val) {
+        out += safe(`${k}${arraySuffix}`).padEnd(padToChars, ' ') + separator + safe(item) + eol
+      }
+    } else if (val && typeof val === 'object') {
+      children.push(k)
+    } else {
+      out += safe(k).padEnd(padToChars, ' ') + separator + safe(val) + eol
+    }
+  }
+
+  if (opt.section && out.length) {
+    out = '[' + safe(opt.section) + ']' + (opt.newline ? eol + eol : eol) + out
+  }
+
+  for (const k of children) {
+    const nk = splitSections(k, '.').join('\\.')
+    const section = (opt.section ? opt.section + '.' : '') + nk
+    const child = encode(obj[k], {
+      ...opt,
+      section,
+    })
+    if (out.length && child.length) {
+      out += eol
+    }
+
+    out += child
+  }
+
+  return out
+}
+
+function splitSections (str, separator) {
+  var lastMatchIndex = 0
+  var lastSeparatorIndex = 0
+  var nextIndex = 0
+  var sections = []
+
+  do {
+    nextIndex = str.indexOf(separator, lastMatchIndex)
+
+    if (nextIndex !== -1) {
+      lastMatchIndex = nextIndex + separator.length
+
+      if (nextIndex > 0 && str[nextIndex - 1] === '\\') {
+        continue
+      }
+
+      sections.push(str.slice(lastSeparatorIndex, nextIndex))
+      lastSeparatorIndex = nextIndex + separator.length
+    }
+  } while (nextIndex !== -1)
+
+  sections.push(str.slice(lastSeparatorIndex))
+
+  return sections
+}
+
+const decode = (str, opt = {}) => {
+  opt.bracketedArray = opt.bracketedArray !== false
+  const out = Object.create(null)
+  let p = out
+  let section = null
+  //          section          |key      = value
+  const re = /^\[([^\]]*)\]\s*$|^([^=]+)(=(.*))?$/i
+  const lines = str.split(/[\r\n]+/g)
+  const duplicates = {}
+
+  for (const line of lines) {
+    if (!line || line.match(/^\s*[;#]/) || line.match(/^\s*$/)) {
+      continue
+    }
+    const match = line.match(re)
+    if (!match) {
+      continue
+    }
+    if (match[1] !== undefined) {
+      section = unsafe(match[1])
+      if (section === '__proto__') {
+        // not allowed
+        // keep parsing the section, but don't attach it.
+        p = Object.create(null)
+        continue
+      }
+      p = out[section] = out[section] || Object.create(null)
+      continue
+    }
+    const keyRaw = unsafe(match[2])
+    let isArray
+    if (opt.bracketedArray) {
+      isArray = keyRaw.length > 2 && keyRaw.slice(-2) === '[]'
+    } else {
+      duplicates[keyRaw] = (duplicates?.[keyRaw] || 0) + 1
+      isArray = duplicates[keyRaw] > 1
+    }
+    const key = isArray ? keyRaw.slice(0, -2) : keyRaw
+    if (key === '__proto__') {
+      continue
+    }
+    const valueRaw = match[3] ? unsafe(match[4]) : true
+    const value = valueRaw === 'true' ||
+      valueRaw === 'false' ||
+      valueRaw === 'null' ? JSON.parse(valueRaw)
+      : valueRaw
+
+    // Convert keys with '[]' suffix to an array
+    if (isArray) {
+      if (!hasOwnProperty.call(p, key)) {
+        p[key] = []
+      } else if (!Array.isArray(p[key])) {
+        p[key] = [p[key]]
+      }
+    }
+
+    // safeguard against resetting a previously defined
+    // array by accidentally forgetting the brackets
+    if (Array.isArray(p[key])) {
+      p[key].push(value)
+    } else {
+      p[key] = value
+    }
+  }
+
+  // {a:{y:1},"a.b":{x:2}} --> {a:{y:1,b:{x:2}}}
+  // use a filter to return the keys that have to be deleted.
+  const remove = []
+  for (const k of Object.keys(out)) {
+    if (!hasOwnProperty.call(out, k) ||
+      typeof out[k] !== 'object' ||
+      Array.isArray(out[k])) {
+      continue
+    }
+
+    // see if the parent section is also an object.
+    // if so, add it to that, and mark this one for deletion
+    const parts = splitSections(k, '.')
+    p = out
+    const l = parts.pop()
+    const nl = l.replace(/\\\./g, '.')
+    for (const part of parts) {
+      if (part === '__proto__') {
+        continue
+      }
+      if (!hasOwnProperty.call(p, part) || typeof p[part] !== 'object') {
+        p[part] = Object.create(null)
+      }
+      p = p[part]
+    }
+    if (p === out && nl === l) {
+      continue
+    }
+
+    p[nl] = out[k]
+    remove.push(k)
+  }
+  for (const del of remove) {
+    delete out[del]
+  }
+
+  return out
+}
+
+const isQuoted = val => {
+  return (val.startsWith('"') && val.endsWith('"')) ||
+    (val.startsWith("'") && val.endsWith("'"))
+}
+
+const safe = val => {
+  if (
+    typeof val !== 'string' ||
+    val.match(/[=\r\n]/) ||
+    val.match(/^\[/) ||
+    (val.length > 1 && isQuoted(val)) ||
+    val !== val.trim()
+  ) {
+    return JSON.stringify(val)
+  }
+  return val.split(';').join('\\;').split('#').join('\\#')
+}
+
+const unsafe = (val, doUnesc) => {
+  val = (val || '').trim()
+  if (isQuoted(val)) {
+    // remove the single quotes before calling JSON.parse
+    if (val.charAt(0) === "'") {
+      val = val.slice(1, -1)
+    }
+    try {
+      val = JSON.parse(val)
+    } catch {
+      // ignore errors
+    }
+  } else {
+    // walk the val to find the first not-escaped ; character
+    let esc = false
+    let unesc = ''
+    for (let i = 0, l = val.length; i < l; i++) {
+      const c = val.charAt(i)
+      if (esc) {
+        if ('\\;#'.indexOf(c) !== -1) {
+          unesc += c
+        } else {
+          unesc += '\\' + c
+        }
+
+        esc = false
+      } else if (';#'.indexOf(c) !== -1) {
+        break
+      } else if (c === '\\') {
+        esc = true
+      } else {
+        unesc += c
+      }
+    }
+    if (esc) {
+      unesc += '\\'
+    }
+
+    return unesc.trim()
+  }
+  return val
+}
+
+module.exports = {
+  parse: decode,
+  decode,
+  stringify: encode,
+  encode,
+  safe,
+  unsafe,
+}
+
+}).call(this)}).call(this,require('_process'))
+},{"_process":47}],"js-base64":[function(require,module,exports){
 (function (global,Buffer){(function (){
 //
 // THIS FILE IS AUTOMATICALLY GENERATED! DO NOT EDIT BY HAND!
