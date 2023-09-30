@@ -6,6 +6,7 @@ use React\Socket\ConnectorInterface;
 use function Ratchet\Client\connect;
 use Wpjscc\Penetration\CompositeConnectionStream;
 use React\Stream\ThroughStream;
+use RingCentral\Psr7;
 
 class WebsocketTunnel implements ConnectorInterface, \Wpjscc\Penetration\Log\LogManagerInterface
 {
@@ -27,17 +28,22 @@ class WebsocketTunnel implements ConnectorInterface, \Wpjscc\Penetration\Log\Log
             $read = new ThroughStream;
             $write = new ThroughStream;
             $write->on('data', function ($data) use ($conn, $uri, $protocol) {
-                static::getLogger()->info('sendDataToServer', [
+                static::getLogger()->error('sendDataToServer', [
                     'uri' => $uri,
                     'protocol' => $protocol,
                     'length' => strlen($data),
                 ]);
+                // try {
+                //    $response =  Psr7\parse_response($data);
+                //    echo base64_decode($response->getHeaderLine('Data'));
+                // } catch (\Throwable $th) {
+                //     //throw $th;
+                // }
                 $conn->send(base64_encode($data));
             });
 
             $contection = new CompositeConnectionStream($read, $write, $conn->getStream(), $protocol);
             $conn->on('message', function ($msg) use ($read, $uri, $protocol) {
-                echo ('websocket tunnel receiveDataFromServer');
                 static::getLogger()->info('receiveDataFromServer', [
                     'uri' => $uri,
                     'protocol' => $protocol,

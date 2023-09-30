@@ -28,20 +28,23 @@ use React\Promise\Deferred;
 //     return $deferred->promise();
 // }
 
-// function decompressed($data) {
-//     $decompressor = new Decompressor(ZLIB_ENCODING_GZIP);
-//     $deferred = new Deferred();
-//     $buffer = '';
-//     $decompressor->on('data', function ($chunk) use (&$buffer) {
-//         $buffer .= $chunk;
-//     });
-//     $decompressor->on('end', function () use (&$buffer, $deferred) {
-//         $deferred->resolve($buffer);
-//         $buffer = '';
-//     });
-//     $decompressor->end($data);
-//     return $deferred->promise();
-// }
+function decompressed($data) {
+    $decompressor = new Decompressor(ZLIB_ENCODING_GZIP);
+    $deferred = new Deferred();
+    $buffer = '';
+    $decompressor->on('data', function ($chunk) use (&$buffer) {
+        $buffer .= $chunk;
+    });
+    $decompressor->on('end', function () use (&$buffer, $deferred) {
+        $deferred->resolve($buffer);
+        $buffer = '';
+    });
+    $decompressor->on('error', function ($e) use ($deferred) {
+        $deferred->reject($e);
+    });
+    $decompressor->end($data);
+    return $deferred->promise();
+}
 
 // $response = new Response(
 //     200,
@@ -115,8 +118,18 @@ use React\Promise\Deferred;
 // var_dump($response->getHeaderLine('Content-Length'));
 
 // var_dump(unpack("A*body", $response->getHeaderLine('Body')));
+// $data = file_get_contents('./test.txt');
+// // $data = 'hello world';
 
-
+// echo $length = (strlen($data))."\n";
+// echo dechex($length)."\n";
+// echo hexdec('1d80')."\n";
+// echo hexdec('1ad2')."\n";
+// decompressed($data)->then(function ($data) {
+//     echo $data;
+// }, function ($e) {
+//     echo $e->getMessage();
+// });
 // exit();
 
 $config = Config::getConfig(getParam('--ini-path', './client.ini'));

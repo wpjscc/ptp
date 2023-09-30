@@ -13,7 +13,8 @@
     const zlib = require('zlib');
     const http = require('http');
     var net = require('net');
-
+    var udp = require('dgram');
+    var ini = require('ini')
     let isNode = false
     let Base64
     let _Base64
@@ -40,7 +41,7 @@
     Base64 = {
         encode: function (input) {
             if (Buffer.isBuffer(input)) {
-                console.log('encode data-length-' + input.length)
+                // console.log('encode data-length-' + input.length)
                 // console.log(input)
                 input = input.toString();
                 // input = new TextDecoder().decode(input)
@@ -49,7 +50,7 @@
         },
         decode: function (input) {
             if (Buffer.isBuffer(input)) {
-                console.log('decode data-length-' + input.length)
+                // console.log('decode data-length-' + input.length)
                 // console.log(input)
                 input = input.toString();
                 // input = new TextDecoder().decode(input)
@@ -155,7 +156,7 @@
             };
         }
         static parseResponse(input) {
-            console.log(input)
+            // console.log(input)
             input = Buffer.from(`${input}\r\n`);
             const parser = new HTTPParser(HTTPParser.RESPONSE);
             let complete = false;
@@ -382,9 +383,9 @@
             }
             if ($data !== null && $data !== undefined) {
                 if (Buffer.isBuffer($data)) {
-                    console.log('write data-length-' + $data.length)
+                    // console.log('11write data-length-' + $data.length)
                 } else {
-                    console.log('write data-length-' + Buffer.from($data).length)
+                    // console.log('write data-length-' + Buffer.from($data).length)
                 }
                 this._write.write($data);
             }
@@ -532,7 +533,7 @@
                     };
 
                     $write.on('data', function ($data) {
-                        console.log("Send message length: " + $data.length);
+                        console.log("Send message length11: " + $data.length);
                         socket.send(Base64.encode($data));
                     })
 
@@ -558,14 +559,34 @@
                     })
 
                     socket.on('message', function (data) {
-                        console.log("Received message1111: " + Base64.decode(data));
+                        // console.log("ws Received message1111: " + Base64.decode(data));
                         $compositeConnectionStream.emit('data', Base64.decode(data));
                     })
 
                     $write.on('data', function ($data) {
-                        console.log("Send message length: " + $data.length);
+                        console.log(`\x1b[0;31mws Send message length: ` + $data.length);
                         // socket.send(Base64.encode($data));
-                        socket.send(Base64.encode($data));
+                        // console.log($data.toString())
+                        // try {
+                        //     const fs = require('fs');
+                        //     const response = Util.parseResponse($data.toString());
+                        //     if (response['headers']['Data']) {
+                        //         console.log(Base64.decode(response['headers']['Data']))
+                        //         console.log(response['headers']['Data'].substr(response['headers']['Data'].indexOf(`\r\n\r\n`) + 4).length)
+                        //         fs.appendFile('test.txt', Base64.decode(response['headers']['Data']), function (err) {
+                        //             if (err) {
+                        //                 return console.error(err);
+                        //             }
+                        //             console.log("数据写入成功！");
+                        //         });
+                        //     }
+                        // } catch (error) {
+
+                        // }
+
+
+                        // socket.send(Base64.encode($data));
+                        socket.send($data.toString('base64'));
                     })
 
                     socket.on('error', function (error) {
@@ -689,10 +710,11 @@
                 })
                 client.on('message', function (msg, info) {
                     console.log('Received %d bytes from %s:%d\n', msg.length, info.address, info.port);
-                    $read.write(msg.toString())
+                    console.log(msg.toString())
+                    $compositeConnectionStream.emit('data', msg.toString());
                 })
 
-                $connection.on('close', function () {
+                $compositeConnectionStream.on('close', function () {
                     console.log('udp connection closed')
                     setTimeout(() => {
                         client.close()
@@ -716,20 +738,11 @@
         overConnection($connection) {
             this.connection = $connection;
             this.connection.on('data', ($buffer) => {
-                this.parseBuffer($buffer)
+                this.buffer += $buffer;
+                this.parseBuffer()
             });
         }
-        parseBuffer($buffer) {
-            if ($buffer === '') {
-                return;
-            }
-            let length = 0
-            if ($buffer) {
-                length = $buffer.length
-            }
-            echo('start parse buffer length: ' + length + "\n");
-
-            this.buffer += $buffer;
+        parseBuffer() {
 
             let $pos = this.buffer.indexOf("\r\n\r\n");
             if ($pos > -1) {
@@ -767,7 +780,7 @@
                 else {
                     echo('ignore other response code'.$response['statusCode']);
                 }
-                this.parseBuffer(null)
+                this.parseBuffer()
 
             }
 
@@ -788,6 +801,7 @@
                 }
                 // echo(`single tunnel send data-${$data}\n`)
                 $data = Base64.encode($data);
+                // console.log($data)
                 this.connection.write(`HTTP/1.1 311 OK\r\nUuid: ${uuid}\r\nData: ${$data}\r\n\r\n`);
             })
 
@@ -811,7 +825,7 @@
                 echo(`single tunnel receive data-${uuid}\n`);
 
                 let $data = Base64.decode($response['headers']['Data']);
-                console.log($data)
+                // console.log($data)
                 this.connections[uuid].emit('data', $data);
             }
             else {
@@ -902,26 +916,33 @@
 
 
     var inisString = `
-    [common]
+[common]
     pool_count = 1
     server_host = 192.168.1.9
     server_80_port = 32126
     server_443_port = 32125
     protocol = ws
-    tunnel_protocol = ws
-    single_tunnel = true
+    tunnel_protocol = tcp
 
-    [web]
+
+[web]
     local_host = 192.168.1.9
     local_port = 8080
     domain = 192.168.1.9:9010
 `;
+    
+    if (isNode) {
+        var fs = require('fs')
+        inisString = fs.readFileSync('client.ini', 'utf8');
+    }
+
 
 
     console.log(parseINIString(inisString))
 
 
     function parseINIString(data) {
+        return JSON.parse(JSON.stringify(ini.parse(data)));
         var regex = {
             section: /^\s*\[\s*([^\]]*)\s*\]\s*$/,
             param: /^\s*([^=]+?)\s*=\s*(.*?)\s*$/,
@@ -959,7 +980,7 @@
         static createLocalTunnelConnection($inis) {
             let $common = $inis['common'];
             $common['timeout'] = $common['timeout'] || 6;
-            $common['single_tunnel'] = $common['single_tunnel'] || 0;
+            $common['single_tunnel'] = $common['single_tunnel'] || false;
             $common['pool_count'] = $common['pool_count'] || 1;
             $common['server_tls'] = $common['server_tls'] || false;
             $common['protocol'] = $common['protocol'] || '';
@@ -969,7 +990,7 @@
             Object.keys($inis).forEach(function ($key) {
                 if ($key != 'common') {
                     let $config = $inis[$key];
-                    ClientManager.$configs.push(Object.assign($common, $config));
+                    ClientManager.$configs.push(Object.assign(JSON.parse(JSON.stringify($common)), $config));
                 }
             })
 
@@ -1043,7 +1064,7 @@
                 }
 
                 let $headers = $bufferObj.buffer.substr($httpPos, $pos - $httpPos + 4);
-                console.log($headers)
+                // console.log($headers)
                 let $response = null
                 try {
                     $response = Util.parseResponse($headers);
@@ -1062,7 +1083,8 @@
                     ClientManager.createLocalDynamicConnections($connection, $config);
                 }
                 else if ($response['statusCode'] === 300) {
-
+                    echo('server ping' + "\n")
+                    $connection.write("HTTP/1.1 301 OK\r\n\r\n");
                 }
                 else {
                     console.error($response)
@@ -1127,18 +1149,18 @@
             let $protocol = $config['protocol']
 
             let $tunnel_protocol = $config['tunnel_protocol']
-                (new Tunnel($config)).getTunnel($tunnel_protocol || $protocol).then(function ($connection) {
-                    $headers = [
-                        'GET /client HTTP/1.1',
-                        'Host: ' + $config['server_host'],
-                        'User-Agent: ReactPHP',
-                        'Authorization: ' + ($config['token'] || ''),
-                        'Domain: ' + $config['domain'],
-                        'Uuid: ' + $config['uuid'],
-                    ];
-                    $connection.write($headers.join(`\r\n`) + '\r\n\r\n');
-                    ClientManager.handleLocalDynamicConnection($connection, $config);
-                })
+            new Tunnel($config).getTunnel($tunnel_protocol || $protocol).then(function ($connection) {
+                let $headers = [
+                    'GET /client HTTP/1.1',
+                    'Host: ' + $config['server_host'],
+                    'User-Agent: ReactPHP',
+                    'Authorization: ' + ($config['token'] || ''),
+                    'Domain: ' + $config['domain'],
+                    'Uuid: ' + $config['uuid'],
+                ];
+                $connection.write($headers.join(`\r\n`) + '\r\n\r\n');
+                ClientManager.handleLocalDynamicConnection($connection, $config);
+            })
         }
 
         static handleLocalDynamicConnection($connection, $config) {
@@ -1154,6 +1176,7 @@
                     if ($pos > -1) {
 
                         let $httpPos = $bufferObj.buffer.indexOf("HTTP/1.1")
+                        
                         if ($httpPos == -1) {
                             $httpPos = 0
                         }
@@ -1178,6 +1201,7 @@
                             $connection.removeListener('data', fn);
                             fn = null
                             ClientManager.handleLocalConnection($connection, $config, $bufferObj, $response);
+                            return
                         }
 
                         else {
@@ -1203,7 +1227,7 @@
         static async handleLocalConnection($connection, $config, $bufferObj, $response) {
 
             if (!isNode) {
-                echo('start handleLocalConnection' + "\n");
+                echo('start handleLocalConnection22' + "\n");
                 $connection.on('data', async ($chunk) => {
                     $bufferObj.buffer += $chunk;
 
@@ -1340,6 +1364,8 @@
                     }
                 });
             } else {
+                echo('node start handleLocalConnection' + "\n");
+
                 let fn
 
                 $connection.on('data', fn = function ($chunk) {
@@ -1357,8 +1383,9 @@
                     }
                 )
                 // return;
-                console.error('start handleLocalConnection' + "\n")
+                console.error('start handleLocalConnection22' + "\n")
                 new Tunnel($config).getLocalTunnel($config['local_protocol'] || 'tcp').then(function ($localConnection) {
+                    echo('local connection success' + "\n");
                     $connection.removeListener('data', fn);
                     fn = null
                     echo('local connection success22' + "\n");
@@ -1375,7 +1402,7 @@
                                 return;
                             }
                         }
-                        console.log(55555, $data)
+                        // console.log(55555, $data)
                         $localConnection.write($data)
                     });
 
@@ -1412,7 +1439,9 @@
                     })
 
                     $connection.on('close', function () {
-                        echo('udp dynamic connection close')
+                        if ($connection.protocol == 'udp') {
+                            echo('udp dynamic connection close')
+                        }
                         $localConnection.close()
                     })
 

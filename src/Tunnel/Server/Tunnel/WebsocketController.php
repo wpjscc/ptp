@@ -44,6 +44,11 @@ class WebsocketController extends EventEmitter implements  MessageComponentInter
     public function onMessage(ConnectionInterface $from, $msg)
     {
         $contection = $this->clients[$from];
+        static::getLogger()->error('receiveDataFromClient', [
+            'uri' => $contection->getRemoteAddress(),
+            'length' => strlen(base64_decode($msg)),
+        ]);
+
         $contection->emit('data', array(base64_decode($msg)));
     }
 
