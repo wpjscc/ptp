@@ -147,6 +147,7 @@ class ProxyConnection implements \Wpjscc\Penetration\Log\LogManagerInterface
                         'uuid' => $uuid,
                         'length' => strlen($buffer),
                     ]);
+                    // file_put_contents('/root/Code/reactphp-intranet-penetration/server.txt', $buffer, FILE_APPEND);
                     return $buffer;
                 }))->pipe($userConnection);
             }

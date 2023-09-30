@@ -798,9 +798,9 @@
             $write.on('data', ($data) => {
                 echo(`single tunnel send data-${uuid}`)
                 if (Buffer.isBuffer($data)) {
-                    echo(`-single tunnel send data-${$data.length}`)
+                    echo(`-single tunnel send data-lenght-${$data.length}`)
                 } else {
-                    echo(`single tunnel send data-${Buffer.from($data).length}`)
+                    echo(`single tunnel send data-lenght-${Buffer.from($data).length}`)
                 }
                 // echo(`single tunnel send data-${$data}\n`)
 
@@ -1077,7 +1077,7 @@
 
         }
 
-        static handleLocalTunnelBuffer($connection, $bufferObj, $config) {
+        static handleLocalTunnelBuffer($connection, $bufferObj, $config, $fn) {
             let $pos = $bufferObj.buffer.indexOf("\r\n\r\n");
             if ($pos > -1) {
 
@@ -1430,9 +1430,18 @@
                     });
 
                     $localConnection.on('data', function ($data) {
-                        console.log('local connection receive data length-' + Buffer.from($data).length)
+                        // console.log($data)
+                        // console.log('local connection receive data length-' + $data.toString().length)
 
-                        // console.log($data.toString())
+                        // try {
+                        //     fs.appendFile('test.txt', $data.toString(), function (err) { 
+
+                        //     })
+                        // } catch (error) {
+                        //     console.log(error)
+                        // }
+
+                        console.log('local connection receive data length-' + $data.length)
                         $connection.write($data)
                     })
 
