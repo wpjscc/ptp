@@ -59,6 +59,7 @@ class ProxyConnection implements \Wpjscc\Penetration\Log\LogManagerInterface
                 $clientConnection->close();
                 $userConnection->close();
             });
+            var_dump(isset($clientConnection->tunnelConnection));
             $localHost = ProxyManager::$remoteTunnelConnections[$this->uri][$clientConnection->tunnelConnection]['Local-Host'];
 
             $proxyReplace = "";
@@ -100,7 +101,7 @@ class ProxyConnection implements \Wpjscc\Penetration\Log\LogManagerInterface
             // 保存当前连接
             $this->connections[$uuid] = $clientConnection;
 
-            static::getLogger()->info("dynamic connection success", [
+            static::getLogger()->debug("dynamic connection success", [
                 'class' => __CLASS__,
                 'dynamicAddress' => $dynamicAddress,
                 'uuid' => $uuid,
@@ -111,7 +112,7 @@ class ProxyConnection implements \Wpjscc\Penetration\Log\LogManagerInterface
                 if ($proxyReplace) {
                     $data = str_replace("\r\nHost: " . $this->uri . "\r\n", $proxyReplace, $data);
                 }
-                static::getLogger()->notice("dynamic connection send data", [
+                static::getLogger()->debug("dynamic connection send data", [
                     'class' => __CLASS__,
                     'uuid' => $uuid,
                     'length' => strlen($data),
@@ -126,7 +127,7 @@ class ProxyConnection implements \Wpjscc\Penetration\Log\LogManagerInterface
             if (isset($clientConnection->protocol) && $clientConnection->protocol == 'udp') {
                 $clientConnection->pipe(new ThroughStream(function ($buffer) use ($clientConnection, $uuid) {
                     if (strpos($buffer, 'POST /close HTTP/1.1') !== false) {
-                        static::getLogger()->notice("udp dynamic connection receive close request", [
+                        static::getLogger()->debug("udp dynamic connection receive close request", [
                             'class' => __CLASS__,
                             'uuid' => $uuid,
                             'dynamicAddress' => $clientConnection->getRemoteAddress(),
@@ -134,7 +135,7 @@ class ProxyConnection implements \Wpjscc\Penetration\Log\LogManagerInterface
                         $clientConnection->close();
                         return '';
                     }
-                    static::getLogger()->notice("udp dynamic connection receive data", [
+                    static::getLogger()->debug("udp dynamic connection receive data", [
                         'uuid' => $uuid,
                         'length' => strlen($buffer),
                     ]);
@@ -143,7 +144,7 @@ class ProxyConnection implements \Wpjscc\Penetration\Log\LogManagerInterface
                
             } else {
                 $clientConnection->pipe(new ThroughStream(function ($buffer) use ($uuid) {
-                    static::getLogger()->notice("dynamic connection receive data", [
+                    static::getLogger()->debug("dynamic connection receive data", [
                         'uuid' => $uuid,
                         'length' => strlen($buffer),
                     ]);
@@ -156,7 +157,7 @@ class ProxyConnection implements \Wpjscc\Penetration\Log\LogManagerInterface
             // close 要主动关闭
             $clientConnection->on('close', function () use ($dynamicAddress, $userConnection, $uuid) {
                 unset($this->connections[$uuid]);
-                static::getLogger()->notice("dynamic connection close", [
+                static::getLogger()->debug("dynamic connection close", [
                     'class' => __CLASS__,
                     'dynamicAddress' => $dynamicAddress,
                     'uuid' => $uuid,
@@ -165,7 +166,7 @@ class ProxyConnection implements \Wpjscc\Penetration\Log\LogManagerInterface
             });
 
             $clientConnection->on('end', function () use ($uuid) {
-                static::getLogger()->notice("dynamic connection end", [
+                static::getLogger()->debug("dynamic connection end", [
                     'class' => __CLASS__,
                     'uuid' => $uuid,
                 ]);
@@ -173,14 +174,14 @@ class ProxyConnection implements \Wpjscc\Penetration\Log\LogManagerInterface
 
             $userConnection->on('end', function () use ($clientConnection, $uuid) {
 
-                static::getLogger()->notice("user connection end", [
+                static::getLogger()->debug("user connection end", [
                     'class' => __CLASS__,
                     'uuid' => $uuid,
                 ]);
 
                 // udp 协议需要特殊处理
                 if (isset($clientConnection->protocol) && $clientConnection->protocol == 'udp') {
-                    static::getLogger()->notice("udp dynamic connection end and try send close request", [
+                    static::getLogger()->debug("udp dynamic connection end and try send close request", [
                         'class' => __CLASS__,
                         'uuid' => $uuid,
                     ]);
@@ -190,7 +191,7 @@ class ProxyConnection implements \Wpjscc\Penetration\Log\LogManagerInterface
 
             $userConnection->on('close', function () use ($clientConnection, &$fnclose, $uuid) {
                 unset($this->connections[$uuid]);
-                static::getLogger()->notice("user connection close", [
+                static::getLogger()->debug("user connection close", [
                     'class' => __CLASS__,
                     'uuid' => $uuid,
                 ]);
@@ -227,6 +228,7 @@ class ProxyConnection implements \Wpjscc\Penetration\Log\LogManagerInterface
             static::getLogger()->error($error->getMessage().'-2', [
                 'class' => __CLASS__,
                 'file' => $error->getFile(),
+                'line' => $error->getLine(),
             ]);
             $message = $error->getMessage();
             $length = strlen($error->getMessage());

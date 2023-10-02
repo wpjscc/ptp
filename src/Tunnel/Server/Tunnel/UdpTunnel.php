@@ -8,6 +8,7 @@ use React\Socket\ServerInterface;
 use React\EventLoop\LoopInterface;
 use React\Datagram\Factory;
 use Wpjscc\Penetration\CompositeConnectionStream;
+use Wpjscc\Penetration\Connection;
 use React\Stream\ThroughStream;
 
 
@@ -18,17 +19,23 @@ class UdpTunnel extends EventEmitter implements ServerInterface,\Wpjscc\Penetrat
 
     private $connections = array();
 
-    public function __construct($uri, LoopInterface $loop = null)
+    public function __construct($uri, LoopInterface $loop = null, $callback = null)
     {
         $factory = new Factory($loop);
 
-        $factory->createServer($uri)->then(function (\React\Datagram\Socket $server) {
+        $factory->createServer($uri)->then(function (\React\Datagram\Socket $server) use ($callback) {
             $this->server = $server;
+            if ($callback) {
+                call_user_func($callback, $server);
+            }
             $server->on('message', function ($message, $address, $server) {
                 if (!isset($this->connections[$address])) {
                     $read = new ThroughStream;
                     $write = new ThroughStream;
-                    $contection = new CompositeConnectionStream($read, $write, null, 'udp');
+                    $contection = new CompositeConnectionStream($read, $write, new Connection(
+                        $server->getLocalAddress(),
+                        $address
+                    ), 'udp');
 
                     $write->on('data', function ($data) use ($server, $address) {
                         $server->send($data, $address);
@@ -39,18 +46,19 @@ class UdpTunnel extends EventEmitter implements ServerInterface,\Wpjscc\Penetrat
                     });
 
                     $this->connections[$address] = $contection;
-                    $this->emit('connection', array($contection));
+                    $this->emit('connection', array($contection, $address, $server));
                 } else {
                     $contection = $this->connections[$address];
                 }
                 // if (strpos($message, 'POST /close HTTP/1.1') !== false) {
                 //     var_dump('receiveDataFromCLient', $message);
                 // }
-                $contection->emit('data', array($message));
+                // var_dump('receiveDataFromCLient', $message);
+                $contection->emit('data', array($message, $address));
             });
         });
     }
-    
+
 
     public function getAddress()
     {

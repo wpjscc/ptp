@@ -7,6 +7,8 @@ use React\Promise\Timer\TimeoutException;
 use Wpjscc\Penetration\Tunnel\Server\Tunnel\SingleTunnel;
 use Ramsey\Uuid\Uuid;
 use Wpjscc\Penetration\Helper;
+use Wpjscc\Penetration\Utils\PingPong;
+use Wpjscc\Penetration\Tunnel\Server\Tunnel\P2pTunnel;
 
 class ProxyManager implements \Wpjscc\Penetration\Log\LogManagerInterface
 {
@@ -72,14 +74,41 @@ class ProxyManager implements \Wpjscc\Penetration\Log\LogManagerInterface
                     $singleTunnel = static::$remoteTunnelConnections[$uri][$tunnelConnection]['Single-Tunnel'] ?? false;
                     $uuid = Uuid::uuid4()->toString();
                     if ($singleTunnel) {
-                        static::getLogger()->notice('send create dynamic connection by single tunnel', [
+                        if (($tunnelConnection->protocol ?? '') == 'p2p_udp') {
+                            static::getLogger()->notice('send create dynamic connection by p2p_udp single tunnel', [
+                                'uri' => $uri,
+                                'uuid' => $uuid,
+                                'remote_address' => $tunnelConnection->getRemoteAddress(),
+                            ]);
+                            $uuid = Uuid::uuid4()->toString();
+                            $data = "HTTP/1.1 310 OK\r\nUuid:{$uuid}"."\r\n\r\n";
+                            $data = base64_encode($data);
+                            // 通知客户端创建一个单通道
+                            $tunnelConnection->write("HTTP/1.1 201 OK\r\nUuid: {$uuid}\r\nData: {$data}\r\n\r\n");
+                        } else {
+                            static::getLogger()->notice('send create dynamic connection by single tunnel', [
+                                'uri' => $uri,
+                                'uuid' => $uuid,
+                                'remote_address' => $tunnelConnection->getRemoteAddress(),
+                            ]);
+                            // 通知客户端创建一个单通道
+                            $tunnelConnection->write("HTTP/1.1 310 OK\r\nUuid:{$uuid}"."\r\n\r\n");
+                        }
+                       
+                    } 
+                    else if (($tunnelConnection->protocol ?? '') == 'p2p_udp') {
+                        static::getLogger()->notice('send create dynamic connection by p2p_udp single tunnel11', [
                             'uri' => $uri,
                             'uuid' => $uuid,
                             'remote_address' => $tunnelConnection->getRemoteAddress(),
                         ]);
+                        $uuid = Uuid::uuid4()->toString();
+                        $data = "HTTP/1.1 310 OK\r\nUuid:{$uuid}"."\r\n\r\n";
+                        $data = base64_encode($data);
                         // 通知客户端创建一个单通道
-                        $tunnelConnection->write("HTTP/1.1 310 OK\r\nUuid:{$uuid}"."\r\n\r\n");
-                    } else {
+                        $tunnelConnection->write("HTTP/1.1 201 OK\r\nUuid: {$uuid}\r\nData: {$data}\r\n\r\n");
+                    }
+                    else {
                         static::getLogger()->notice('send create dynamic connection', [
                             'uri' => $uri,
                             'remote_address' => $tunnelConnection->getRemoteAddress(),
@@ -92,8 +121,9 @@ class ProxyManager implements \Wpjscc\Penetration\Log\LogManagerInterface
                 }
             }
         } else {
-            static::getLogger()->warning('no tunnel connection', [
+            static::getLogger()->error('no tunnel connection', [
                 'uri' => $uri,
+                'uris' => array_keys(static::$remoteTunnelConnections),
             ]);
             return \React\Promise\reject(new \Exception('no tunnel connection, please try again later'));
         }
@@ -144,59 +174,60 @@ class ProxyManager implements \Wpjscc\Penetration\Log\LogManagerInterface
                 'Uuid' => $uuid,
             ]);
 
-            $ping = function ($connection) {
-                $connection->write("HTTP/1.1 300 OK\r\n\r\n");
-            };
+            // $ping = function ($connection) {
+            //     $connection->write("HTTP/1.1 300 OK\r\n\r\n");
+            // };
 
-            $pong = function ($connection) use ($request) {
-                $deferred = new Deferred();
+            // $pong = function ($connection) use ($request) {
+            //     $deferred = new Deferred();
 
-                $connection->once('data', $fn = function ($buffer) use ($deferred, &$fn, $connection) {
-                    if (strpos($buffer, 'HTTP/1.1 301 OK') !== false) {
-                        $connection->removeListener('data', $fn);
-                        $deferred->resolve();
-                    }
-                });
+            //     $connection->once('data', $fn = function ($buffer) use ($deferred, &$fn, $connection) {
+            //         if (strpos($buffer, 'HTTP/1.1 301 OK') !== false) {
+            //             $connection->removeListener('data', $fn);
+            //             $deferred->resolve();
+            //         }
+            //     });
 
-                \React\Promise\Timer\timeout($deferred->promise(), 3)->then(null, function ($e) use ($connection, $fn, $deferred) {
-                    $connection->removeListener('data', $fn);
-                    if ($e instanceof TimeoutException) {
-                        $e =  new \RuntimeException(
-                            'ping wait timed out after ' . $e->getTimeout() . ' seconds (ETIMEDOUT)',
-                            \defined('SOCKET_ETIMEDOUT') ? \SOCKET_ETIMEDOUT : 110
-                        );
-                    }
-                    $deferred->reject($e);
-                });
+            //     \React\Promise\Timer\timeout($deferred->promise(), 3)->then(null, function ($e) use ($connection, $fn, $deferred) {
+            //         $connection->removeListener('data', $fn);
+            //         if ($e instanceof TimeoutException) {
+            //             $e =  new \RuntimeException(
+            //                 'ping wait timed out after ' . $e->getTimeout() . ' seconds (ETIMEDOUT)',
+            //                 \defined('SOCKET_ETIMEDOUT') ? \SOCKET_ETIMEDOUT : 110
+            //             );
+            //         }
+            //         $deferred->reject($e);
+            //     });
 
-                return $deferred->promise();
-            };
+            //     return $deferred->promise();
+            // };
 
-            $timer = \React\EventLoop\Loop::addPeriodicTimer(10, function () use ($ping, $pong, $connection, $request, $uuid) {
-                echo ("start ping pong".$connection->getRemoteAddress()."\n");
-                $ping($connection);
-                $pong($connection)->then(function () use ($request, $uuid) {
-                    echo ("ping pong success\n\n");
-                    static::getLogger()->info('ping pong success', [
-                        'class' => __CLASS__,
-                        'uri' => $request->getHeaderLine('Uri'),
-                        'uuid' => $uuid,
+            // $timer = \React\EventLoop\Loop::addPeriodicTimer(10, function () use ($ping, $pong, $connection, $request, $uuid) {
+            //     echo ("start ping pong".$connection->getRemoteAddress()."\n");
+            //     $ping($connection);
+            //     $pong($connection)->then(function () use ($request, $uuid) {
+            //         echo ("ping pong success\n\n");
+            //         static::getLogger()->info('ping pong success', [
+            //             'class' => __CLASS__,
+            //             'uri' => $request->getHeaderLine('Uri'),
+            //             'uuid' => $uuid,
 
-                    ]);
-                }, function ($e) use ($connection,$request, $uuid) {
-                    static::getLogger()->error($e->getMessage(), [
-                        'class' => __CLASS__,
-                        'file' => $e->getFile(),
-                        'line' => $e->getLine(),
-                        'uri' => $request->getHeaderLine('Uri'),
-                        'uuid' => $uuid,
-                    ]);
-                    $connection->close();
-                });
-            });
+            //         ]);
+            //     }, function ($e) use ($connection,$request, $uuid) {
+            //         static::getLogger()->error($e->getMessage(), [
+            //             'class' => __CLASS__,
+            //             'file' => $e->getFile(),
+            //             'line' => $e->getLine(),
+            //             'uri' => $request->getHeaderLine('Uri'),
+            //             'uuid' => $uuid,
+            //         ]);
+            //         $connection->close();
+            //     });
+            // });
 
-            $connection->on('close', function () use ($uri, $connection, $timer, $request, $uuid) {
-                \React\EventLoop\Loop::cancelTimer($timer);
+            PingPong::pingPong($connection, $connection->getRemoteAddress());
+
+            $connection->on('close', function () use ($uri, $connection, $request, $uuid) {
                 static::$remoteTunnelConnections[$uri]->detach($connection);
                 static::getLogger()->notice('remove tunnel connection', [
                     'uri' => $request->getHeaderLine('Uri'),
@@ -246,6 +277,11 @@ class ProxyManager implements \Wpjscc\Penetration\Log\LogManagerInterface
                         $singleConnection->end();
                     }
                 });
+            }
+
+            // 广播地址用的，和上方的单通道不冲突
+            if (($connection->protocol ?? '') === 'udp') {
+                (new P2pTunnel)->overConnection($connection);
             }
 
             return ;

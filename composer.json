@@ -9,7 +9,8 @@
         "wpjscc/ratchet": "^0.4.4",
         "ramsey/uuid": "^4.2",
         "psr/log": "^1.1",
-        "clue/zlib-react": "^1.2"
+        "clue/zlib-react": "^1.2",
+        "darsyn/ip": "^4.1"
     },
     "autoload": {
         "psr-4": {

@@ -8,6 +8,10 @@ use React\Socket\Connector;
 use RingCentral\Psr7;
 use Psr\Log\LoggerInterface;
 use Wpjscc\Penetration\Helper;
+use Wpjscc\Penetration\Utils\ParseBuffer;
+use Wpjscc\Penetration\P2p\Client\HandleResponse;
+use Wpjscc\Penetration\Proxy\ProxyManager;
+use Ramsey\Uuid\Uuid;
 
 class ClientManager implements \Wpjscc\Penetration\Log\LogManagerInterface
 {
@@ -41,63 +45,120 @@ class ClientManager implements \Wpjscc\Penetration\Log\LogManagerInterface
         $function = function ($config) use (&$function) {
             $protocol = $config['protocol'];
             $tunneProtocol = $config['tunnel_protocol'];
-            static::getLogger()->notice('start create tunnel connection');
-            static::getTunnel($config, $protocol ?: $tunneProtocol)->then(function ($connection) use ($function, &$config) {
-                static::getLogger()->notice('Connection established:', [
-                    'local_address' => $connection->getLocalAddress(),
-                    'remote_address' => $connection->getRemoteAddress(),
-                ]);
-                $headers = [
-                    'GET /client HTTP/1.1',
-                    'Host: ' . $config['server_host'],
-                    'User-Agent: ReactPHP',
-                    'Tunnel: 1',
-                    'Authorization: ' . ($config['token'] ?? ''),
-                    'Local-Host: ' . $config['local_host'] . ':' . $config['local_port'],
-                    'Domain: ' . $config['domain'],
-                    'Single-Tunnel: ' . ($config['single_tunnel'] ?? 0),
-                    // 'Local-Tunnel-Address: ' . $connection->getLocalAddress(),
-                ];
+            static::getLogger()->debug('start create tunnel connection');
+            if ($protocol == 'p2p') {
+                static::getTunnel($config, $protocol ?: $tunneProtocol)->then(function ($p2p) use (&$config) {
 
-                $request = implode("\r\n", $headers) . "\r\n\r\n";
-                static::getLogger()->notice('send create tunnel request', [
-                    'request' => $request,
-                ]);
-                $connection->write($request);
+                    $p2p->on('connection', function ($connection, $response, $address) use (&$config) {
+                        // 相当于服务端
+                        var_dump('111111111');
+                       
+                        $uuid = $config['uuid'];
+                        // $response = $response->withHeader('Uuid', $uuid);
 
-                $buffer = '';
-                $connection->on('data', $fn = function ($chunk) use ($connection, &$config, &$buffer, &$fn) {
-                    $buffer .= $chunk;
-                    ClientManager::handleLocalTunnelBuffer($connection, $buffer, $config, $fn);
+                        ProxyManager::handleClientConnection($connection, $response, $uuid);
+                        $handleResponse = new HandleResponse($connection, $address, $config);
+                        $handleResponse->on('connection', function ($singleConnection) use ($response, $connection, $uuid) {
+                            static::getLogger()->debug('add dynamic connection by p2p single tunnel', [
+                                'uri' => $response->getHeaderLine('Uri'),
+                                'uuid' => $response->getHeaderLine('Uuid'),
+                                'remote_address' => $singleConnection->getRemoteAddress(),
+                            ]);
+                            $request = $response;
+                            $uri = $request->getHeaderLine('Uri');
+                            // todo uuid
+                            if (isset(ProxyManager::$remoteDynamicConnections[$uri]) && ProxyManager::$remoteDynamicConnections[$uri]->count() > 0) {
+                                static::getLogger()->debug('add dynamic connection by p2p single tunnel', [
+                                    'uri' => $request->getHeaderLine('Uri'),
+                                    'uuid' => $uuid,
+                                    'remote_address' => $singleConnection->getRemoteAddress(),
+                                ]);
+                                ProxyManager::$remoteDynamicConnections[$uri]->rewind();
+                                $deferred = ProxyManager::$remoteDynamicConnections[$uri]->current();
+                                ProxyManager::$remoteDynamicConnections[$uri]->detach($deferred);
+                                static::getLogger()->debug('deferred dynamic connection p2p single-tunnel', [
+                                    'uri' => $request->getHeaderLine('Uri'),
+                                    'uuid' => $uuid,
+                                    'remote_address' => $singleConnection->getRemoteAddress(),
+                                ]);
+                                $singleConnection->tunnelConnection = $connection;
+                                $deferred->resolve($singleConnection);
+                            } else {
+                                echo ("no dynamic connection by single tunnel" . $singleConnection->getRemoteAddress() . "\n");
+                                static::getLogger()->debug('no dynamic connection by p2p single tunnel', [
+                                    'uri' => $request->getHeaderLine('Uri'),
+                                    'uuid' => $uuid,
+                                    'remote_address' => $connection->getRemoteAddress(),
+                                ]);
+                                $connection->write("HTTP/1.1 205 Not Support Created\r\n\r\n");
+                                $connection->end();
+                            }
+                        });
+                        // $parseBuffer = new ParseBuffer;
+                        // $parseBuffer->on('response', [$handleResponse, 'handleResponse']);
+                        // $connection->on('data', function ($data) use ($parseBuffer) {
+                        //     $parseBuffer->handleBuffer($data);
+                        // });
+                    });
                 });
+            } else {
+                static::getTunnel($config, $protocol ?: $tunneProtocol)->then(function ($connection) use ($function, &$config) {
+                    static::getLogger()->debug('Connection established:', [
+                        'local_address' => $connection->getLocalAddress(),
+                        'remote_address' => $connection->getRemoteAddress(),
+                    ]);
+                    $headers = [
+                        'GET /client HTTP/1.1',
+                        'Host: ' . $config['server_host'],
+                        'User-Agent: ReactPHP',
+                        'Tunnel: 1',
+                        'Authorization: ' . ($config['token'] ?? ''),
+                        'Local-Host: ' . $config['local_host'] . ':' . $config['local_port'],
+                        'Domain: ' . $config['domain'],
+                        'Single-Tunnel: ' . ($config['single_tunnel'] ?? 0),
+                        // 'Local-Tunnel-Address: ' . $connection->getLocalAddress(),
+                    ];
 
-                $connection->on('close', function () use ($function, &$config) {
-                    static::getLogger()->notice('Connection closed', [
-                        'uuid' => $config['uuid'] ?? '',
+                    $request = implode("\r\n", $headers) . "\r\n\r\n";
+                    static::getLogger()->debug('send create tunnel request', [
+                        'request' => $request,
+                    ]);
+                    $connection->write($request);
+
+                    $buffer = '';
+                    $connection->on('data', $fn = function ($chunk) use ($connection, &$config, &$buffer, &$fn) {
+                        $buffer .= $chunk;
+                        ClientManager::handleLocalTunnelBuffer($connection, $buffer, $config, $fn);
+                    });
+
+                    $connection->on('close', function () use ($function, &$config) {
+                        static::getLogger()->debug('Connection closed', [
+                            'uuid' => $config['uuid'] ?? '',
+                        ]);
+                        \React\EventLoop\Loop::get()->addTimer(3, function () use ($function, $config) {
+                            $function($config);
+                        });
+                    });
+                }, function ($e) use ($config, $function) {
+                    static::getLogger()->error($e->getMessage(), [
+                        'class' => __CLASS__,
+                        'file' => $e->getFile(),
+                        'line' => $e->getLine(),
+                    ]);
+                    \React\EventLoop\Loop::get()->addTimer(3, function () use ($function, $config) {
+                        $function($config);
+                    });
+                })->otherwise(function ($e) use ($config, $function) {
+                    static::getLogger()->error($e->getMessage(), [
+                        'class' => __CLASS__,
+                        'file' => $e->getFile(),
+                        'line' => $e->getLine(),
                     ]);
                     \React\EventLoop\Loop::get()->addTimer(3, function () use ($function, $config) {
                         $function($config);
                     });
                 });
-            }, function ($e) use ($config, $function) {
-                static::getLogger()->error($e->getMessage(), [
-                    'class' => __CLASS__,
-                    'file' => $e->getFile(),
-                    'line' => $e->getLine(),
-                ]);
-                \React\EventLoop\Loop::get()->addTimer(3, function () use ($function, $config) {
-                    $function($config);
-                });
-            })->otherwise(function ($e) use ($config, $function) {
-                static::getLogger()->error($e->getMessage(), [
-                    'class' => __CLASS__,
-                    'file' => $e->getFile(),
-                    'line' => $e->getLine(),
-                ]);
-                \React\EventLoop\Loop::get()->addTimer(3, function () use ($function, $config) {
-                    $function($config);
-                });
-            });
+            }
         };
 
 
@@ -113,7 +174,7 @@ class ClientManager implements \Wpjscc\Penetration\Log\LogManagerInterface
         }
     }
 
-    public static function getTunnel($config, $protocol = null)
+    public static function getTunnel(&$config, $protocol = null)
     {
         return (new Tunnel($config))->getTunnel($protocol);
     }
@@ -311,17 +372,17 @@ class ClientManager implements \Wpjscc\Penetration\Log\LogManagerInterface
         $connection->on('data', $fn = function ($chunk) use (&$buffer) {
             $buffer .= $chunk;
         });
-        static::getLogger()->notice(__FUNCTION__, [
+        static::getLogger()->debug(__FUNCTION__, [
             'tunnel_uuid' => $config['uuid'],
             'dynamic_tunnel_uuid' => $response->getHeaderLine('Uuid'),
         ]);
 
-       (new \Wpjscc\Penetration\Tunnel\Local\Tunnel($config))->getTunnel($config['local_protocol'] ?? 'tcp')->then(function ($localConnection) use ($connection, &$fn, &$buffer, $config, $response) {
+        (new \Wpjscc\Penetration\Tunnel\Local\Tunnel($config))->getTunnel($config['local_protocol'] ?? 'tcp')->then(function ($localConnection) use ($connection, &$fn, &$buffer, $config, $response) {
 
             $connection->removeListener('data', $fn);
             $fn = null;
 
-            static::getLogger()->notice('local connection success', [
+            static::getLogger()->debug('local connection success', [
                 'tunnel_uuid' => $config['uuid'],
                 'dynamic_tunnel_uuid' => $response->getHeaderLine('Uuid'),
             ]);
@@ -330,7 +391,7 @@ class ClientManager implements \Wpjscc\Penetration\Log\LogManagerInterface
 
             $connection->pipe(new \React\Stream\ThroughStream(function ($buffer) use ($config, $connection, $response) {
                 if (strpos($buffer, 'POST /close HTTP/1.1') !== false) {
-                    static::getLogger()->notice('udp dynamic connection receive close request', [
+                    static::getLogger()->debug('udp dynamic connection receive close request', [
                         'tunnel_uuid' => $config['uuid'],
                         'dynamic_tunnel_uuid' => $response->getHeaderLine('Uuid'),
                         'response' => $buffer
@@ -344,7 +405,7 @@ class ClientManager implements \Wpjscc\Penetration\Log\LogManagerInterface
                     $buffer = preg_replace('/^X-Real-Ip.*\R?/m', '', $buffer);
                     $buffer = str_replace('Host: ' . $config['uri'], 'Host: ' . $config['local_host'] . ':' . $config['local_port'], $buffer);
                 }
-                static::getLogger()->notice("dynamic connection receive data ", [
+                static::getLogger()->debug("dynamic connection receive data ", [
                     'tunnel_uuid' => $config['uuid'],
                     'dynamic_tunnel_uuid' => $response->getHeaderLine('Uuid'),
                     'length' => strlen($buffer),
@@ -352,8 +413,8 @@ class ClientManager implements \Wpjscc\Penetration\Log\LogManagerInterface
                 return $buffer;
             }))->pipe($localConnection);
 
-            $localConnection->pipe(new \React\Stream\ThroughStream(function($buffer) use ($config, $response) {
-                static::getLogger()->notice("local connection send data ", [
+            $localConnection->pipe(new \React\Stream\ThroughStream(function ($buffer) use ($config, $response) {
+                static::getLogger()->debug("local connection send data ", [
                     'tunnel_uuid' => $config['uuid'],
                     'dynamic_tunnel_uuid' => $response->getHeaderLine('Uuid'),
                     'length' => strlen($buffer),
@@ -362,13 +423,13 @@ class ClientManager implements \Wpjscc\Penetration\Log\LogManagerInterface
             }))->pipe($connection);
 
             $localConnection->on('end', function () use ($connection, $config, $response) {
-                static::getLogger()->notice('local connection end', [
+                static::getLogger()->debug('local connection end', [
                     'tunnel_uuid' => $config['uuid'],
                     'dynamic_tunnel_uuid' => $response->getHeaderLine('Uuid'),
                 ]);
                 // udp 要发送关闭请求
                 if (isset($connection->protocol) && $connection->protocol == 'udp') {
-                    static::getLogger()->notice('udp dynamic connection close and try send close requset', [
+                    static::getLogger()->debug('udp dynamic connection close and try send close requset', [
                         'tunnel_uuid' => $config['uuid'],
                         'dynamic_tunnel_uuid' => $response->getHeaderLine('Uuid'),
                         'request' => "POST /close HTTP/1.1\r\n\r\n",
@@ -378,7 +439,7 @@ class ClientManager implements \Wpjscc\Penetration\Log\LogManagerInterface
             });
 
             $localConnection->on('close', function () use ($connection, $config, $response) {
-                static::getLogger()->notice('local connection close', [
+                static::getLogger()->debug('local connection close', [
                     'tunnel_uuid' => $config['uuid'],
                     'dynamic_tunnel_uuid' => $response->getHeaderLine('Uuid'),
                 ]);
@@ -386,14 +447,14 @@ class ClientManager implements \Wpjscc\Penetration\Log\LogManagerInterface
             });
 
             $connection->on('end', function () use ($config, $response) {
-                static::getLogger()->info('dynamic connection end', [
+                static::getLogger()->debug('dynamic connection end', [
                     'tunnel_uuid' => $config['uuid'],
                     'dynamic_tunnel_uuid' => $response->getHeaderLine('Uuid'),
                 ]);
             });
 
             $connection->on('close', function () use ($localConnection, $config, $response) {
-                static::getLogger()->notice('dynamic connection close', [
+                static::getLogger()->debug('dynamic connection close', [
                     'tunnel_uuid' => $config['uuid'],
                     'dynamic_tunnel_uuid' => $response->getHeaderLine('Uuid'),
                 ]);

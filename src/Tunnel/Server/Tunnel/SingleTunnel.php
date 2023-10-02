@@ -54,7 +54,7 @@ class SingleTunnel extends EventEmitter implements ServerInterface, \Wpjscc\Pene
 
     public function close()
     {
-        static::getLogger()->info("SingleTunnel::".__FUNCTION__, [
+        static::getLogger()->debug("SingleTunnel::".__FUNCTION__, [
             'class' => __CLASS__,
         ]);
         foreach ($this->connections as $connection) {
@@ -85,7 +85,7 @@ class SingleTunnel extends EventEmitter implements ServerInterface, \Wpjscc\Pene
                     'class' => __CLASS__,
                     'file' => $e->getFile(),
                     'line' => $e->getLine(),
-                    'buffer' => substr($this->buffer, $httpPos, $pos-$httpPos)
+                    'buffer' => $this->buffer
                 ]);
 
                 $this->buffer = substr($this->buffer, $pos + 4);
@@ -114,7 +114,7 @@ class SingleTunnel extends EventEmitter implements ServerInterface, \Wpjscc\Pene
             }
             // client pong
             elseif ($response->getStatusCode() === 301) {
-                static::getLogger()->notice("SingleTunnel::".__FUNCTION__." client pong", [
+                static::getLogger()->debug("SingleTunnel::".__FUNCTION__." client pong", [
                     'class' => __CLASS__,
                     'response' => Helper::toString($response)
                 ]);
@@ -154,7 +154,7 @@ class SingleTunnel extends EventEmitter implements ServerInterface, \Wpjscc\Pene
         $contection = new CompositeConnectionStream($read, $write, null, 'single');
 
         $write->on('data', function ($data) use ($uuid)  {
-            static::getLogger()->notice('single tunnel send data', [
+            static::getLogger()->debug('single tunnel send data', [
                 'uuid' => $uuid,
                 'length' => strlen($data),
             ]);
@@ -163,7 +163,7 @@ class SingleTunnel extends EventEmitter implements ServerInterface, \Wpjscc\Pene
         });
 
         $read->on('close', function () use ($uuid) {
-            static::getLogger()->notice('single tunnel close', [
+            static::getLogger()->debug('single tunnel close', [
                 'uuid' => $uuid,
             ]);
             $this->connection->write("HTTP/1.1 312 OK\r\nUuid: {$uuid}\r\n\r\n");
@@ -171,7 +171,7 @@ class SingleTunnel extends EventEmitter implements ServerInterface, \Wpjscc\Pene
         });
 
         $this->connections[$uuid] = $contection;
-        static::getLogger()->notice("SingleTunnel::".__FUNCTION__, [
+        static::getLogger()->debug("SingleTunnel::".__FUNCTION__, [
             'uuid' => $uuid,
             'response' => Helper::toString($response)
         ]);
@@ -208,11 +208,12 @@ class SingleTunnel extends EventEmitter implements ServerInterface, \Wpjscc\Pene
         $data = base64_decode($response->getHeaderLine('Data'));
         $length = strlen($data);
 
-        static::getLogger()->info('single tunnel receive data', [
+        static::getLogger()->debug('single tunnel receive data', [
             'uuid' => $uuid,
             'length' => $length,
         ]);
 
+        // var_dump('single tunnel receive data', $data);
 
         $this->connections[$uuid]->emit('data', array($data));
     }
@@ -237,7 +238,7 @@ class SingleTunnel extends EventEmitter implements ServerInterface, \Wpjscc\Pene
             // ignore
         }
 
-        static::getLogger()->info('single tunnel close', [
+        static::getLogger()->debug('single tunnel close', [
             'uuid' => $uuid,
         ]);
 

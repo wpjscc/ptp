@@ -2,7 +2,7 @@
 
 namespace Wpjscc\Penetration\Tunnel\Client;
 
-
+use Wpjscc\Penetration\Tunnel\Client\Tunnel\P2pTunnel;
 use Wpjscc\Penetration\Tunnel\Client\Tunnel\TcpTunnel;
 use Wpjscc\Penetration\Tunnel\Client\Tunnel\UdpTunnel;
 use Wpjscc\Penetration\Tunnel\Client\Tunnel\WebsocketTunnel;
@@ -11,6 +11,8 @@ use Wpjscc\Penetration\Tunnel\Client\Tunnel\WebsocketTunnel;
 class Tunnel implements \Wpjscc\Penetration\Log\LogManagerInterface
 {
     use \Wpjscc\Penetration\Log\LogManagerTraitDefault;
+
+    private $config;
     public $protocol = 'tcp';
     public $serverHost;
     public $server80port;
@@ -18,9 +20,10 @@ class Tunnel implements \Wpjscc\Penetration\Log\LogManagerInterface
 
     public $timeout;
 
-    public function __construct($config)
+    public function __construct(&$config)
     {
 
+        $this->config = &$config;
         $this->protocol = $config['tunnel_protocol'] ?? 'tcp';
         $this->serverHost = $config['server_host'];
         $this->server80port = $config['server_80_port'];
@@ -64,6 +67,9 @@ class Tunnel implements \Wpjscc\Penetration\Log\LogManagerInterface
                 throw new \Exception('tls protocol must set server_443_port');
             }
             $tunnel = (new TcpTunnel(array('timeout' => $this->timeout)))->connect("tls://".$this->serverHost.":".$this->server443port);
+        }
+        elseif ($protocol == 'p2p') {
+            $tunnel = (new P2pTunnel($this->config))->connect("udp://" . $this->serverHost . ":" . $this->server80port);
         }
         else {
             $tunnel = (new TcpTunnel(array('timeout' => $this->timeout)))->connect("tcp://".$this->serverHost.":".$this->server80port);

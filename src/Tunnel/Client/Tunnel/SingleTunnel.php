@@ -119,6 +119,33 @@ class SingleTunnel extends EventEmitter implements \Wpjscc\Penetration\Log\LogMa
                 'uuid' => $uuid,
                 'length' => strlen($data),
             ]);
+
+            // chunk 20k send 
+
+            $length = strlen($data);
+            if (($length/1024) > 20) {
+               
+                $chunk = 20 * 1024;
+                $chunks = str_split($data, $chunk);
+                foreach ($chunks as $k=>$chunk) {
+                    static::getLogger()->debug('single tunnel send data chunk', [
+                        'uuid' => $uuid,
+                        'length' => strlen($chunk),
+                    ]);
+                    $data = base64_encode($chunk);
+                    // \React\EventLoop\Loop::addTimer(0.001 * $k, function () use ($uuid, $data) {
+                        $this->connection->write("HTTP/1.1 311 OK\r\nUuid: {$uuid}\r\nData: {$data}\r\n\r\n");
+                    // });
+                }
+                return;
+            } else {
+                static::getLogger()->debug('single tunnel send data[no chunk]', [
+                    'uuid' => $uuid,
+                    'length' => $length,
+                ]);
+            }
+            
+            
             $data = base64_encode($data);
             $this->connection->write("HTTP/1.1 311 OK\r\nUuid: {$uuid}\r\nData: {$data}\r\n\r\n");
         });
@@ -170,6 +197,7 @@ class SingleTunnel extends EventEmitter implements \Wpjscc\Penetration\Log\LogMa
             'uuid' => $uuid,
             'length' => strlen($data),
         ]);
+        // var_dump('single tunnel receive data', $data);
 
         $this->connections[$uuid]->emit('data', array($data));
     }
@@ -194,7 +222,7 @@ class SingleTunnel extends EventEmitter implements \Wpjscc\Penetration\Log\LogMa
             // ignore
         }
 
-        static::getLogger()->notice("SingleTunnel::".__FUNCTION__, [
+        static::getLogger()->debug("SingleTunnel::".__FUNCTION__, [
             'uuid' => $uuid,
         ]);
         $this->connections[$uuid]->close();

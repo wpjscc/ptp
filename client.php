@@ -12,6 +12,11 @@ use RingCentral\Psr7;
 use Clue\React\Zlib\Compressor;
 use Clue\React\Zlib\Decompressor;
 use React\Promise\Deferred;
+use Wpjscc\Penetration\Server\Http;
+use Wpjscc\Penetration\P2p\Client\PeerManager;
+use Wpjscc\Penetration\P2p\ConnectionManager;
+use Wpjscc\Penetration\Server\TcpManager;
+use Wpjscc\Penetration\Proxy\ProxyManager;
 
 // function compressor($data) {
 //     $compressor = new Compressor(ZLIB_ENCODING_GZIP);
@@ -137,16 +142,38 @@ $config = Config::getConfig(getParam('--ini-path', './client.ini'));
 LogManager::$logLevels = [
     // LogLevel::ALERT,
     // LogLevel::CRITICAL,
-    // LogLevel::DEBUG,
+    LogLevel::DEBUG,
     // LogLevel::EMERGENCY,
     LogLevel::ERROR,
     // LogLevel::INFO,
-    // LogLevel::WARNING,
-    LogLevel::NOTICE,
+    LogLevel::WARNING,
+    // LogLevel::NOTICE,
 
 ];
 LogManager::setLogger(new \Wpjscc\Penetration\Log\EchoLog());
+
+// 本地代理服务
+$localServer80Port = $config['common']['local_server_80_port'] ?? 9080;
+$httpServer = new Http($localServer80Port);
+$httpServer->run();
+
+
+$tcpManager = TcpManager::create(
+    Config::getTcpIp($config),
+    Config::getTcpPorts($config)
+);
+$tcpManager->run();
+
+unset($config['tcp']);
 ClientManager::createLocalTunnelConnection($config);
+
+
+
+
+\React\EventLoop\Loop::get()->addPeriodicTimer(5, function () use ($tcpManager) {
+    $tcpManager->checkPorts(Config::getTcpPorts(Config::getConfig(getParam('--ini-path', './client.ini'))));
+});
+
 
 function getParam($key, $default = null){
     foreach ($GLOBALS['argv'] as $arg) {
@@ -156,3 +183,16 @@ function getParam($key, $default = null){
     }
     return $default;
 }
+
+\React\EventLoop\Loop::addPeriodicTimer(3, function () {
+    $peereds = array_keys(PeerManager::$peereds);
+
+    echo PHP_EOL."current peer ip address: " .PeerManager::$currentAddress . PHP_EOL;
+    echo "current peer local address: " .PeerManager::$localAddress . PHP_EOL;
+    echo "current peers:" .implode(',', $peereds) . PHP_EOL;
+
+    $addresses = array_keys(ConnectionManager::$connections);
+    echo "current connections address:". implode(',', $addresses) . PHP_EOL;
+
+    echo "uris:" . implode(',', array_keys(ProxyManager::$remoteTunnelConnections)) . PHP_EOL.PHP_EOL;
+});

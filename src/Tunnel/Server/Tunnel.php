@@ -14,6 +14,7 @@ use Wpjscc\Penetration\Tunnel\Server\Tunnel\WebsocketTunnel;
 use Wpjscc\Penetration\DecorateSocket;
 use Wpjscc\Penetration\Helper;
 use Ramsey\Uuid\Uuid;
+use Wpjscc\Penetration\Tunnel\Server\Tunnel\P2pTunnel;
 
 class Tunnel implements \Wpjscc\Penetration\Log\LogManagerInterface
 {
@@ -128,6 +129,13 @@ class Tunnel implements \Wpjscc\Penetration\Log\LogManagerInterface
     {
         $socket->on('connection', function (ConnectionInterface $connection) use ($protocol, $socket) {
 
+            // if ($protocol == 'udp') {
+            //     static::getLogger()->error("client: {$protocol} is connected ", [
+            //         'remoteAddress' => $connection->getRemoteAddress(),
+            //     ]);
+            //     (new P2pTunnel)->overConnection($connection);
+            // }
+
             static::getLogger()->notice("client: {$protocol} is connected ", [
                 'remoteAddress' => $connection->getRemoteAddress(),
             ]);
@@ -135,6 +143,10 @@ class Tunnel implements \Wpjscc\Penetration\Log\LogManagerInterface
             $buffer = '';
             $that = $this;
             $connection->on('data', $fn = function ($chunk) use ($connection, &$buffer, &$fn, $that, $protocol, $socket) {
+                static::getLogger()->notice("client: {$protocol} is data ", [
+                    'remoteAddress' => $connection->getRemoteAddress(),
+                    'length' => strlen($chunk),
+                ]);
                 $buffer .= $chunk;
 
                 $pos = strpos($buffer, "\r\n\r\n");
@@ -148,7 +160,7 @@ class Tunnel implements \Wpjscc\Penetration\Log\LogManagerInterface
                         // invalid request message, close connection
                         $buffer = '';
                         $connection->write($e->getMessage());
-                        $connection->close();
+                        $connection->end();
                         return;
                     }
 
