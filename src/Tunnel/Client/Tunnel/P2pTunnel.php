@@ -8,6 +8,7 @@ use React\Promise\Deferred;
 use Evenement\EventEmitter;
 use Darsyn\IP\Exception;
 use Darsyn\IP\Version\IPv4;
+use Ramsey\Uuid\Nonstandard\Uuid;
 use Wpjscc\Penetration\P2p\Client\PeerManager;
 use Wpjscc\Penetration\P2p\ConnectionManager;
 use Wpjscc\Penetration\Utils\PingPong;
@@ -181,6 +182,9 @@ class P2pTunnel extends EventEmitter implements ConnectorInterface, \Wpjscc\Pene
                 }
                 // 服务端回复客户端的地址
                 else if ($response->getStatusCode() === 411) {
+                    if (!isset($this->config['uuid'])) {
+                        $this->config['uuid'] = Uuid::uuid4()->toString();
+                    }
                     echo 'receive server address: ' . $response->getHeaderLine('Address') . PHP_EOL;
                     $address = $response->getHeaderLine('Address');
                     PeerManager::$currentAddress = $address;
