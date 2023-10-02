@@ -1,6 +1,6 @@
 <?php
 
-namespace Wpjscc\Penetration\Tunnel\Client\Tunnel;
+namespace Wpjscc\Penetration\Tunnel\Local\Tunnel;
 
 use React\Socket\ConnectorInterface;
 use Wpjscc\Penetration\CompositeConnectionStream;
@@ -11,9 +11,16 @@ class UdpTunnel implements ConnectorInterface, \Wpjscc\Penetration\Log\LogManage
 {
     use \Wpjscc\Penetration\Log\LogManagerTraitDefault;
 
-    public function connect($uri)
+    protected $config;
+    public function __construct($config)
+    {
+        $this->config = $config;
+    }
+
+    public function connect($protocol = 'udp')
     {
         $protocol = 'udp';
+        $uri = $this->config['local_host'] . ":" . $this->config['local_port'];
         static::getLogger()->info(__FUNCTION__, [
             'class' => __CLASS__,
             'uri' => $uri,
@@ -57,8 +64,9 @@ class UdpTunnel implements ConnectorInterface, \Wpjscc\Penetration\Log\LogManage
                     'file' => $error->getFile(),
                     'line' => $error->getLine(),
                 ]);
-                $client->send("POST /close HTTP/1.1\r\n\r\n");
+                // $client->send("POST /close HTTP/1.1\r\n\r\n");
                 // $client->close();
+                $contection->close();
             });
 
             $contection->on('close', function () use ($client, $uri, $protocol) {
