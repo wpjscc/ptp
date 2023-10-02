@@ -122,7 +122,8 @@ class P2pTunnel extends EventEmitter implements ConnectorInterface, \Wpjscc\Pene
             });
             return $e;
         });
-        return $deferred->promise();
+        $deferred->promise();
+        return $this;
     }
 
     public function _connect($uri)

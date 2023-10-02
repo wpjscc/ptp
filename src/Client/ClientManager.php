@@ -47,9 +47,7 @@ class ClientManager implements \Wpjscc\Penetration\Log\LogManagerInterface
             $tunneProtocol = $config['tunnel_protocol'];
             static::getLogger()->debug('start create tunnel connection');
             if ($protocol == 'p2p') {
-                static::getTunnel($config, $protocol ?: $tunneProtocol)->then(function ($p2p) use (&$config) {
-
-                    $p2p->on('connection', function ($connection, $response, $address) use (&$config) {
+                static::getTunnel($config, $protocol ?: $tunneProtocol)->on('connection', function ($connection, $response, $address) use (&$config) {
                         // 相当于服务端
                         var_dump('111111111');
                        
@@ -99,7 +97,6 @@ class ClientManager implements \Wpjscc\Penetration\Log\LogManagerInterface
                         // $connection->on('data', function ($data) use ($parseBuffer) {
                         //     $parseBuffer->handleBuffer($data);
                         // });
-                    });
                 });
             } else {
                 static::getTunnel($config, $protocol ?: $tunneProtocol)->then(function ($connection) use ($function, &$config) {
