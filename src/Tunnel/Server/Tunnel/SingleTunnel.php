@@ -15,6 +15,9 @@ class SingleTunnel extends EventEmitter implements ServerInterface, \Wpjscc\Pene
 
     use \Wpjscc\Penetration\Log\LogManagerTraitDefault;
     private $connections = array();
+
+    private $vuuids = [];
+
     private $connection;
 
     private $buffer = '';
@@ -214,6 +217,18 @@ class SingleTunnel extends EventEmitter implements ServerInterface, \Wpjscc\Pene
         ]);
 
         // var_dump('single tunnel receive data', $data);
+        $vuuid = $response->getHeaderLine('Vuuid');
+        if ($vuuid) {
+            if (in_array($vuuid, $this->vuuids)) {
+                static::getLogger()->error('single tunnel receive data vuuid is exists', [
+                    'uuid' => $uuid,
+                    'vuuid' => $vuuid,
+                ]);
+                return;
+            } else {
+                $this->vuuids[] = $vuuid;
+            }
+        }
 
         $this->connections[$uuid]->emit('data', array($data));
     }

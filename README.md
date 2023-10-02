@@ -96,3 +96,14 @@ docker push wpjscc/reactphp-intranet-penetration
 ```
 
 
+## 增大 udp 缓冲区
+
+
+```
+sysctl -w net.core.rmem_max=5000000
+sysctl -w net.core.wmem_max=5000000
+sysctl -w net.core.rmem_default=5000000
+sysctl -w net.core.wmem_default=5000000
+```
+
+

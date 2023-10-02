@@ -133,8 +133,12 @@ class SingleTunnel extends EventEmitter implements \Wpjscc\Penetration\Log\LogMa
                         'length' => strlen($chunk),
                     ]);
                     $data = base64_encode($chunk);
-                    // \React\EventLoop\Loop::addTimer(0.001 * $k, function () use ($uuid, $data) {
-                        $this->connection->write("HTTP/1.1 311 OK\r\nUuid: {$uuid}\r\nData: {$data}\r\n\r\n");
+                    // \React\EventLoop\Loop::addTimer(0.01 * $k, function () use ($uuid, $data) {
+                        $vuuid = Uuid::uuid4()->toString();
+
+                        for ($i=0; $i < 1; $i++) { 
+                            $this->connection->write("HTTP/1.1 311 OK\r\nUuid: {$uuid}\r\nVuuid: {$vuuid}\r\nData: {$data}\r\n\r\n");
+                        }
                     // });
                 }
                 return;
@@ -147,7 +151,10 @@ class SingleTunnel extends EventEmitter implements \Wpjscc\Penetration\Log\LogMa
             
             
             $data = base64_encode($data);
-            $this->connection->write("HTTP/1.1 311 OK\r\nUuid: {$uuid}\r\nData: {$data}\r\n\r\n");
+            $vuuid = Uuid::uuid4()->toString();
+            for ($i=0; $i < 1; $i++) { 
+                $this->connection->write("HTTP/1.1 311 OK\r\nUuid: {$uuid}\r\nVuuid: {$vuuid}\r\nData: {$data}\r\n\r\n");
+            }
         });
 
         $read->on('close', function () use ($uuid) {
