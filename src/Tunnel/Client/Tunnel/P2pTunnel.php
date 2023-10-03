@@ -192,7 +192,13 @@ class P2pTunnel extends EventEmitter implements ConnectorInterface, \Wpjscc\Pene
                     // 客户端关闭
                     $client->close();
                     // 本地服务端监听客户端打开的端口
-                    $deferred->resolve(new UdpTunnel('0.0.0.0:' . explode(':', PeerManager::$localAddress)[1], null, function ($server) {
+                    $deferred->resolve(new UdpTunnel('0.0.0.0:' . explode(':', PeerManager::$localAddress)[1], null, function ($server, $client, $ipRanges) {
+                        $client->send(implode("\r\n", [
+                            "HTTP/1.1 410 OK",
+                            "Local-Address: " . $client->getLocalAddress(),
+                            ...$ipRanges,
+                            "\r\n"
+                        ]));
                         // 给服务端回复可以广播地址了
                         $server->send("HTTP/1.1 413 OK\r\n\r\n", PeerManager::$serverAddress);
                     }));
