@@ -100,7 +100,9 @@ class P2pTunnel extends EventEmitter implements ServerInterface, \Wpjscc\Penetra
                 var_dump('p2pTunnel410', $response->getHeaderLine('Local-Address'));
                 ConnectionManager::$connections[$this->protocol][$this->remoteAddress]['local_address'] = $response->getHeaderLine('Local-Address');
                 var_dump('p2pTunnel410', ConnectionManager::$connections[$this->protocol][$this->remoteAddress]['local_address']);
-                ConnectionManager::$connections[$this->protocol][$this->remoteAddress]['ip_range'] = $response->getHeader('Ip-Range');
+                ConnectionManager::$connections[$this->protocol][$this->remoteAddress]['ip_whitelist'] = $response->getHeaderLine('Ip-Whitelist');
+                ConnectionManager::$connections[$this->protocol][$this->remoteAddress]['ip_blacklist'] = $response->getHeaderLine('Ip-Blacklist');
+                ConnectionManager::$connections[$this->protocol][$this->remoteAddress]['token'] = $response->getHeaderLine('token');
                 $this->connection->write("HTTP/1.1 411 OK\r\nAddress: {$this->remoteAddress}\r\n\r\n");
             }
             // 广播数据
@@ -108,6 +110,13 @@ class P2pTunnel extends EventEmitter implements ServerInterface, \Wpjscc\Penetra
                 // var_dump('p2pTunnel413', $response->getHeaderLine('Local-Address'));
                 // var_dump(ConnectionManager::$connections[$this->protocol][$this->remoteAddress]);
                 // exit();
+                if (!isset(ConnectionManager::$connections[$this->protocol][$this->remoteAddress]['local_address'])) {
+                    static::getLogger()->error("p2p tunnel ignore broadcast", [
+                        'class' => __CLASS__,
+                        'response' => Helper::toString($response)
+                    ]);
+                    return;
+                }
                 ConnectionManager::broadcastAddress($this->protocol, $this->remoteAddress);
             }
             else {

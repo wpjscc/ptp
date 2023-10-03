@@ -18,6 +18,7 @@ use React\Stream\ThroughStream;
 use Wpjscc\Penetration\CompositeConnectionStream;
 use Wpjscc\Penetration\Connection;
 use Wpjscc\Penetration\Helper;
+use Wpjscc\Penetration\Utils\Ip;
 
 class P2pTunnel extends EventEmitter implements ConnectorInterface, \Wpjscc\Penetration\Log\LogManagerInterface
 {
@@ -42,7 +43,7 @@ class P2pTunnel extends EventEmitter implements ConnectorInterface, \Wpjscc\Pene
             'User-Agent: ReactPHP',
             'Tunnel: 1',
             'Authorization: ' . ($config['token'] ?? ''),
-            'Local-Host: ' . $config['local_host'] . ($config['local_port'] ? (':' . $config['local_port']) : ''),
+            'Local-Host: ' . $config['local_host'] . (($config['local_port'] ?? '') ? (':' . $config['local_port']) : ''),
             'Domain: ' . $config['domain'],
             'Uri: ' . $config['domain'],
             "\r\n"
@@ -138,10 +139,10 @@ class P2pTunnel extends EventEmitter implements ConnectorInterface, \Wpjscc\Pene
 
         (new \React\Datagram\Factory())->createClient($uri)->then(function (\React\Datagram\Socket $client) use ($uri, $deferred) {
             echo 'create client: ' . $uri . PHP_EOL;
-            $ipRanges = [];
-            foreach ($this->getIpRange() as $ipRane) {
-                $ipRanges[] = "IP-Range: " . $ipRane;
-            }
+            // $ipRanges = [];
+            // foreach ($this->getIpWhitelist() as $ipRane) {
+            //     $ipRanges[] = "IP-Whitelist: " . $ipRane;
+            // }
 
             $headers = [
                 'GET /client HTTP/1.1',
@@ -164,7 +165,9 @@ class P2pTunnel extends EventEmitter implements ConnectorInterface, \Wpjscc\Pene
             $client->send(implode("\r\n", [
                 "HTTP/1.1 410 OK",
                 "Local-Address: " . $client->getLocalAddress(),
-                ...$ipRanges,
+                'IP-Whitelist: '. $this->getIpWhitelist(),
+                'IP-Blacklist: '. $this->getIpBlacklist(),
+                'token: '. ($this->config['token'] ?? ''),
                 "\r\n"
             ]));
 
@@ -176,7 +179,7 @@ class P2pTunnel extends EventEmitter implements ConnectorInterface, \Wpjscc\Pene
             $this->localAddress = $client->getLocalAddress();
 
             $parseBuffer = new ParseBuffer();
-            $parseBuffer->on('response', function ($response) use ($deferred, $client, $ipRanges) {
+            $parseBuffer->on('response', function ($response) use ($deferred, $client) {
 
                 if ($response->getStatusCode() == 200) {
                     $uuid = $response->getHeaderLine('Uuid');
@@ -260,23 +263,10 @@ class P2pTunnel extends EventEmitter implements ConnectorInterface, \Wpjscc\Pene
                     // PeerManager::$peers = array_values(array_unique(array_merge($addresses, PeerManager::$peers)));
                     $peers = PeerManager::addPeer($this->currentAddress, $addresses);
                     foreach ($peers as $k => $peer) {
-
-                        // if (isset(PeerManager::$timers[$peer])) {
-                        //     \React\EventLoop\Loop::cancelTimer(PeerManager::$timers[$peer]['timer']);
-                        //     unset(PeerManager::$timers[$peer]);
-                        // }
-
+                        // 取消定时器
                         PeerManager::removeTimer($this->currentAddress, $peer);
 
-                       
-
-                        // if (isset(PeerManager::$peereds[$peer])) {
-                        //     echo "broadcast_address but $peer had peereds" . PHP_EOL;
-                        //     // remove peers 
-                        //     PeerManager::$peers = array_values(array_diff(PeerManager::$peers, [$peer]));
-                        //     continue;
-                        // }
-
+                        // 取消perrs
                         if (PeerManager::hasPeered($this->currentAddress, $peer)) {
                             echo "broadcast_address but $peer had peered" . PHP_EOL;
                             // remove peers 
@@ -284,49 +274,14 @@ class P2pTunnel extends EventEmitter implements ConnectorInterface, \Wpjscc\Pene
                             continue;
                         }
 
-                        // 是否在有效范围内
-                        $peerIp = explode(':', $peer)[0];
-                        try {
-                            $ip = IPv4::factory($peerIp);
-
-                            $ipRange = $this->getIpRange();
-                            $isInIpRange = false;
-                            if (!empty($ipRange)) {
-                                foreach ($ipRange as $range) {
-                                    $range = explode('/', $range);
-                                    $rangeIp = IPv4::factory($range[0]);
-                                    $rangeCidr = $range[1] ?? 32;
-                                    if ($ip->inRange($rangeIp, $rangeCidr)) {
-                                        $isInIpRange = true;
-                                        break;
-                                    }
-                                }
-                            } else {
-                                $isInIpRange = true;
-                            }
-                            if (!$isInIpRange) {
-                                echo "broadcast_address but $peer not in ip range" . PHP_EOL;
-                                // PeerManager::$peers = array_values(array_diff(PeerManager::$peers, [$peer]));
-                                PeerManager::removePeer($this->currentAddress, $peer);
-                                continue;
-                            }
-                        } catch (Exception\InvalidIpAddressException $e) {
-                            echo ("The $peerIp  address supplied is invalid!");
-                            // PeerManager::$peers = array_values(array_diff(PeerManager::$peers, [$peer]));
+                        // 过滤ip白名单和黑名单
+                        if (!Ip::addressInIpWhitelist($peer, $this->getIpWhitelist()) || Ip::addressInIpBlacklist($peer, $this->getIpBlacklist())) {
+                            echo "broadcast_address but $peer not in ip whitelist or in ip blacklist" . PHP_EOL;
                             PeerManager::removePeer($this->currentAddress, $peer);
                             continue;
                         }
-                       
 
                         // 开始打孔
-                        // PeerManager::$timers[$peer] = [
-                        //     'active' => time(),
-                        //     'timer' => \React\EventLoop\Loop::addPeriodicTimer(0.5, function () use ($peer) {
-                        //         echo 'send punch to ' . $peer . PHP_EOL . PHP_EOL;
-                        //         $this->server->send("HTTP/1.1 414 punch \r\n".$this->header, $peer);
-                        //     })
-                        // ];
-
                         PeerManager::addTimer($this->currentAddress, $peer, [
                             'active' => time(),
                             'timer' => \React\EventLoop\Loop::addPeriodicTimer(0.5, function () use ($peer) {
@@ -336,20 +291,9 @@ class P2pTunnel extends EventEmitter implements ConnectorInterface, \Wpjscc\Pene
                         ]);
 
                         \React\EventLoop\Loop::addTimer(1, function () use ($peer) {
-                            // 一秒后如果还没有打孔成功就取消
-                            // if (isset(PeerManager::$timers[$peer])) {
-                            //     echo "punch fail and cancel timer $peer" . PHP_EOL;
-                            //     \React\EventLoop\Loop::cancelTimer(PeerManager::$timers[$peer]['timer']);
-                            //     unset(PeerManager::$timers[$peer]);
-                            // }
+                            // 取消定时器
                             PeerManager::removeTimer($this->currentAddress, $peer);
-
                             // 取消perrs
-                            // if (in_array($peer, PeerManager::$peers)) {
-                            //     echo "punch fail and remove peers $peer" . PHP_EOL;
-                            //     PeerManager::$peers = array_values(array_diff(PeerManager::$peers, [$peer]));
-                            // }
-
                             PeerManager::removePeer($this->currentAddress, $peer);
 
                         });
@@ -447,9 +391,14 @@ class P2pTunnel extends EventEmitter implements ConnectorInterface, \Wpjscc\Pene
 
     }
 
-    public function getIpRange()
+    public function getIpWhitelist()
     {
-        return $this->config['ip_range'] ?? [];
+        return $this->config['ip_whitelist'] ?? '';
+    }
+
+    public function getIpBlacklist()
+    {
+        return $this->config['ip_blacklist'] ?? '';
     }
 
     protected function getVirtualConnection($response, $address)
