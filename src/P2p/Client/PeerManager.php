@@ -100,9 +100,9 @@ class PeerManager implements \Wpjscc\Penetration\Log\LogManagerInterface
     public static function print()
     {
         foreach (static::$peereds as $address => $peereds) {
-            echo "address: {$address} peereds: " . implode(',', array_keys($peereds)) . PHP_EOL;
+            echo "====> address: {$address} ".PHP_EOL;
+            echo "      peereds: " . implode(',', array_keys($peereds)) . PHP_EOL;
         }
-        echo PHP_EOL;
 
     }
 
