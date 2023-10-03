@@ -48,90 +48,71 @@ class ClientManager implements \Wpjscc\Penetration\Log\LogManagerInterface
             $protocol = $config['protocol'];
             $tunneProtocol = $config['tunnel_protocol'];
             static::getLogger()->debug('start create tunnel connection');
-            if ($protocol == 'p2p') {
-                static::getTunnel($config, $protocol ?: $tunneProtocol)->on('connection', function ($connection, $response, $address) use (&$config) {
-                        // 相当于服务端
-                        $uuid = $config['uuid'];
-                        // $response = $response->withHeader('Uuid', $uuid);
 
-                        // 将对端连接添加到可用连接池
-                        PeerManager::handleClientConnection($connection, $response, $uuid);
+            static::getTunnel($config, $protocol ?: $tunneProtocol)->then(function ($connection) use ($function, &$config) {
+                static::getLogger()->debug('Connection established:', [
+                    'local_address' => $connection->getLocalAddress(),
+                    'remote_address' => $connection->getRemoteAddress(),
+                ]);
+                $headers = [
+                    'GET /client HTTP/1.1',
+                    'Host: ' . $config['server_host'],
+                    'User-Agent: ReactPHP',
+                    'Tunnel: 1',
+                    'Authorization: ' . ($config['token'] ?? ''),
+                    'Local-Host: ' . $config['local_host'] . ':' . $config['local_port'],
+                    'Domain: ' . $config['domain'],
+                    'Single-Tunnel: ' . ($config['single_tunnel'] ?? 0),
+                    // 'Local-Tunnel-Address: ' . $connection->getLocalAddress(),
+                ];
 
-                        // 处理对端连接发过来的请求
-                        $handleResponse = new HandleResponse($connection, $address, $config);
-                        $handleResponse->on('connection', function ($singleConnection) use ($response, $connection, $uuid) {
-                            PeerManager::handleOverVirtualConnection($singleConnection, $response, $connection, $uuid);
-                        });
-                        // $parseBuffer = new ParseBuffer;
-                        // $parseBuffer->on('response', [$handleResponse, 'handleResponse']);
-                        // $connection->on('data', function ($data) use ($parseBuffer) {
-                        //     $parseBuffer->handleBuffer($data);
-                        // });
+                $request = implode("\r\n", $headers) . "\r\n\r\n";
+                static::getLogger()->debug('send create tunnel request', [
+                    'request' => $request,
+                ]);
+                $connection->write($request);
+
+                $buffer = '';
+                $connection->on('data', $fn = function ($chunk) use ($connection, &$config, &$buffer, &$fn) {
+                    $buffer .= $chunk;
+                    ClientManager::handleLocalTunnelBuffer($connection, $buffer, $config, $fn);
                 });
-            } else {
-                static::getTunnel($config, $protocol ?: $tunneProtocol)->then(function ($connection) use ($function, &$config) {
-                    static::getLogger()->debug('Connection established:', [
-                        'local_address' => $connection->getLocalAddress(),
-                        'remote_address' => $connection->getRemoteAddress(),
-                    ]);
-                    $headers = [
-                        'GET /client HTTP/1.1',
-                        'Host: ' . $config['server_host'],
-                        'User-Agent: ReactPHP',
-                        'Tunnel: 1',
-                        'Authorization: ' . ($config['token'] ?? ''),
-                        'Local-Host: ' . $config['local_host'] . ':' . $config['local_port'],
-                        'Domain: ' . $config['domain'],
-                        'Single-Tunnel: ' . ($config['single_tunnel'] ?? 0),
-                        // 'Local-Tunnel-Address: ' . $connection->getLocalAddress(),
-                    ];
 
-                    $request = implode("\r\n", $headers) . "\r\n\r\n";
-                    static::getLogger()->debug('send create tunnel request', [
-                        'request' => $request,
-                    ]);
-                    $connection->write($request);
-
-                    $buffer = '';
-                    $connection->on('data', $fn = function ($chunk) use ($connection, &$config, &$buffer, &$fn) {
-                        $buffer .= $chunk;
-                        ClientManager::handleLocalTunnelBuffer($connection, $buffer, $config, $fn);
-                    });
-
-                    $connection->on('close', function () use ($function, &$config) {
-                        static::getLogger()->debug('Connection closed', [
-                            'uuid' => $config['uuid'] ?? '',
-                        ]);
-                        \React\EventLoop\Loop::get()->addTimer(3, function () use ($function, $config) {
-                            $function($config);
-                        });
-                    });
-                }, function ($e) use ($config, $function) {
-                    static::getLogger()->error($e->getMessage(), [
-                        'class' => __CLASS__,
-                        'file' => $e->getFile(),
-                        'line' => $e->getLine(),
-                    ]);
-                    \React\EventLoop\Loop::get()->addTimer(3, function () use ($function, $config) {
-                        $function($config);
-                    });
-                })->otherwise(function ($e) use ($config, $function) {
-                    static::getLogger()->error($e->getMessage(), [
-                        'class' => __CLASS__,
-                        'file' => $e->getFile(),
-                        'line' => $e->getLine(),
+                $connection->on('close', function () use ($function, &$config) {
+                    static::getLogger()->debug('Connection closed', [
+                        'uuid' => $config['uuid'] ?? '',
                     ]);
                     \React\EventLoop\Loop::get()->addTimer(3, function () use ($function, $config) {
                         $function($config);
                     });
                 });
-            }
+            }, function ($e) use ($config, $function) {
+                static::getLogger()->error($e->getMessage(), [
+                    'class' => __CLASS__,
+                    'file' => $e->getFile(),
+                    'line' => $e->getLine(),
+                ]);
+                \React\EventLoop\Loop::get()->addTimer(3, function () use ($function, $config) {
+                    $function($config);
+                });
+            })->otherwise(function ($e) use ($config, $function) {
+                static::getLogger()->error($e->getMessage(), [
+                    'class' => __CLASS__,
+                    'file' => $e->getFile(),
+                    'line' => $e->getLine(),
+                ]);
+                \React\EventLoop\Loop::get()->addTimer(3, function () use ($function, $config) {
+                    $function($config);
+                });
+            });
         };
 
 
         foreach (static::$configs as $config) {
 
-
+            if ($config['protocol'] == 'p2p') {
+                continue;
+            }
 
             $number = $config['pool_count'];
 
@@ -139,6 +120,45 @@ class ClientManager implements \Wpjscc\Penetration\Log\LogManagerInterface
                 $function($config);
             }
         }
+
+        foreach (static::$configs as $config1) {
+
+            if ($config1['protocol'] != 'p2p') {
+                continue;
+            }
+
+            $number = $config1['pool_count'];
+
+            for ($i = 0; $i < $number; $i++) {
+                static::runP2p($config1);
+            }
+        }
+    }
+
+    public static function runP2p($config)
+    {
+        $protocol = $config['protocol'];
+        $tunneProtocol = $config['tunnel_protocol'];
+        $tunnel = static::getTunnel($config, $protocol ?: $tunneProtocol);
+        $tunnel->on('connection', function ($connection, $response, $address) use (&$config) {
+            // 相当于服务端
+            $uuid = $config['uuid'];
+            // $response = $response->withHeader('Uuid', $uuid);
+
+            // 将对端连接添加到可用连接池
+            PeerManager::handleClientConnection($connection, $response, $uuid);
+
+            // 处理对端连接发过来的请求
+            $handleResponse = new HandleResponse($connection, $address, $config);
+            $handleResponse->on('connection', function ($singleConnection) use ($response, $connection, $uuid) {
+                PeerManager::handleOverVirtualConnection($singleConnection, $response, $connection, $uuid);
+            });
+            // $parseBuffer = new ParseBuffer;
+            // $parseBuffer->on('response', [$handleResponse, 'handleResponse']);
+            // $connection->on('data', function ($data) use ($parseBuffer) {
+            //     $parseBuffer->handleBuffer($data);
+            // });
+        });
     }
 
     public static function getTunnel(&$config, $protocol = null)
@@ -182,7 +202,7 @@ class ClientManager implements \Wpjscc\Penetration\Log\LogManagerInterface
                 ]);
                 $connection->write("HTTP/1.1 301 OK\r\n\r\n");
             } else {
-                static::getLogger()->error('error', [
+                static::getLogger()->debug('error', [
                     'class' => __CLASS__,
                     'status_code' => $response->getStatusCode(),
                     'reason_phrase' => $response->getReasonPhrase(),
@@ -235,7 +255,7 @@ class ClientManager implements \Wpjscc\Penetration\Log\LogManagerInterface
                 static::handleLocalConnection($connection, $config, $buffer, $response);
             });
         }
-        
+
         PingPong::pingPong($connection, $connection->getRemoteAddress());
     }
     public static function addLocalDynamicConnection($connection, $response)

@@ -108,9 +108,11 @@ class ProxyConnection implements \Wpjscc\Penetration\Log\LogManagerInterface
             ]);
            
 
-            $middle = new ThroughStream(function ($data) use ($proxyReplace, $uuid) {
+            $middle = new ThroughStream(function ($data) use ($proxyReplace, $uuid, $request) {
                 if ($proxyReplace) {
-                    $data = str_replace("\r\nHost: " . $this->uri . "\r\n", $proxyReplace, $data);
+                    $host = $request->getUri()->getHost();
+                    $port = $request->getUri()->getPort();
+                    $data = str_replace("\r\nHost: " . $host.':'.$port . "\r\n", $proxyReplace, $data);
                 }
                 static::getLogger()->debug("dynamic connection send data", [
                     'class' => __CLASS__,

@@ -56,11 +56,11 @@ class P2pTunnel extends EventEmitter implements ConnectorInterface, \Wpjscc\Pene
 
     public function connect($uri)
     {
-        $deferred = new Deferred();
+        // $deferred = new Deferred();
 
         $this->uri = $uri;
-        $this->_connect($uri)->then(function ($tunnel) use ($uri, $deferred) {
-            $deferred->resolve($this);
+        $this->_connect($uri)->then(function ($tunnel) use ($uri) {
+            // $deferred->resolve($this);
             $tunnel->on('connection', function ($connection, $address, $server) use ($uri) {
                 $this->server = $server;
                 
@@ -126,7 +126,7 @@ class P2pTunnel extends EventEmitter implements ConnectorInterface, \Wpjscc\Pene
             });
             return $e;
         });
-        $deferred->promise();
+        // $deferred->promise();
         return $this;
     }
 
