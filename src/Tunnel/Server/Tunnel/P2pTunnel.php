@@ -62,7 +62,7 @@ class P2pTunnel extends EventEmitter implements ServerInterface, \Wpjscc\Penetra
 
     public function close()
     {
-        static::getLogger()->error("P2pTunnel::".__FUNCTION__, [
+        static::getLogger()->debug("P2pTunnel::".__FUNCTION__, [
             'class' => __CLASS__,
         ]);
         unset(ConnectionManager::$connections[$this->connection->protocol][$this->connection->getRemoteAddress()]);
