@@ -112,7 +112,10 @@ class ProxyConnection implements \Wpjscc\Penetration\Log\LogManagerInterface
                 if ($proxyReplace) {
                     $host = $request->getUri()->getHost();
                     $port = $request->getUri()->getPort();
-                    $data = str_replace("\r\nHost: " . $host.':'.$port . "\r\n", $proxyReplace, $data);
+                    if ($port) {
+                        $host .= ':'.$port;
+                    }
+                    $data = str_replace("\r\nHost: " . $host . "\r\n", $proxyReplace, $data);
                 }
                 static::getLogger()->debug("dynamic connection send data", [
                     'class' => __CLASS__,
@@ -209,7 +212,12 @@ class ProxyConnection implements \Wpjscc\Penetration\Log\LogManagerInterface
             if ($buffer) {
                 $host = $request->getUri()->getHost();
                 $port = $request->getUri()->getPort();
-                $buffer = str_replace("\r\nHost: " . $host.':'.$port . "\r\n", $proxyReplace, $buffer);
+
+                if ($port) {
+                    $host .= ':'.$port;
+                }
+                var_dump($host,321321321321321321321);
+                $buffer = str_replace("\r\nHost: " .$host . "\r\n", $proxyReplace, $buffer);
                 $clientConnection->write($buffer);
                 $buffer = '';
             }

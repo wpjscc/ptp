@@ -42,7 +42,7 @@ class P2pTunnel extends EventEmitter implements ConnectorInterface, \Wpjscc\Pene
             'User-Agent: ReactPHP',
             'Tunnel: 1',
             'Authorization: ' . ($config['token'] ?? ''),
-            'Local-Host: ' . $config['local_host'] . ':' . $config['local_port'],
+            'Local-Host: ' . $config['local_host'] . ($config['local_port'] ? (':' . $config['local_port']) : ''),
             'Domain: ' . $config['domain'],
             'Uri: ' . $config['domain'],
             "\r\n"
@@ -149,7 +149,7 @@ class P2pTunnel extends EventEmitter implements ConnectorInterface, \Wpjscc\Pene
                 'User-Agent: ReactPHP',
                 'Tunnel: 1',
                 'Authorization: ' . ($this->config['token'] ?? ''),
-                'Local-Host: ' . $this->config['local_host'] . ':' . $this->config['local_port'],
+                'Local-Host: ' . $this->config['local_host'] . (($this->config['local_port'] ?? '') ? (':' . $this->config['local_port']) : ''),
                 'Domain: ' . $this->config['domain'],
                 'Single-Tunnel: ' . ($this->config['single_tunnel'] ?? 0),
                 'Is-P2p: 1',

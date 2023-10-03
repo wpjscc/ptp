@@ -60,7 +60,7 @@ class ClientManager implements \Wpjscc\Penetration\Log\LogManagerInterface
                     'User-Agent: ReactPHP',
                     'Tunnel: 1',
                     'Authorization: ' . ($config['token'] ?? ''),
-                    'Local-Host: ' . $config['local_host'] . ':' . $config['local_port'],
+                    'Local-Host: ' . $config['local_host'] . (($config['local_port']??'') ? (':'. $config['local_port']) : ''),
                     'Domain: ' . $config['domain'],
                     'Single-Tunnel: ' . ($config['single_tunnel'] ?? 0),
                     // 'Local-Tunnel-Address: ' . $connection->getLocalAddress(),
@@ -374,8 +374,8 @@ class ClientManager implements \Wpjscc\Penetration\Log\LogManagerInterface
             'tunnel_uuid' => $config['uuid'],
             'dynamic_tunnel_uuid' => $response->getHeaderLine('Uuid'),
         ]);
-
-        (new \Wpjscc\Penetration\Tunnel\Local\Tunnel($config))->getTunnel($config['local_protocol'] ?? 'tcp')->then(function ($localConnection) use ($connection, &$fn, &$buffer, $config, $response) {
+        $localProcol = $config['local_protocol'] ?? 'tcp';
+        (new \Wpjscc\Penetration\Tunnel\Local\Tunnel($config))->getTunnel($localProcol)->then(function ($localConnection) use ($connection, &$fn, &$buffer, $config, $response, $localProcol) {
 
             $connection->removeListener('data', $fn);
             $fn = null;
@@ -387,7 +387,7 @@ class ClientManager implements \Wpjscc\Penetration\Log\LogManagerInterface
             // var_dump($buffer);
             // 交换数据
 
-            $connection->pipe(new \React\Stream\ThroughStream(function ($buffer) use ($config, $connection, $response) {
+            $connection->pipe(new \React\Stream\ThroughStream(function ($buffer) use ($config, $connection, $response, $localProcol) {
                 if (strpos($buffer, 'POST /close HTTP/1.1') !== false) {
                     static::getLogger()->debug('udp dynamic connection receive close request', [
                         'tunnel_uuid' => $config['uuid'],
@@ -403,11 +403,16 @@ class ClientManager implements \Wpjscc\Penetration\Log\LogManagerInterface
                     $buffer = preg_replace('/^X-Real-Ip.*\R?/m', '', $buffer);
                     $buffer = str_replace('Host: ' . $config['uri'], 'Host: ' . $config['local_host'] . ':' . $config['local_port'], $buffer);
                 }
+
                 static::getLogger()->debug("dynamic connection receive data ", [
                     'tunnel_uuid' => $config['uuid'],
                     'dynamic_tunnel_uuid' => $response->getHeaderLine('Uuid'),
                     'length' => strlen($buffer),
                 ]);
+                if ($localProcol == 'unix') {
+                    $domain = explode(',', $config['domain'])[0];
+                    $buffer = str_replace('Host: ' . $config['local_host'], 'Host: '.$domain, $buffer);
+                }
                 return $buffer;
             }))->pipe($localConnection);
 
@@ -465,6 +470,11 @@ class ClientManager implements \Wpjscc\Penetration\Log\LogManagerInterface
                     $buffer = preg_replace('/^X-Real-Ip.*\R?/m', '', $buffer);
                     $buffer = str_replace('Host: ' . $config['uri'], 'Host: ' . $config['local_host'] . ':' . $config['local_port'], $buffer);
                 }
+                if ($localProcol == 'unix') {
+                    $domain = explode(',', $config['domain'])[0];
+                    $buffer = str_replace('Host: ' . $config['local_host'], 'Host: '.$domain, $buffer);
+                }
+
                 $localConnection->write($buffer);
                 $buffer = '';
             }

@@ -5,6 +5,7 @@ namespace Wpjscc\Penetration\Tunnel\Local;
 
 use Wpjscc\Penetration\Tunnel\Local\Tunnel\TcpTunnel;
 use Wpjscc\Penetration\Tunnel\Local\Tunnel\UdpTunnel;
+use Wpjscc\Penetration\Tunnel\Local\Tunnel\UnixTunnel;
 
 class Tunnel implements \Wpjscc\Penetration\Log\LogManagerInterface
 {
@@ -28,6 +29,9 @@ class Tunnel implements \Wpjscc\Penetration\Log\LogManagerInterface
         }
         elseif ($protocol == 'udp') {
             return (new UdpTunnel($this->config))->connect($protocol);
+        } 
+        elseif ($protocol == 'unix') {
+            return (new UnixTunnel($this->config))->connect($protocol);
         } 
         else {
             throw new \Exception('Unsupported protocol: ' . $protocol);
