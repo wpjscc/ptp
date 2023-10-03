@@ -235,7 +235,13 @@ class ProxyManager implements \Wpjscc\Penetration\Log\LogManagerInterface
 
             // 广播地址用的，和上方的单通道不冲突
             if (($connection->protocol ?? '') === 'udp') {
-                (new P2pTunnel)->overConnection($connection);
+                if ($request->getHeaderLine('Is-P2p')) {
+                    static::getLogger()->notice('create p2p tunnel', [
+                        'uri' => $request->getHeaderLine('Uri'),
+                        'uuid' => $uuid,
+                    ]);
+                    (new P2pTunnel)->overConnection($connection);
+                }
             }
 
             return;

@@ -12,6 +12,7 @@ use Wpjscc\Penetration\Utils\ParseBuffer;
 use Wpjscc\Penetration\P2p\Client\HandleResponse;
 use Wpjscc\Penetration\Proxy\ProxyManager;
 use Ramsey\Uuid\Uuid;
+use Wpjscc\Penetration\Utils\PingPong;
 
 class ClientManager implements \Wpjscc\Penetration\Log\LogManagerInterface
 {
@@ -232,7 +233,7 @@ class ClientManager implements \Wpjscc\Penetration\Log\LogManagerInterface
         $config['uri'] = $uri;
         $config['uuid'] = $uuid;
 
-        static::getLogger()->notice('local tunnel success ', [
+        static::getLogger()->debug('local tunnel success ', [
             'class' => __CLASS__,
             'uri' => $uri,
             'uuid' => $uuid,
@@ -246,13 +247,16 @@ class ClientManager implements \Wpjscc\Penetration\Log\LogManagerInterface
         static::$localTunnelConnections[$uri]->attach($connection);
 
         $connection->on('close', function () use ($uri, $connection) {
+            static::getLogger()->debug('local tunnel connection closed', [
+                'class' => __CLASS__,
+            ]);
             static::$localTunnelConnections[$uri]->detach($connection);
         });
 
         // 单通道 接收所有权，处理后续数据请求
         if ($config['single_tunnel'] ?? false) {
 
-            static::getLogger()->notice('current is single tunnel', []);
+            static::getLogger()->debug('current is single tunnel', []);
 
             $connection->removeAllListeners('data');
             $singleTunnel = (new SingleTunnel());
@@ -262,6 +266,8 @@ class ClientManager implements \Wpjscc\Penetration\Log\LogManagerInterface
                 static::handleLocalConnection($connection, $config, $buffer, $response);
             });
         }
+        
+        PingPong::pingPong($connection, $connection->getRemoteAddress());
     }
     public static function addLocalDynamicConnection($connection, $response)
     {

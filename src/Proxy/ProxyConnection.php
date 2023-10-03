@@ -26,7 +26,7 @@ class ProxyConnection implements \Wpjscc\Penetration\Log\LogManagerInterface
     private $uri;
 
     // 当前的连接数
-    public $connections;
+    public $connections = [];
 
 
     public function __construct(

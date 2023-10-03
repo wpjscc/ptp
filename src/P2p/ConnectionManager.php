@@ -88,6 +88,7 @@ class ConnectionManager
             //     'type' => 'broadcast_address',
             //     'address' => $connections[$peerAddress]['local_address'],
             // ]));
+
             $connections[$address]['connection']->write("HTTP/1.1 413 OK\r\nAddress: {$connections[$peerAddress]['local_address']}\r\n\r\n");
 
             // $connections[$address]['connection']->write(json_encode([

@@ -62,7 +62,7 @@ class P2pTunnel extends EventEmitter implements ServerInterface, \Wpjscc\Penetra
 
     public function close()
     {
-        static::getLogger()->error("P2pTunnel::".__FUNCTION__, [
+        static::getLogger()->debug("P2pTunnel::".__FUNCTION__, [
             'class' => __CLASS__,
         ]);
         unset(ConnectionManager::$connections[$this->connection->protocol][$this->connection->getRemoteAddress()]);
@@ -99,7 +99,7 @@ class P2pTunnel extends EventEmitter implements ServerInterface, \Wpjscc\Penetra
             if ($response->getStatusCode() === 410) {
                 var_dump('p2pTunnel410', $response->getHeaderLine('Local-Address'));
                 ConnectionManager::$connections[$this->protocol][$this->remoteAddress]['local_address'] = $response->getHeaderLine('Local-Address');
-                // var_dump('p2pTunnel410', ConnectionManager::$connections[$this->protocol][$this->remoteAddress]['local_address']);
+                var_dump('p2pTunnel410', ConnectionManager::$connections[$this->protocol][$this->remoteAddress]['local_address']);
                 ConnectionManager::$connections[$this->protocol][$this->remoteAddress]['ip_range'] = $response->getHeader('Ip-Range');
                 $this->connection->write("HTTP/1.1 411 OK\r\nAddress: {$this->remoteAddress}\r\n\r\n");
             }
