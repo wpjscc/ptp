@@ -151,13 +151,11 @@ class ProxyManager implements \Wpjscc\Penetration\Log\LogManagerInterface
         $uri = $request->getHeaderLine('Uri');
 
         // $uuid 服务端生成的
+        $uris = array_values(array_filter(explode(',', $uri)));
 
         // 是通道
-        if (!isset(static::$remoteTunnelConnections[$uri]) || $request->hasHeader('Tunnel')) {
-            PingPong::pingPong($connection, $connection->getRemoteAddress());
-
-            $uris = array_values(array_filter(explode(',', $uri)));
-
+        if ($request->hasHeader('Tunnel')) {
+            // 支持多domain
             foreach ($uris as $key => $_uri) {
                 static::getLogger()->notice('add tunnel connection', [
                     'uuid' => $uuid,
@@ -200,7 +198,7 @@ class ProxyManager implements \Wpjscc\Penetration\Log\LogManagerInterface
                 $singleTunnel->on('connection', function ($singleConnection) use ($connection, $request, $uuid, $uris) {
                     $isExist = false;
                     foreach ($uris as $key => $uri) {
-                        // 在等待建立通道的连接
+                        // 在等待建立通道的连接，如果有就建立
                         if (isset(static::$remoteDynamicConnections[$uri]) && static::$remoteDynamicConnections[$uri]->count() > 0) {
                             $isExist = true;
                             static::getLogger()->notice('add dynamic connection by single tunnel', [
@@ -220,6 +218,8 @@ class ProxyManager implements \Wpjscc\Penetration\Log\LogManagerInterface
                             $deferred->resolve($singleConnection);
                         }
                     }
+
+                    // 一个也没有说明用户访问端可能过早关闭了
                     if (!$isExist) {
                         echo ("no dynamic connection by single tunnel" . $singleConnection->getRemoteAddress() . "\n");
                         static::getLogger()->notice('no dynamic connection by single tunnel', [
@@ -243,7 +243,7 @@ class ProxyManager implements \Wpjscc\Penetration\Log\LogManagerInterface
                     (new P2pTunnel)->overConnection($connection);
                 }
             }
-
+            PingPong::pingPong($connection, $connection->getRemoteAddress());
             return;
         }
 
@@ -253,47 +253,55 @@ class ProxyManager implements \Wpjscc\Penetration\Log\LogManagerInterface
             'remote_address' => $connection->getRemoteAddress(),
         ]);
 
-        // 在等待建立通道连接
-        if (isset(static::$remoteDynamicConnections[$uri]) && static::$remoteDynamicConnections[$uri]->count() > 0) {
-            echo ("add dynamic connection " . $connection->getRemoteAddress() . "\n");
-            static::getLogger()->notice('add dynamic connection', [
-                'uri' => $request->getHeaderLine('Uri'),
-                'uuid' => $request->getHeaderLine('Uuid'),
-                'remote_address' => $connection->getRemoteAddress(),
-            ]);
-            // parent uuid
-            $uuid = $request->getHeaderLine('Uuid');
-            $remoteTunnelConnection = null;
-            foreach (static::$remoteTunnelConnections[$uri] as $tunnelConnection) {
-                if (static::$remoteTunnelConnections[$uri][$tunnelConnection]['Uuid'] == $uuid) {
-                    $remoteTunnelConnection = $tunnelConnection;
-                    break;
-                }
-            }
-
-            static::$remoteDynamicConnections[$uri]->rewind();
-            $deferred = static::$remoteDynamicConnections[$uri]->current();
-            static::$remoteDynamicConnections[$uri]->detach($deferred);
-            static::getLogger()->notice('deferred dynamic connection', [
-                'uri' => $request->getHeaderLine('Uri'),
-                'uuid' => $request->getHeaderLine('Uuid'),
-                'remote_address' => $connection->getRemoteAddress(),
-            ]);
-            if (empty($remoteTunnelConnection)) {
-                static::getLogger()->error('tunnel connection not found by uuid', [
+        $isExist = false;
+        foreach ($uris as $uri) {
+            // 在等待建立通道连接
+            if (isset(static::$remoteDynamicConnections[$uri]) && static::$remoteDynamicConnections[$uri]->count() > 0) {
+                echo ("add dynamic connection " . $connection->getRemoteAddress() . "\n");
+                static::getLogger()->notice('add dynamic connection', [
                     'uri' => $request->getHeaderLine('Uri'),
                     'uuid' => $request->getHeaderLine('Uuid'),
                     'remote_address' => $connection->getRemoteAddress(),
                 ]);
-                $deferred->reject(new \Exception('tunnel connection not found by uuid, please try again later'));
-            } else {
-                $connection->tunnelConnection = $remoteTunnelConnection;
-                $deferred->resolve($connection);
-            }
+                // parent uuid
+                $uuid = $request->getHeaderLine('Uuid');
+                $remoteTunnelConnection = null;
+                foreach (static::$remoteTunnelConnections[$uri] as $tunnelConnection) {
+                    if (static::$remoteTunnelConnections[$uri][$tunnelConnection]['Uuid'] == $uuid) {
+                        $remoteTunnelConnection = $tunnelConnection;
+                        break;
+                    }
+                }
 
-            return;
+                static::$remoteDynamicConnections[$uri]->rewind();
+                $deferred = static::$remoteDynamicConnections[$uri]->current();
+                static::$remoteDynamicConnections[$uri]->detach($deferred);
+                static::getLogger()->notice('deferred dynamic connection', [
+                    'uri' => $request->getHeaderLine('Uri'),
+                    'uuid' => $request->getHeaderLine('Uuid'),
+                    'remote_address' => $connection->getRemoteAddress(),
+                ]);
+                if (empty($remoteTunnelConnection)) {
+                    static::getLogger()->error('tunnel connection not found by uuid', [
+                        'uri' => $request->getHeaderLine('Uri'),
+                        'uuid' => $request->getHeaderLine('Uuid'),
+                        'remote_address' => $connection->getRemoteAddress(),
+                    ]);
+                    $deferred->reject(new \Exception('tunnel connection not found by uuid, please try again later'));
+                } else {
+                    $connection->tunnelConnection = $remoteTunnelConnection;
+                    $deferred->resolve($connection);
+                }
+                $isExist = true;
+                break;
+            }
         }
-        $connection->write("HTTP/1.1 205 Not Support Created\r\n\r\n");
-        $connection->end();
+
+        if (!$isExist) {
+            $connection->write("HTTP/1.1 205 Not Support Created\r\n\r\n");
+            $connection->end();
+        }
+
+
     }
 }

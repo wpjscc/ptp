@@ -29,10 +29,14 @@ class P2pTunnel extends EventEmitter implements ConnectorInterface, \Wpjscc\Pene
 
     protected $header;
 
+    protected $currentAddress = '';
+    protected $localAddress = '';
+
     public function __construct(&$config = [])
     {
         $this->config = &$config;
 
+        // 发送给其他客户端的
         $header = [
             'Host: ' . $config['server_host'],
             'User-Agent: ReactPHP',
@@ -41,7 +45,6 @@ class P2pTunnel extends EventEmitter implements ConnectorInterface, \Wpjscc\Pene
             'Local-Host: ' . $config['local_host'] . ':' . $config['local_port'],
             'Domain: ' . $config['domain'],
             'Uri: ' . $config['domain'],
-            'Is-P2p: 1',
             "\r\n"
             // 'Local-Tunnel-Address: ' . $connection->getLocalAddress(),
         ];
@@ -61,7 +64,9 @@ class P2pTunnel extends EventEmitter implements ConnectorInterface, \Wpjscc\Pene
             $tunnel->on('connection', function ($connection, $address, $server) use ($uri) {
                 $this->server = $server;
                 
-                ConnectionManager::$connections[$address]['connection'] = $connection;
+                // ConnectionManager::$connections[$address]['connection'] = $connection;
+                PeerManager::addConnection($this->currentAddress, $address, $connection);
+
                 $parseBuffer = new ParseBuffer();
                 $parseBuffer->setAddress($address);
                 $parseBuffer->on('response', [$this, 'handleResponse']);
@@ -76,29 +81,27 @@ class P2pTunnel extends EventEmitter implements ConnectorInterface, \Wpjscc\Pene
 
                 $connection->on('close', function () use ($address, $uri) {
 
-                    // 当前地址有没有tcp连接
-                    if (!empty(ConnectionManager::$connections[$address]['tcp_connections'])) {
-                    } else {
-                        unset(ConnectionManager::$connections[$address]);
-                    }
+                    // if (isset(PeerManager::$timers[$address])) {
+                    //     echo "close and cancel timer $address" . PHP_EOL;
+                    //     \React\EventLoop\Loop::cancelTimer(PeerManager::$timers[$address]['timer']);
+                    //     unset(PeerManager::$timers[$address]);
+                    // }
+                    PeerManager::removeTimer($this->currentAddress, $address);
+
+                    // if (in_array($address, PeerManager::$peers)) {
+                    //     echo "close remove peers $address" . PHP_EOL;
+                    //     PeerManager::$peers = array_values(array_diff(PeerManager::$peers, [$address]));
+                    // }
+                    PeerManager::removePeer($this->currentAddress, $address);
 
 
-                    if (isset(PeerManager::$timers[$address])) {
-                        echo "close and cancel timer $address" . PHP_EOL;
-                        \React\EventLoop\Loop::cancelTimer(PeerManager::$timers[$address]['timer']);
-                        unset(PeerManager::$timers[$address]);
-                    }
+                    // if (isset(PeerManager::$peereds[$address])) {
+                    //     echo "close remove peereds $address" . PHP_EOL;
+                    //     unset(PeerManager::$peereds[$address]);
+                    // }
 
-                    if (in_array($address, PeerManager::$peers)) {
-                        echo "close remove peers $address" . PHP_EOL;
-                        PeerManager::$peers = array_values(array_diff(PeerManager::$peers, [$address]));
-                    }
+                    PeerManager::removePeered($this->currentAddress, $address);
 
-
-                    if (isset(PeerManager::$peereds[$address])) {
-                        echo "close remove peereds $address" . PHP_EOL;
-                        unset(PeerManager::$peereds[$address]);
-                    }
 
                     if ($address == $this->getServerIpAndPort()) {
                         echo "close retry after 3 seconds" . PHP_EOL;
@@ -169,7 +172,8 @@ class P2pTunnel extends EventEmitter implements ConnectorInterface, \Wpjscc\Pene
                 $deferred->reject($e);
             });
 
-            PeerManager::$localAddress = $client->getLocalAddress();
+            // PeerManager::$localAddress = $client->getLocalAddress();
+            $this->localAddress = $client->getLocalAddress();
 
             $parseBuffer = new ParseBuffer();
             $parseBuffer->on('response', function ($response) use ($deferred, $client, $ipRanges) {
@@ -190,11 +194,12 @@ class P2pTunnel extends EventEmitter implements ConnectorInterface, \Wpjscc\Pene
                     }
                     echo 'receive server address: ' . $response->getHeaderLine('Address') . PHP_EOL;
                     $address = $response->getHeaderLine('Address');
-                    PeerManager::$currentAddress = $address;
+                    // PeerManager::$currentAddress = $address;
+                    $this->currentAddress = $address;
                     // 客户端关闭
                     $client->close();
                     // 本地服务端监听客户端打开的端口
-                    $deferred->resolve(new UdpTunnel('0.0.0.0:' . explode(':', PeerManager::$localAddress)[1], null, function ($server) {
+                    $deferred->resolve(new UdpTunnel('0.0.0.0:' . explode(':', $this->localAddress)[1], null, function ($server) {
                         // $client->send(implode("\r\n", [
                         //     "HTTP/1.1 410 OK",
                         //     "Local-Address: " . $client->getLocalAddress(),
@@ -246,24 +251,36 @@ class P2pTunnel extends EventEmitter implements ConnectorInterface, \Wpjscc\Pene
                     return strpos($address, '://') === false ? $address : explode('://', $address)[1];
                 }, $addresses);
 
-                $addresses = array_diff($addresses, PeerManager::$peers, [
-                    PeerManager::$currentAddress,
-                    PeerManager::$localAddress
+                $addresses = array_diff($addresses, PeerManager::getPeers($this->currentAddress), [
+                    $this->currentAddress,
+                    $this->localAddress
                 ]);
 
                 if (!empty($addresses)) {
-                    PeerManager::$peers = array_values(array_unique(array_merge($addresses, PeerManager::$peers)));
-                    foreach (PeerManager::$peers as $k => $peer) {
+                    // PeerManager::$peers = array_values(array_unique(array_merge($addresses, PeerManager::$peers)));
+                    $peers = PeerManager::addPeer($this->currentAddress, $addresses);
+                    foreach ($peers as $k => $peer) {
 
-                        if (isset(PeerManager::$timers[$peer])) {
-                            \React\EventLoop\Loop::cancelTimer(PeerManager::$timers[$peer]['timer']);
-                            unset(PeerManager::$timers[$peer]);
-                        }
+                        // if (isset(PeerManager::$timers[$peer])) {
+                        //     \React\EventLoop\Loop::cancelTimer(PeerManager::$timers[$peer]['timer']);
+                        //     unset(PeerManager::$timers[$peer]);
+                        // }
 
-                        if (isset(PeerManager::$peereds[$peer])) {
-                            echo "broadcast_address but $peer had peereds" . PHP_EOL;
+                        PeerManager::removeTimer($this->currentAddress, $peer);
+
+                       
+
+                        // if (isset(PeerManager::$peereds[$peer])) {
+                        //     echo "broadcast_address but $peer had peereds" . PHP_EOL;
+                        //     // remove peers 
+                        //     PeerManager::$peers = array_values(array_diff(PeerManager::$peers, [$peer]));
+                        //     continue;
+                        // }
+
+                        if (PeerManager::hasPeered($this->currentAddress, $peer)) {
+                            echo "broadcast_address but $peer had peered" . PHP_EOL;
                             // remove peers 
-                            PeerManager::$peers = array_values(array_diff(PeerManager::$peers, [$peer]));
+                            PeerManager::removePeer($this->currentAddress, $peer);
                             continue;
                         }
 
@@ -289,37 +306,52 @@ class P2pTunnel extends EventEmitter implements ConnectorInterface, \Wpjscc\Pene
                             }
                             if (!$isInIpRange) {
                                 echo "broadcast_address but $peer not in ip range" . PHP_EOL;
-                                PeerManager::$peers = array_values(array_diff(PeerManager::$peers, [$peer]));
+                                // PeerManager::$peers = array_values(array_diff(PeerManager::$peers, [$peer]));
+                                PeerManager::removePeer($this->currentAddress, $peer);
                                 continue;
                             }
                         } catch (Exception\InvalidIpAddressException $e) {
                             echo ("The $peerIp  address supplied is invalid!");
-                            PeerManager::$peers = array_values(array_diff(PeerManager::$peers, [$peer]));
+                            // PeerManager::$peers = array_values(array_diff(PeerManager::$peers, [$peer]));
+                            PeerManager::removePeer($this->currentAddress, $peer);
                             continue;
                         }
+                       
 
                         // 开始打孔
-                        PeerManager::$timers[$peer] = [
+                        // PeerManager::$timers[$peer] = [
+                        //     'active' => time(),
+                        //     'timer' => \React\EventLoop\Loop::addPeriodicTimer(0.5, function () use ($peer) {
+                        //         echo 'send punch to ' . $peer . PHP_EOL . PHP_EOL;
+                        //         $this->server->send("HTTP/1.1 414 punch \r\n".$this->header, $peer);
+                        //     })
+                        // ];
+
+                        PeerManager::addTimer($this->currentAddress, $peer, [
                             'active' => time(),
                             'timer' => \React\EventLoop\Loop::addPeriodicTimer(0.5, function () use ($peer) {
                                 echo 'send punch to ' . $peer . PHP_EOL . PHP_EOL;
                                 $this->server->send("HTTP/1.1 414 punch \r\n".$this->header, $peer);
                             })
-                        ];
+                        ]);
 
                         \React\EventLoop\Loop::addTimer(1, function () use ($peer) {
                             // 一秒后如果还没有打孔成功就取消
-                            if (isset(PeerManager::$timers[$peer])) {
-                                echo "punch fail and cancel timer $peer" . PHP_EOL;
-                                \React\EventLoop\Loop::cancelTimer(PeerManager::$timers[$peer]['timer']);
-                                unset(PeerManager::$timers[$peer]);
-                            }
+                            // if (isset(PeerManager::$timers[$peer])) {
+                            //     echo "punch fail and cancel timer $peer" . PHP_EOL;
+                            //     \React\EventLoop\Loop::cancelTimer(PeerManager::$timers[$peer]['timer']);
+                            //     unset(PeerManager::$timers[$peer]);
+                            // }
+                            PeerManager::removeTimer($this->currentAddress, $peer);
 
                             // 取消perrs
-                            if (in_array($peer, PeerManager::$peers)) {
-                                echo "punch fail and remove peers $peer" . PHP_EOL;
-                                PeerManager::$peers = array_values(array_diff(PeerManager::$peers, [$peer]));
-                            }
+                            // if (in_array($peer, PeerManager::$peers)) {
+                            //     echo "punch fail and remove peers $peer" . PHP_EOL;
+                            //     PeerManager::$peers = array_values(array_diff(PeerManager::$peers, [$peer]));
+                            // }
+
+                            PeerManager::removePeer($this->currentAddress, $peer);
+
                         });
                     }
                 }
@@ -333,23 +365,28 @@ class P2pTunnel extends EventEmitter implements ConnectorInterface, \Wpjscc\Pene
         // 收到 punched  连上对方了 
         else if ($response->getStatusCode() === 415) {
             // 避免多次连接
-            if (!isset(PeerManager::$peereds[$address])) {
+            // if (!isset(PeerManager::$peereds[$address])) {
+            if (!PeerManager::hasPeered($this->currentAddress, $address)) {
 
                 // 取消定时器
-                if (isset(PeerManager::$timers[$address])) {
-                    echo "punched success and cancel timer $address" . PHP_EOL;
-                    \React\EventLoop\Loop::cancelTimer(PeerManager::$timers[$address]['timer']);
-                    unset(PeerManager::$timers[$address]);
-                }
+                // if (isset(PeerManager::$timers[$address])) {
+                //     echo "punched success and cancel timer $address" . PHP_EOL;
+                //     \React\EventLoop\Loop::cancelTimer(PeerManager::$timers[$address]['timer']);
+                //     unset(PeerManager::$timers[$address]);
+                // }
+                PeerManager::removeTimer($this->currentAddress, $address);
 
                 // 取消perrs
-                if (in_array($address, PeerManager::$peers)) {
-                    echo "punched success and remove peers $address" . PHP_EOL;
-                    PeerManager::$peers = array_values(array_diff(PeerManager::$peers, [$address]));
-                }
+                // if (in_array($address, PeerManager::$peers)) {
+                //     echo "punched success and remove peers $address" . PHP_EOL;
+                //     PeerManager::$peers = array_values(array_diff(PeerManager::$peers, [$address]));
+                // }
+                PeerManager::removePeer($this->currentAddress, $address);
 
                 // 记录已经连上的
-                PeerManager::$peereds[$address] = true;
+                // PeerManager::$peereds[$address] = true;
+
+                PeerManager::addPeered($this->currentAddress, $address);
                
                 // $this->emit('connection', [
                 //     ConnectionManager::$connections[$address]['connection'],
@@ -368,11 +405,15 @@ class P2pTunnel extends EventEmitter implements ConnectorInterface, \Wpjscc\Pene
             $data = base64_decode($data);
             $virtualConnection->emit('data', [$data]);
         }
+        // else if ($response->getStatusCode() === 300) {
+        //     $this->server->send("HTTP/1.1 301 OK\r\n".$this->header, $address);
+        // } 
         // 收到远端的pong
         else if ($response->getStatusCode() === 301) {
             if ($address != $this->getServerIpAndPort()) {
                 // 一端能连接对方，但对方连接不到自己，这种情况下，能ping通，就可以连接上
-                if (!in_array($address, array_keys(PeerManager::$peereds))) {
+                // if (!in_array($address, array_keys(PeerManager::$peereds))) {
+                if (!PeerManager::hasPeered($this->currentAddress, $address)) {
                     // 结构
                     //                           NAT B 192.168.0.1
                     //                         
@@ -393,12 +434,13 @@ class P2pTunnel extends EventEmitter implements ConnectorInterface, \Wpjscc\Pene
                     // 这里在B上处理  $address 是 192.168.0.101
                     echo "pong success but not peered address $address" . PHP_EOL;
                     echo "add peereds $address" . PHP_EOL;
-                    PeerManager::$peereds[$address] = true;
+                    // PeerManager::$peereds[$address] = true;
+                    PeerManager::addPeered($this->currentAddress, $address);
                     $this->getVirtualConnection($response, $address);
 
                 }
             }
-        } 
+        }
         else {
             echo "ignore other response code" . PHP_EOL;
         }
@@ -412,8 +454,9 @@ class P2pTunnel extends EventEmitter implements ConnectorInterface, \Wpjscc\Pene
 
     protected function getVirtualConnection($response, $address)
     {
-        if (empty(ConnectionManager::$connections[$address]['virtual_connection'])) {
-            $connection = ConnectionManager::$connections[$address]['connection'];
+        if (empty(PeerManager::getVirtualConnection($this->currentAddress, $address))) {
+            // $connection = ConnectionManager::$connections[$address]['connection'];
+            $connection = PeerManager::getConnection($this->currentAddress, $address);
  
             $read = new ThroughStream;
             $write = new ThroughStream;
@@ -433,25 +476,26 @@ class P2pTunnel extends EventEmitter implements ConnectorInterface, \Wpjscc\Pene
             });
 
             $virtualConnection->on('close', function () use ($connection, $address) {
-                unset(ConnectionManager::$connections[$address]['virtual_connection']);
                 $connection->close();
             });
 
-            ConnectionManager::$connections[$address]['virtual_connection'] = $virtualConnection;
+            // ConnectionManager::$connections[$address]['virtual_connection'] = $virtualConnection;
 
+            PeerManager::addVirtualConnection($this->currentAddress, $address, $virtualConnection);
            
 
             if ($address != $this->getServerIpAndPort()) {
-                static::getLogger()->error("P2pTunnel::".__FUNCTION__." address != this->getServerIpAndPort()", [
+                static::getLogger()->debug("P2pTunnel::".__FUNCTION__, [
                     'class' => __CLASS__,
                     'address' => $address,
                     'server_ip_and_port' => $this->getServerIpAndPort(),
                 ]);
                 $this->emit('connection', [$virtualConnection, $response, $address]);
-                PingPong::pingPong($virtualConnection, $address);
+                // 底层连接已经ping pong了，这里不需要再ping pong了
+                // PingPong::pingPong($virtualConnection, $address);
             }
         }
-        return ConnectionManager::$connections[$address]['virtual_connection'];
+        return PeerManager::getVirtualConnection($this->currentAddress, $address);
     }
 
     public function getServerIpAndPort()

@@ -24,15 +24,22 @@ class PingPong
             $connection->write("HTTP/1.1 300 OK\r\n\r\n");
         };
 
-        $pong = function ($connection) {
+        $pong = function ($connection) use ($ping) {
             $deferred = new Deferred();
-            $connection->on('data', $fn = function ($buffer) use ($deferred, $connection, &$fn) {
+
+            $timer = \React\EventLoop\Loop::addTimer(1.5, function () use ($ping, $connection) {
+                $ping($connection);
+            });
+
+            $connection->on('data', $fn = function ($buffer) use ($deferred, $connection, &$fn, $timer) {
                 if (strpos($buffer, "HTTP/1.1 301 OK\r\n") !== false) {
                     $connection->removeListener('data', $fn);
                     $fn = null;
+                    \React\EventLoop\Loop::cancelTimer($timer);
                     $deferred->resolve();
                 }
             });
+
 
             \React\Promise\Timer\timeout($deferred->promise(), 3)->then(null, function ($e) use ($connection, $fn, $deferred) {
                 $connection->removeListener('data', $fn);

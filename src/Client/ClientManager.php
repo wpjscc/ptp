@@ -10,6 +10,7 @@ use Psr\Log\LoggerInterface;
 use Wpjscc\Penetration\Helper;
 use Wpjscc\Penetration\Utils\ParseBuffer;
 use Wpjscc\Penetration\P2p\Client\HandleResponse;
+use Wpjscc\Penetration\P2p\Client\PeerManager;
 use Wpjscc\Penetration\Proxy\ProxyManager;
 use Ramsey\Uuid\Uuid;
 use Wpjscc\Penetration\Utils\PingPong;
@@ -50,48 +51,16 @@ class ClientManager implements \Wpjscc\Penetration\Log\LogManagerInterface
             if ($protocol == 'p2p') {
                 static::getTunnel($config, $protocol ?: $tunneProtocol)->on('connection', function ($connection, $response, $address) use (&$config) {
                         // 相当于服务端
-                        var_dump('111111111');
-                       
                         $uuid = $config['uuid'];
                         // $response = $response->withHeader('Uuid', $uuid);
 
-                        ProxyManager::handleClientConnection($connection, $response, $uuid);
+                        // 将对端连接添加到可用连接池
+                        PeerManager::handleClientConnection($connection, $response, $uuid);
+
+                        // 处理对端连接发过来的请求
                         $handleResponse = new HandleResponse($connection, $address, $config);
                         $handleResponse->on('connection', function ($singleConnection) use ($response, $connection, $uuid) {
-                            static::getLogger()->debug('add dynamic connection by p2p single tunnel', [
-                                'uri' => $response->getHeaderLine('Uri'),
-                                'uuid' => $response->getHeaderLine('Uuid'),
-                                'remote_address' => $singleConnection->getRemoteAddress(),
-                            ]);
-                            $request = $response;
-                            $uri = $request->getHeaderLine('Uri');
-                            // todo uuid
-                            if (isset(ProxyManager::$remoteDynamicConnections[$uri]) && ProxyManager::$remoteDynamicConnections[$uri]->count() > 0) {
-                                static::getLogger()->debug('add dynamic connection by p2p single tunnel', [
-                                    'uri' => $request->getHeaderLine('Uri'),
-                                    'uuid' => $uuid,
-                                    'remote_address' => $singleConnection->getRemoteAddress(),
-                                ]);
-                                ProxyManager::$remoteDynamicConnections[$uri]->rewind();
-                                $deferred = ProxyManager::$remoteDynamicConnections[$uri]->current();
-                                ProxyManager::$remoteDynamicConnections[$uri]->detach($deferred);
-                                static::getLogger()->debug('deferred dynamic connection p2p single-tunnel', [
-                                    'uri' => $request->getHeaderLine('Uri'),
-                                    'uuid' => $uuid,
-                                    'remote_address' => $singleConnection->getRemoteAddress(),
-                                ]);
-                                $singleConnection->tunnelConnection = $connection;
-                                $deferred->resolve($singleConnection);
-                            } else {
-                                echo ("no dynamic connection by single tunnel" . $singleConnection->getRemoteAddress() . "\n");
-                                static::getLogger()->debug('no dynamic connection by p2p single tunnel', [
-                                    'uri' => $request->getHeaderLine('Uri'),
-                                    'uuid' => $uuid,
-                                    'remote_address' => $connection->getRemoteAddress(),
-                                ]);
-                                $connection->write("HTTP/1.1 205 Not Support Created\r\n\r\n");
-                                $connection->end();
-                            }
+                            PeerManager::handleOverVirtualConnection($singleConnection, $response, $connection, $uuid);
                         });
                         // $parseBuffer = new ParseBuffer;
                         // $parseBuffer->on('response', [$handleResponse, 'handleResponse']);

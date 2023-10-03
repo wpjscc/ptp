@@ -6,6 +6,8 @@ use React\Socket\SocketServer;
 use React\Socket\ConnectionInterface;
 use Wpjscc\Penetration\Proxy\ProxyManager;
 use RingCentral\Psr7;
+use Darsyn\IP\Version\IPv4;
+use Darsyn\IP\Exception;
 
 class Http
 {
@@ -50,9 +52,20 @@ class Http
                     $host = $request->getUri()->getHost();
                     $port = $request->getUri()->getPort();
                     $uri = $host;
-                    if ($port) {
-                        $uri = $uri.':'.$port;
+
+                    try {
+                        
+                        IPv4::factory($host);
+                        if ($port) {
+                            $uri = $uri.':'.$port;
+                        }
+
+                    } catch (Exception\InvalidIpAddressException $e) {
+                        echo 'The IP address supplied is invalid!';
                     }
+
+                    var_dump('userConnection', $uri);
+                   
                     
 
                     $proxyConnection = ProxyManager::getProxyConnection($uri);

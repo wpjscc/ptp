@@ -185,11 +185,11 @@ function getParam($key, $default = null){
 }
 
 \React\EventLoop\Loop::addPeriodicTimer(3, function () {
-    $peereds = array_keys(PeerManager::$peereds);
 
-    echo PHP_EOL."current peer ip address: " .PeerManager::$currentAddress . PHP_EOL;
-    echo "current peer local address: " .PeerManager::$localAddress . PHP_EOL;
-    echo "current peers:" .implode(',', $peereds) . PHP_EOL;
+    // echo PHP_EOL."current peer ip address: " .PeerManager::$currentAddress . PHP_EOL;
+    // echo "current peer local address: " .PeerManager::$localAddress . PHP_EOL;
+    // echo "current peers:" .implode(',', $peereds) . PHP_EOL;
+    PeerManager::print();
 
     $addresses = array_keys(ConnectionManager::$connections);
     echo "current connections address:". implode(',', $addresses) . PHP_EOL;
