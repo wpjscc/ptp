@@ -197,18 +197,24 @@ class ClientManager implements \Wpjscc\Penetration\Log\LogManagerInterface
             }
             // 服务端ping
             elseif ($response->getStatusCode() === 300) {
-                static::getLogger()->info('server ping', [
+                static::getLogger()->debug('server ping', [
                     'class' => __CLASS__,
                 ]);
                 $connection->write("HTTP/1.1 301 OK\r\n\r\n");
-            } else {
-                static::getLogger()->debug('error', [
+            }
+            elseif ($response->getStatusCode() === 301) {
+                static::getLogger()->debug('server pong', [
+                    'class' => __CLASS__,
+                ]);
+            } 
+            else {
+                static::getLogger()->warning("ignore status_code", [
                     'class' => __CLASS__,
                     'status_code' => $response->getStatusCode(),
                     'reason_phrase' => $response->getReasonPhrase(),
                 ]);
-                $connection->close();
-                return;
+                // $connection->close();
+                // return;
             }
             ClientManager::handleLocalTunnelBuffer($connection, $buffer, $config);
         }
