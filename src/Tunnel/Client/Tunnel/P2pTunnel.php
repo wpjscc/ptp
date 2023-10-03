@@ -178,17 +178,13 @@ class P2pTunnel extends EventEmitter implements ConnectorInterface, \Wpjscc\Pene
                     $uuid = $response->getHeaderLine('Uuid');
                     $this->config['uuid'] = $uuid;
                     
-                    static::getLogger()->debug("P2pTunnel::".__FUNCTION__." 200", [
+                    static::getLogger()->notice("P2pTunnel::".__FUNCTION__." 200", [
                         'class' => __CLASS__,
                         'response' => Helper::toString($response)
                     ]);
                 }
                 // 服务端回复客户端的地址
                 else if ($response->getStatusCode() === 411) {
-                    static::getLogger()->debug("P2pTunnel::".__FUNCTION__." 411", [
-                        'class' => __CLASS__,
-                        'response' => Helper::toString($response)
-                    ]);
                     if (!isset($this->config['uuid'])) {
                         $this->config['uuid'] = Uuid::uuid4()->toString();
                     }
@@ -198,7 +194,7 @@ class P2pTunnel extends EventEmitter implements ConnectorInterface, \Wpjscc\Pene
                     // 客户端关闭
                     $client->close();
                     // 本地服务端监听客户端打开的端口
-                    $deferred->resolve(new UdpTunnel('0.0.0.0:' . explode(':', PeerManager::$localAddress)[1], null, function ($server) use ($client, $address, $ipRanges) {
+                    $deferred->resolve(new UdpTunnel('0.0.0.0:' . explode(':', PeerManager::$localAddress)[1], null, function ($server) {
                         // $client->send(implode("\r\n", [
                         //     "HTTP/1.1 410 OK",
                         //     "Local-Address: " . $client->getLocalAddress(),
@@ -212,7 +208,6 @@ class P2pTunnel extends EventEmitter implements ConnectorInterface, \Wpjscc\Pene
             });
 
             $client->on('message', function ($message, $serverAddress, $client) use ($parseBuffer) {
-                var_dump('p2pTunnelMessage', $message, $serverAddress);
                 PeerManager::$serverAddress = $serverAddress;
                 $parseBuffer->handleBuffer($message);
             });
@@ -433,7 +428,7 @@ class P2pTunnel extends EventEmitter implements ConnectorInterface, \Wpjscc\Pene
                 $address
             ), 'p2p_udp');
 
-            $connection->on('close', function () use ($virtualConnection, $address) {
+            $connection->on('close', function () use ($virtualConnection) {
                 $virtualConnection->close();
             });
 
@@ -444,6 +439,7 @@ class P2pTunnel extends EventEmitter implements ConnectorInterface, \Wpjscc\Pene
 
             ConnectionManager::$connections[$address]['virtual_connection'] = $virtualConnection;
 
+           
 
             if ($address != $this->getServerIpAndPort()) {
                 static::getLogger()->error("P2pTunnel::".__FUNCTION__." address != this->getServerIpAndPort()", [
