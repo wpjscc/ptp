@@ -53,7 +53,7 @@ $startTime = time();
 \React\EventLoop\Loop::get()->addPeriodicTimer(5, function () use ($tcpManager) {
     $tcpManager->checkPorts(Config::getTcpPorts(Config::getConfig(getParam('--ini-path', './server.ini'))));
     $uris = array_keys(ProxyManager::$remoteTunnelConnections);
-    echo "======> urils -> ". implode(', ', $uris) . PHP_EOL.PHP_EOL;
+    echo "======> uris -> ". implode(', ', $uris) . PHP_EOL.PHP_EOL;
 });
 
 \React\EventLoop\Loop::get()->addPeriodicTimer(30, function() use ($startTime){
