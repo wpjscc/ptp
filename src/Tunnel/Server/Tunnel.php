@@ -149,6 +149,35 @@ class Tunnel implements \Wpjscc\Penetration\Log\LogManagerInterface
                 ]);
                 $buffer .= $chunk;
 
+                // CONNECT
+                if (strpos($buffer, "CONNECT") === 0) {
+                    try {
+                        $pattern = "/CONNECT ([^\s]+) HTTP\/(\d+\.\d+)/";
+                        if (preg_match($pattern, $buffer, $matches)) {
+                            $host = $matches[1];
+                            $version = $matches[2];
+                            $connection->write("HTTP/{$version} 200 Connection Established\r\n\r\n");
+                            $request = Psr7\parse_request("GET /connect HTTP/1.1\r\nHost: $host}\r\n\r\n");
+                            ProxyManager::pipe($connection, $request, '');
+                            $buffer = '';
+                        } else {
+                            $buffer = '';
+                            $connection->write('Invalid request');
+                            $connection->end();
+                        }
+                    } catch (\Exception $e) {
+                        static::getLogger()->error($e->getMessage(), [
+                            'class' => __CLASS__,
+                            'file' => $e->getFile(),
+                            'line' => $e->getLine(),
+                        ]);
+                        $buffer = '';
+                        $connection->write($e->getMessage());
+                        $connection->end();
+                    }
+                    return;
+                }
+
                 $pos = strpos($buffer, "\r\n\r\n");
                 if ($pos !== false) {
                     $connection->removeListener('data', $fn);
@@ -158,6 +187,9 @@ class Tunnel implements \Wpjscc\Penetration\Log\LogManagerInterface
                         $request = Psr7\parse_request(substr($buffer, 0, $pos));
                     } catch (\Exception $e) {
                         // invalid request message, close connection
+                        static::getLogger()->error($e->getMessage(), [
+                            'class' => __CLASS__,
+                        ]);
                         $buffer = '';
                         $connection->write($e->getMessage());
                         $connection->end();
@@ -178,14 +210,6 @@ class Tunnel implements \Wpjscc\Penetration\Log\LogManagerInterface
                             $decoratedSocket->emit('connection', [$connection]);
                             $connection->emit('data', [$buffer]);
                             $buffer = '';
-                            return;
-                        }
-
-                        // http proxy
-                        if ($request->getMethod() === 'CONNECT') {
-                            $connection->write("HTTP/1.1 200 Connection Established\r\n\r\n");
-                            var_dump(Helper::toString($request));
-                            ProxyManager::pipe($connection, $request, '');
                             return;
                         }
                     }
