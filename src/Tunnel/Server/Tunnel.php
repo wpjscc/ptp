@@ -180,6 +180,14 @@ class Tunnel implements \Wpjscc\Penetration\Log\LogManagerInterface
                             $buffer = '';
                             return;
                         }
+
+                        // http proxy
+                        if ($request->getMethod() === 'CONNECT') {
+                            $connection->write("HTTP/1.1 200 Connection Established\r\n\r\n");
+                            var_dump(Helper::toString($request));
+                            ProxyManager::pipe($connection, $request, '');
+                            return;
+                        }
                     }
 
                     $buffer = '';

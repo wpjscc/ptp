@@ -6,8 +6,6 @@ use React\Socket\SocketServer;
 use React\Socket\ConnectionInterface;
 use Wpjscc\Penetration\Proxy\ProxyManager;
 use RingCentral\Psr7;
-use Darsyn\IP\Version\IPv4;
-use Darsyn\IP\Exception;
 
 class Http
 {
@@ -48,42 +46,43 @@ class Http
                         return;
                     }
 
+                    ProxyManager::pipe($userConnection, $request, $buffer);
 
-                    $host = $request->getUri()->getHost();
-                    $port = $request->getUri()->getPort();
-                    $uri = $host;
+                    // $host = $request->getUri()->getHost();
+                    // $port = $request->getUri()->getPort();
+                    // $uri = $host;
 
-                    try {
+                    // try {
                         
-                        IPv4::factory($host);
-                        if ($port) {
-                            $uri = $uri.':'.$port;
-                        }
+                    //     IPv4::factory($host);
+                    //     if ($port) {
+                    //         $uri = $uri.':'.$port;
+                    //     }
 
-                    } catch (Exception\InvalidIpAddressException $e) {
-                        echo 'The IP address supplied is invalid!';
-                    }
+                    // } catch (Exception\InvalidIpAddressException $e) {
+                    //     echo 'The IP address supplied is invalid!';
+                    // }
 
-                    var_dump('userConnection', $uri);
+                    // var_dump('userConnection', $uri);
                    
                     
 
-                    $proxyConnection = ProxyManager::getProxyConnection($uri);
-                    if ($proxyConnection === false) {
-                        $buffer = '';
-                        $content = "no proxy connection\n";
-                        $headers = [
-                            'HTTP/1.1 200 OK',
-                            'Server: ReactPHP/1',
-                            'Content-Type: text/html; charset=UTF-8',
-                            'Content-Length: '.strlen($content),
-                        ];
-                        $userConnection->write(implode("\r\n", $headers)."\r\n\r\n".$content);
-                        $userConnection->end();
-                    } else {
-                        echo 'user: '.$uri.' is arive'."\n";
-                        $proxyConnection->pipe($userConnection, $buffer, $request);
-                    }
+                    // $proxyConnection = ProxyManager::getProxyConnection($uri);
+                    // if ($proxyConnection === false) {
+                    //     $buffer = '';
+                    //     $content = "no proxy connection\n";
+                    //     $headers = [
+                    //         'HTTP/1.1 200 OK',
+                    //         'Server: ReactPHP/1',
+                    //         'Content-Type: text/html; charset=UTF-8',
+                    //         'Content-Length: '.strlen($content),
+                    //     ];
+                    //     $userConnection->write(implode("\r\n", $headers)."\r\n\r\n".$content);
+                    //     $userConnection->end();
+                    // } else {
+                    //     echo 'user: '.$uri.' is arive'."\n";
+                    //     $proxyConnection->pipe($userConnection, $buffer, $request);
+                    // }
 
                 }
                 

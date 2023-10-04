@@ -9,6 +9,8 @@ use Ramsey\Uuid\Uuid;
 use Wpjscc\Penetration\Helper;
 use Wpjscc\Penetration\Utils\PingPong;
 use Wpjscc\Penetration\Tunnel\Server\Tunnel\P2pTunnel;
+use Darsyn\IP\Version\IPv4;
+use Darsyn\IP\Exception;
 
 class ProxyManager implements \Wpjscc\Penetration\Log\LogManagerInterface
 {
@@ -303,5 +305,43 @@ class ProxyManager implements \Wpjscc\Penetration\Log\LogManagerInterface
         }
 
 
+    }
+
+    public static function pipe($connection, $request, $buffer = '', $callback = null)
+    {
+        $host = $request->getUri()->getHost();
+        $port = $request->getUri()->getPort();
+        $uri = $host;
+
+        try {
+            
+            IPv4::factory($host);
+            if ($port) {
+                $uri = $uri.':'.$port;
+            }
+
+        } catch (Exception\InvalidIpAddressException $e) {
+            echo 'The IP address supplied is invalid!';
+        }
+
+        $proxyConnection = ProxyManager::getProxyConnection($uri);
+        if ($proxyConnection === false) {
+            $buffer = '';
+            $content = "no proxy connection\n";
+            $headers = [
+                'HTTP/1.1 200 OK',
+                'Server: ReactPHP/1',
+                'Content-Type: text/html; charset=UTF-8',
+                'Content-Length: '.strlen($content),
+            ];
+            $connection->write(implode("\r\n", $headers)."\r\n\r\n".$content);
+            $connection->end();
+        } else {
+            echo 'user: '.$uri.' is arive'."\n";
+            if ($callback) {
+                call_user_func($callback, $proxyConnection);
+            }
+            $proxyConnection->pipe($connection, $buffer, $request);
+        }
     }
 }

@@ -65,15 +65,15 @@ class P2pTunnel extends EventEmitter implements ConnectorInterface, \Wpjscc\Pene
             $tunnel->on('connection', function ($connection, $address, $server) use ($uri) {
                 $this->server = $server;
                 
-                // ConnectionManager::$connections[$address]['connection'] = $connection;
                 PeerManager::addConnection($this->currentAddress, $address, $connection);
 
                 $parseBuffer = new ParseBuffer();
                 $parseBuffer->setAddress($address);
                 $parseBuffer->on('response', [$this, 'handleResponse']);
 
-                $connection->on('data', function ($data) use ($connection, $parseBuffer, $uri) {
-                    // var_dump('p2pTunnelData', $data);
+                $connection->on('data', function ($data) use ($connection, $parseBuffer, $uri, $address) {
+                    // fix bug $getVirtualConnection $connection is null 
+                    PeerManager::addConnection($this->currentAddress, $address, $connection);
                     $parseBuffer->handleBuffer($data);
                 });
 
@@ -406,6 +406,7 @@ class P2pTunnel extends EventEmitter implements ConnectorInterface, \Wpjscc\Pene
         if (empty(PeerManager::getVirtualConnection($this->currentAddress, $address))) {
             // $connection = ConnectionManager::$connections[$address]['connection'];
             $connection = PeerManager::getConnection($this->currentAddress, $address);
+            var_dump($this->currentAddress, $address);
  
             $read = new ThroughStream;
             $write = new ThroughStream;
@@ -420,15 +421,14 @@ class P2pTunnel extends EventEmitter implements ConnectorInterface, \Wpjscc\Pene
                 $address
             ), 'p2p_udp');
 
-            $connection->on('close', function () use ($virtualConnection) {
+            $connection->on('close', function () use ($virtualConnection, $address) {
+                PeerManager::removeConnection($this->currentAddress, $address);
                 $virtualConnection->close();
             });
 
             $virtualConnection->on('close', function () use ($connection, $address) {
                 $connection->close();
             });
-
-            // ConnectionManager::$connections[$address]['virtual_connection'] = $virtualConnection;
 
             PeerManager::addVirtualConnection($this->currentAddress, $address, $virtualConnection);
            
