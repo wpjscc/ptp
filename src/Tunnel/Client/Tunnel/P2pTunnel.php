@@ -30,6 +30,8 @@ class P2pTunnel extends EventEmitter implements ConnectorInterface, \Wpjscc\Pene
 
     protected $header;
 
+    protected $serverAddress = '';
+
     protected $currentAddress = '';
     protected $localAddress = '';
 
@@ -49,7 +51,7 @@ class P2pTunnel extends EventEmitter implements ConnectorInterface, \Wpjscc\Pene
             "\r\n"
             // 'Local-Tunnel-Address: ' . $connection->getLocalAddress(),
         ];
-        $this->header = implode("\r\n", $header);
+        var_dump($header);
         $this->header = implode("\r\n", $header);
     }
 
@@ -104,7 +106,7 @@ class P2pTunnel extends EventEmitter implements ConnectorInterface, \Wpjscc\Pene
                     PeerManager::removePeered($this->currentAddress, $address);
 
 
-                    if ($address == $this->getServerIpAndPort()) {
+                    if ($address == $this->serverAddress) {
                         echo "close retry after 3 seconds" . PHP_EOL;
                         \React\EventLoop\Loop::addTimer(3, function () use ($uri) {
                             $this->connect($uri);
@@ -139,6 +141,7 @@ class P2pTunnel extends EventEmitter implements ConnectorInterface, \Wpjscc\Pene
 
         (new \React\Datagram\Factory())->createClient($uri)->then(function (\React\Datagram\Socket $client) use ($uri, $deferred) {
             echo 'create client: ' . $uri . PHP_EOL;
+            $this->serverAddress = $client->getRemoteAddress();
             // $ipRanges = [];
             // foreach ($this->getIpWhitelist() as $ipRane) {
             //     $ipRanges[] = "IP-Whitelist: " . $ipRane;
@@ -210,13 +213,12 @@ class P2pTunnel extends EventEmitter implements ConnectorInterface, \Wpjscc\Pene
                         //     "\r\n"
                         // ]));
                         // 给服务端回复可以广播地址了
-                        $server->send("HTTP/1.1 413 OK\r\n\r\n", PeerManager::$serverAddress);
+                        $server->send("HTTP/1.1 413 OK\r\n\r\n", $this->serverAddress);
                     }));
                 }
             });
 
             $client->on('message', function ($message, $serverAddress, $client) use ($parseBuffer) {
-                PeerManager::$serverAddress = $serverAddress;
                 $parseBuffer->handleBuffer($message);
             });
         }, function ($e) use ($deferred) {
@@ -354,7 +356,8 @@ class P2pTunnel extends EventEmitter implements ConnectorInterface, \Wpjscc\Pene
         // } 
         // 收到远端的pong
         else if ($response->getStatusCode() === 301) {
-            if ($address != $this->getServerIpAndPort()) {
+            if ($address != $this->serverAddress) {
+                
                 // 一端能连接对方，但对方连接不到自己，这种情况下，能ping通，就可以连接上
                 // if (!in_array($address, array_keys(PeerManager::$peereds))) {
                 if (!PeerManager::hasPeered($this->currentAddress, $address)) {
@@ -433,11 +436,11 @@ class P2pTunnel extends EventEmitter implements ConnectorInterface, \Wpjscc\Pene
             PeerManager::addVirtualConnection($this->currentAddress, $address, $virtualConnection);
            
 
-            if ($address != $this->getServerIpAndPort()) {
+            if ($address != $this->serverAddress) {
                 static::getLogger()->debug("P2pTunnel::".__FUNCTION__, [
                     'class' => __CLASS__,
                     'address' => $address,
-                    'server_ip_and_port' => $this->getServerIpAndPort(),
+                    'server_ip_and_port' => $this->serverAddress,
                 ]);
                 $this->emit('connection', [$virtualConnection, $response, $address]);
                 // 底层连接已经ping pong了，这里不需要再ping pong了
@@ -446,16 +449,4 @@ class P2pTunnel extends EventEmitter implements ConnectorInterface, \Wpjscc\Pene
         }
         return PeerManager::getVirtualConnection($this->currentAddress, $address);
     }
-
-    public function getServerIpAndPort()
-    {
-        $ip = '';
-        if (strpos($this->uri, '://') !== false) {
-            $ip = explode('://', $this->uri)[1];
-        } else {
-            $ip = $this->uri;
-        }
-        return $ip;
-    }
-    
 }
