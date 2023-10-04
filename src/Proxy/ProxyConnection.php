@@ -216,7 +216,7 @@ class ProxyConnection implements \Wpjscc\Penetration\Log\LogManagerInterface
                 if ($port) {
                     $host .= ':'.$port;
                 }
-                var_dump($host,321321321321321321321);
+                var_dump($host,777777777);
                 $buffer = str_replace("\r\nHost: " .$host . "\r\n", $proxyReplace, $buffer);
                 $clientConnection->write($buffer);
                 $buffer = '';

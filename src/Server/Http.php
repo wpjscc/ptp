@@ -33,9 +33,12 @@ class Http implements \Wpjscc\Penetration\Log\LogManagerInterface
             $buffer = '';
             $userConnection->on('data', $fn = function ($chunk) use ($userConnection, &$buffer,  &$fn) {
                 $buffer .= $chunk;
+                $pos = strpos($buffer, "\r\n\r\n");
 
                 // CONNECT
-                if (strpos($buffer, "CONNECT") === 0) {
+                if (($pos !== false) && (strpos($buffer, "CONNECT") === 0)) {
+                    $userConnection->removeListener('data', $fn);
+                    $fn = null;
                     try {
                         $pattern = "/CONNECT ([^\s]+) HTTP\/(\d+\.\d+)/";
                         if (preg_match($pattern, $buffer, $matches)) {
@@ -43,7 +46,7 @@ class Http implements \Wpjscc\Penetration\Log\LogManagerInterface
                             $version = $matches[2];
                             $userConnection->write("HTTP/{$version} 200 Connection Established\r\n\r\n");
                             $request = Psr7\parse_request("GET /connect HTTP/1.1\r\nHost: $host}\r\n\r\n");
-                            ProxyManager::pipe($userConnection, $request, '');
+                            ProxyManager::pipe($userConnection, $request);
                             $buffer = '';
                         } else {
                             $buffer = '';
@@ -63,7 +66,6 @@ class Http implements \Wpjscc\Penetration\Log\LogManagerInterface
                     return;
                 }
 
-                $pos = strpos($buffer, "\r\n\r\n");
                 if ($pos !== false) {
                     $userConnection->removeListener('data', $fn);
                     $fn = null;
