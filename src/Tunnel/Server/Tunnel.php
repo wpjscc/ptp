@@ -170,35 +170,6 @@ class Tunnel implements \Wpjscc\Penetration\Log\LogManagerInterface
                 ]);
                 $buffer .= $chunk;
 
-                // CONNECT
-                if (strpos($buffer, "CONNECT") === 0) {
-                    try {
-                        $pattern = "/CONNECT ([^\s]+) HTTP\/(\d+\.\d+)/";
-                        if (preg_match($pattern, $buffer, $matches)) {
-                            $host = $matches[1];
-                            $version = $matches[2];
-                            $connection->write("HTTP/{$version} 200 Connection Established\r\n\r\n");
-                            $request = Psr7\parse_request("GET /connect HTTP/1.1\r\nHost: $host}\r\n\r\n");
-                            ProxyManager::pipe($connection, $request, '');
-                            $buffer = '';
-                        } else {
-                            $buffer = '';
-                            $connection->write('Invalid request');
-                            $connection->end();
-                        }
-                    } catch (\Exception $e) {
-                        static::getLogger()->error($e->getMessage(), [
-                            'class' => __CLASS__,
-                            'file' => $e->getFile(),
-                            'line' => $e->getLine(),
-                        ]);
-                        $buffer = '';
-                        $connection->write($e->getMessage());
-                        $connection->end();
-                    }
-                    return;
-                }
-
                 $pos = strpos($buffer, "\r\n\r\n");
                 if ($pos !== false) {
                     $connection->removeListener('data', $fn);

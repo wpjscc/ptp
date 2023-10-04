@@ -7,8 +7,10 @@ use React\Socket\ConnectionInterface;
 use Wpjscc\Penetration\Proxy\ProxyManager;
 use RingCentral\Psr7;
 
-class Http
+class Http implements \Wpjscc\Penetration\Log\LogManagerInterface
 {
+    use \Wpjscc\Penetration\Log\LogManagerTraitDefault;
+
     public $port = 8080;
 
     public function __construct($port = null)
@@ -31,6 +33,36 @@ class Http
             $buffer = '';
             $userConnection->on('data', $fn = function ($chunk) use ($userConnection, &$buffer,  &$fn) {
                 $buffer .= $chunk;
+
+                // CONNECT
+                if (strpos($buffer, "CONNECT") === 0) {
+                    try {
+                        $pattern = "/CONNECT ([^\s]+) HTTP\/(\d+\.\d+)/";
+                        if (preg_match($pattern, $buffer, $matches)) {
+                            $host = $matches[1];
+                            $version = $matches[2];
+                            $userConnection->write("HTTP/{$version} 200 Connection Established\r\n\r\n");
+                            $request = Psr7\parse_request("GET /connect HTTP/1.1\r\nHost: $host}\r\n\r\n");
+                            ProxyManager::pipe($userConnection, $request, '');
+                            $buffer = '';
+                        } else {
+                            $buffer = '';
+                            $userConnection->write('Invalid request');
+                            $userConnection->end();
+                        }
+                    } catch (\Exception $e) {
+                        static::getLogger()->error($e->getMessage(), [
+                            'class' => __CLASS__,
+                            'file' => $e->getFile(),
+                            'line' => $e->getLine(),
+                        ]);
+                        $buffer = '';
+                        $userConnection->write($e->getMessage());
+                        $userConnection->end();
+                    }
+                    return;
+                }
+
                 $pos = strpos($buffer, "\r\n\r\n");
                 if ($pos !== false) {
                     $userConnection->removeListener('data', $fn);
@@ -48,42 +80,6 @@ class Http
 
                     ProxyManager::pipe($userConnection, $request, $buffer);
 
-                    // $host = $request->getUri()->getHost();
-                    // $port = $request->getUri()->getPort();
-                    // $uri = $host;
-
-                    // try {
-                        
-                    //     IPv4::factory($host);
-                    //     if ($port) {
-                    //         $uri = $uri.':'.$port;
-                    //     }
-
-                    // } catch (Exception\InvalidIpAddressException $e) {
-                    //     echo 'The IP address supplied is invalid!';
-                    // }
-
-                    // var_dump('userConnection', $uri);
-                   
-                    
-
-                    // $proxyConnection = ProxyManager::getProxyConnection($uri);
-                    // if ($proxyConnection === false) {
-                    //     $buffer = '';
-                    //     $content = "no proxy connection\n";
-                    //     $headers = [
-                    //         'HTTP/1.1 200 OK',
-                    //         'Server: ReactPHP/1',
-                    //         'Content-Type: text/html; charset=UTF-8',
-                    //         'Content-Length: '.strlen($content),
-                    //     ];
-                    //     $userConnection->write(implode("\r\n", $headers)."\r\n\r\n".$content);
-                    //     $userConnection->end();
-                    // } else {
-                    //     echo 'user: '.$uri.' is arive'."\n";
-                    //     $proxyConnection->pipe($userConnection, $buffer, $request);
-                    // }
-
                 }
                 
 
@@ -92,6 +88,6 @@ class Http
 
         });
 
-        echo "Http Server is running at {$this->port}...\n";
+        echo "Http and Proxy Server is running at {$this->port}...\n";
     }
 }
