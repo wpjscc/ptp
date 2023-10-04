@@ -29,7 +29,7 @@ class Http implements \Wpjscc\Penetration\Log\LogManagerInterface
         $tunnel = new TcpTunnel('0.0.0.0:'.$this->port);
 
         $tunnel->on('connection', function ($userConnection) {
-            echo 'user: '.$userConnection->getLocalAddress().' is connected'."\n";
+            echo 'http user: '.$userConnection->getLocalAddress().' is connected'."\n";
             
             $buffer = '';
             $userConnection->on('data', $fn = function ($chunk) use ($userConnection, &$buffer,  &$fn) {

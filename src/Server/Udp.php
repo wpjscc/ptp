@@ -33,11 +33,11 @@ class Udp
         $tunnel = new UdpTunnel('0.0.0.0:'.$this->port);
 
         $tunnel->on('connection', function ($connection) {
-            echo 'user: '.$connection->getLocalAddress().' is connected'."\n";
+            echo 'udp user: '.$connection->getLocalAddress().' is connected'."\n";
             $localAddress = $connection->getLocalAddress();
             $uri = $this->ip.':' .explode(':', $localAddress)[1];
 
-            $request = Psr7\parse_request("GET /client HTTP/1.1\r\nHost: $uri}\r\n\r\n");
+            $request = Psr7\parse_request("GET /client HTTP/1.1\r\nHost: $uri\r\n\r\n");
             ProxyManager::pipe($connection, $request);
             $timer = \React\EventLoop\Loop::get()->addPeriodicTimer(1, function () use ($connection) {
                 if ((time() - $connection->activeTime) > 5) {

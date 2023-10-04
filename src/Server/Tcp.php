@@ -35,7 +35,7 @@ class Tcp
         $tunnel = new TcpTunnel('0.0.0.0:'.$this->port);
 
         $tunnel->on('connection', function (ConnectionInterface $userConnection) {
-            echo 'user: '.$userConnection->getLocalAddress().' is connected'."\n";
+            echo 'tcp user: '.$userConnection->getLocalAddress().' is connected'."\n";
             $localAddress = $userConnection->getLocalAddress();
             $uri = $this->ip.':' .explode(':', $localAddress)[2];
 
