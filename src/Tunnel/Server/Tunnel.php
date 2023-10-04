@@ -15,10 +15,13 @@ use Wpjscc\Penetration\DecorateSocket;
 use Wpjscc\Penetration\Helper;
 use Ramsey\Uuid\Uuid;
 use Wpjscc\Penetration\Tunnel\Server\Tunnel\P2pTunnel;
+use Wpjscc\Penetration\Utils\Ip;
 
 class Tunnel implements \Wpjscc\Penetration\Log\LogManagerInterface
 {
     use \Wpjscc\Penetration\Log\LogManagerTraitDefault;
+
+    protected $config;
 
     public $protocol = 'tcp';
     public $host = 'localhost';
@@ -29,7 +32,7 @@ class Tunnel implements \Wpjscc\Penetration\Log\LogManagerInterface
 
     public function __construct($config)
     {
-
+        $this->config = $config;
         $host = $config['server_host'] ?? '';
         if ($host) {
             $this->host = $host;
@@ -128,6 +131,24 @@ class Tunnel implements \Wpjscc\Penetration\Log\LogManagerInterface
     protected function listenTunnel($protocol, $socket)
     {
         $socket->on('connection', function (ConnectionInterface $connection) use ($protocol, $socket) {
+
+            $ipWhiteList = $this->config['ip_whitelist'] ?? '';
+            $ipBlackList = $this->config['ip_blacklist'] ?? '';
+            $address = $connection->getRemoteAddress();
+            if (!Ip::addressInIpWhitelist($address, $ipWhiteList) || Ip::addressInIpBlacklist($address, $ipBlackList)) {
+                static::getLogger()->error("client: {$protocol} ip is unauthorized ", [
+                    'remoteAddress' => $connection->getRemoteAddress(),
+                ]);
+                $headers = [
+                    'HTTP/1.1 401 Unauthorized',
+                    'Server: ReactPHP/1',
+                    'Msg: ip is not in whitelist'
+                ];
+                $connection->write(implode("\r\n", $headers) . "\r\n\r\n");
+                $connection->end();
+                return;
+            }
+
 
             // if ($protocol == 'udp') {
             //     static::getLogger()->error("client: {$protocol} is connected ", [
