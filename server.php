@@ -52,6 +52,8 @@ $startTime = time();
 
 \React\EventLoop\Loop::get()->addPeriodicTimer(5, function () use ($tcpManager) {
     $tcpManager->checkPorts(Config::getTcpPorts(Config::getConfig(getParam('--ini-path', './server.ini'))));
+    $uris = array_keys(ProxyManager::$remoteTunnelConnections);
+    echo "======> urils -> ". implode(', ', $uris) . PHP_EOL.PHP_EOL;
 });
 
 \React\EventLoop\Loop::get()->addPeriodicTimer(30, function() use ($startTime){
@@ -66,7 +68,7 @@ $startTime = time();
         echo sprintf("%s-%s-%s", 'max_wait_queue', $uri, $proxyConnection->max_wait_queue)."\n";
         echo sprintf("%s-%s-%s", 'remote:wait:queue', $uri, $proxyConnection->wait_queue->count())."\n";
     }
-
+   
     foreach (ProxyManager::$remoteTunnelConnections as $uri => $remoteTunnelConnection) {
         echo sprintf("%s-%s-%s", 'remote:tunnel:connection', $uri, $remoteTunnelConnection->count())."\n";
     }
