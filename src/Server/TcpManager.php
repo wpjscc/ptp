@@ -78,4 +78,14 @@ class TcpManager
         }
     }
 
+    public function getIp()
+    {
+        return $this->ip;
+    }
+
+    public function getPorts()
+    {
+        return $this->ports;
+    }
+
 }

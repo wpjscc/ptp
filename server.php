@@ -30,6 +30,9 @@ LogManager::setLogger(new \Wpjscc\Penetration\Log\EchoLog());
 
 $inis = Config::getConfig(getParam('--ini-path', './server.ini'));
 
+$server80Port = $inis['common']['server_80_port'] ?? '';
+$server443Port = $inis['common']['server_443_port'] ?? '';
+
 // http server
 $httpPort = $inis['common']['http_port'] ?? 8080;
 $httpServer = new Http($httpPort);
@@ -58,10 +61,19 @@ $tunnel->run();
 
 $startTime = time();
 
-\React\EventLoop\Loop::get()->addPeriodicTimer(5, function () use ($tcpManager, $udpManager) {
+\React\EventLoop\Loop::get()->addPeriodicTimer(5, function () use ($tcpManager, $udpManager, $httpPort, $server80Port, $server443Port) {
     $tcpManager->checkPorts(Config::getTcpPorts(Config::getConfig(getParam('--ini-path', './server.ini'))));
     $udpManager->checkPorts(Config::getUdpPorts(Config::getConfig(getParam('--ini-path', './server.ini'))));
     $uris = array_keys(ProxyManager::$remoteTunnelConnections);
+    // server port
+    echo "======> tunnel server [80] port listen at -> ". $server80Port . PHP_EOL;
+    echo "======> tunnel server [443] port listen at -> ". $server443Port . PHP_EOL;
+    echo "======> http and proxy listen at -> $httpPort" . PHP_EOL;
+    // tcp ports
+    echo "======> tcp ports listen at -> {$tcpManager->getIp()}:". implode(', ', $tcpManager->getPorts()) . PHP_EOL;
+    // udp ports
+    echo "======> udp ports listen at -> {$udpManager->getIp()}:". implode(', ', $udpManager->getPorts()) . PHP_EOL;
+
     echo "======> uris -> ". implode(', ', $uris) . PHP_EOL.PHP_EOL;
 });
 
