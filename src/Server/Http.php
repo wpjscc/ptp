@@ -6,6 +6,7 @@ use React\Socket\SocketServer;
 use React\Socket\ConnectionInterface;
 use Wpjscc\Penetration\Proxy\ProxyManager;
 use RingCentral\Psr7;
+use Wpjscc\Penetration\Tunnel\Server\Tunnel\TcpTunnel;
 
 class Http implements \Wpjscc\Penetration\Log\LogManagerInterface
 {
@@ -25,9 +26,9 @@ class Http implements \Wpjscc\Penetration\Log\LogManagerInterface
     public function run()
     {
      
-        $socket = new SocketServer('0.0.0.0:'.$this->port);
+        $tunnel = new TcpTunnel('0.0.0.0:'.$this->port);
 
-        $socket->on('connection', function (ConnectionInterface $userConnection) {
+        $tunnel->on('connection', function ($userConnection) {
             echo 'user: '.$userConnection->getLocalAddress().' is connected'."\n";
             
             $buffer = '';

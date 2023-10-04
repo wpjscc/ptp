@@ -17,6 +17,7 @@ final class CompositeConnectionStream extends EventEmitter implements Connection
     private $writable;
     public $protocol;
     public $uuid;
+    public $activeTime;
 
     private $closed = false;
 
@@ -29,6 +30,7 @@ final class CompositeConnectionStream extends EventEmitter implements Connection
         $this->writable = $writable;
         $this->connection = $connection;
         $this->protocol = $protocol;
+        $this->activeTime = time();
 
         if (!$readable->isReadable() || !$writable->isWritable()) {
             $this->close();

@@ -312,7 +312,7 @@ class ProxyManager implements \Wpjscc\Penetration\Log\LogManagerInterface
         $host = $request->getUri()->getHost();
         $port = $request->getUri()->getPort();
         $uri = $host;
-
+        echo "host is $host\n";
         try {
             
             IPv4::factory($host);
@@ -321,8 +321,14 @@ class ProxyManager implements \Wpjscc\Penetration\Log\LogManagerInterface
             }
 
         } catch (Exception\InvalidIpAddressException $e) {
-            echo 'The IP address supplied is invalid!';
+            echo 'The IP address supplied is invalid!'."\n";
         }
+
+        if (($connection->protocol ?? '') =='udp') {
+            $uri = 'udp://'. $uri;
+        }
+
+        echo "pipe uri is $uri\n";
 
         $proxyConnection = ProxyManager::getProxyConnection($uri);
         if ($proxyConnection === false) {

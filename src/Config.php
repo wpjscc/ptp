@@ -34,9 +34,21 @@ class Config
         return static::getValueByKey($inis, 'tcp.ip');
     }
 
+    public static function getUdpIp($inis)
+    {
+        return static::getValueByKey($inis, 'udp.ip');
+    }
+
     public static function getTcpPorts($inis)
     {
         $ports = static::getValueByKey($inis, 'tcp.ports');
+        $ports = array_filter(array_unique(explode(',', $ports)));
+        return $ports;
+    }
+    
+    public static function getUdpPorts($inis)
+    {
+        $ports = static::getValueByKey($inis, 'udp.ports');
         $ports = array_filter(array_unique(explode(',', $ports)));
         return $ports;
     }

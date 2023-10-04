@@ -50,6 +50,7 @@ class UdpTunnel extends EventEmitter implements ServerInterface,\Wpjscc\Penetrat
                 } else {
                     $contection = $this->connections[$address];
                 }
+                $contection->activeTime = time();
                 // if (strpos($message, 'POST /close HTTP/1.1') !== false) {
                 //     var_dump('receiveDataFromCLient', $message);
                 // }

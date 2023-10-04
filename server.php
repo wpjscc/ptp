@@ -7,6 +7,7 @@ use Wpjscc\Penetration\Config;
 use Wpjscc\Penetration\Tunnel\Server\Tunnel;
 use Wpjscc\Penetration\Server\Http;
 use Wpjscc\Penetration\Server\TcpManager;
+use Wpjscc\Penetration\Server\UdpManager;
 use Wpjscc\Penetration\Proxy\ProxyManager;
 use Wpjscc\Penetration\Log\LogManager;
 use Psr\Log\LogLevel;
@@ -42,6 +43,13 @@ $tcpManager = TcpManager::create(
 );
 $tcpManager->run();
 
+// udp server
+$udpManager = UdpManager::create(
+    Config::getUdpIp($inis),
+    Config::getUdpPorts($inis)
+);
+$udpManager->run();
+
 
 $tunnel = new Tunnel(
     $inis['common'],
@@ -50,8 +58,9 @@ $tunnel->run();
 
 $startTime = time();
 
-\React\EventLoop\Loop::get()->addPeriodicTimer(5, function () use ($tcpManager) {
+\React\EventLoop\Loop::get()->addPeriodicTimer(5, function () use ($tcpManager, $udpManager) {
     $tcpManager->checkPorts(Config::getTcpPorts(Config::getConfig(getParam('--ini-path', './server.ini'))));
+    $udpManager->checkPorts(Config::getUdpPorts(Config::getConfig(getParam('--ini-path', './server.ini'))));
     $uris = array_keys(ProxyManager::$remoteTunnelConnections);
     echo "======> uris -> ". implode(', ', $uris) . PHP_EOL.PHP_EOL;
 });
