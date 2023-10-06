@@ -12,6 +12,7 @@ use Ramsey\Uuid\Nonstandard\Uuid;
 use Wpjscc\Penetration\P2p\Client\PeerManager;
 use Wpjscc\Penetration\P2p\ConnectionManager;
 use Wpjscc\Penetration\Utils\PingPong;
+use Wpjscc\Penetration\Tunnel\Client\Tunnel\UdpTunnel as ClientUdpTunnel;
 use Wpjscc\Penetration\Tunnel\Server\Tunnel\UdpTunnel;
 use Wpjscc\Penetration\Utils\ParseBuffer;
 use React\Stream\ThroughStream;
@@ -66,7 +67,7 @@ class P2pTunnel extends EventEmitter implements ConnectorInterface, \Wpjscc\Pene
             // $deferred->resolve($this);
             $tunnel->on('connection', function ($connection, $address, $server) use ($uri) {
                 $this->server = $server;
-                
+
                 PeerManager::addConnection($this->currentAddress, $address, $connection);
 
                 $parseBuffer = new ParseBuffer();
@@ -79,7 +80,7 @@ class P2pTunnel extends EventEmitter implements ConnectorInterface, \Wpjscc\Pene
                     $parseBuffer->handleBuffer($data);
                 });
 
-                echo ('connection:' . $address."\n");
+                echo ('connection:' . $address . "\n");
                 PingPong::pingPong($connection, $address, $this->header);
 
                 $connection->on('close', function () use ($address, $uri) {
@@ -139,87 +140,110 @@ class P2pTunnel extends EventEmitter implements ConnectorInterface, \Wpjscc\Pene
         $deferred = new Deferred();
 
 
-        (new \React\Datagram\Factory())->createClient($uri)->then(function (\React\Datagram\Socket $client) use ($uri, $deferred) {
+        (new ClientUdpTunnel(false))->connect($uri)->then(function ($connection) use ($uri, $deferred) {
             echo 'create client: ' . $uri . PHP_EOL;
-            $this->serverAddress = $client->getRemoteAddress();
-            // $ipRanges = [];
-            // foreach ($this->getIpWhitelist() as $ipRane) {
-            //     $ipRanges[] = "IP-Whitelist: " . $ipRane;
-            // }
+            $this->serverAddress = $connection->getRemoteAddress();
+            $this->localAddress = $connection->getLocalAddress();
+            $connection->close();
 
-            $headers = [
-                'GET /client HTTP/1.1',
-                'Host: ' . $this->config['server_host'],
-                'User-Agent: ReactPHP',
-                'Tunnel: 1',
-                'Authorization: ' . ($this->config['token'] ?? ''),
-                'Local-Host: ' . $this->config['local_host'] . (($this->config['local_port'] ?? '') ? (':' . $this->config['local_port']) : ''),
-                'Domain: ' . $this->config['domain'],
-                'Single-Tunnel: ' . ($this->config['single_tunnel'] ?? 0),
-                'Is-P2p: 1',
-                // 'Local-Tunnel-Address: ' . $connection->getLocalAddress(),
-            ];
+            \React\EventLoop\Loop::addTimer(0.002, function () use ($uri, $deferred) {
+                $_server = null;
+                $_start = null;
+                $udpTunnel = new UdpTunnel('0.0.0.0:' . explode(':', $this->localAddress)[1], null, function ($server, $tunnel, $start) use (&$_server, &$_start) {
+                    // $tunnel->supportKcp();
+                    $_server = $server;
+                    $_start = $start;
+                    // $server->send("HTTP/1.1 413 OK\r\n\r\n", $this->serverAddress);
+                });
 
-            $request = implode("\r\n", $headers) . "\r\n\r\n";
-            $client->send($request);
-            
-            
-            // 给服务端发送本地地址和ip范围
-            $client->send(implode("\r\n", [
-                "HTTP/1.1 410 OK",
-                "Local-Address: " . $client->getLocalAddress(),
-                'IP-Whitelist: '. $this->getIpWhitelist(),
-                'IP-Blacklist: '. $this->getIpBlacklist(),
-                'token: '. ($this->config['token'] ?? ''),
-                "\r\n"
-            ]));
+                \React\Promise\Timer\timeout($deferred->promise(), 3)->then(null, function ($e) use ($deferred) {
+                    $deferred->reject($e);
+                });
 
-            \React\Promise\Timer\timeout($deferred->promise(), 3)->then(null, function ($e) use ($deferred) {
-                $deferred->reject($e);
-            });
 
-            // PeerManager::$localAddress = $client->getLocalAddress();
-            $this->localAddress = $client->getLocalAddress();
+                $udpTunnel->on('connection', $fn = function ($connection, $address, $server) use ($udpTunnel, $deferred, &$fn) {
+                    if ($address == $this->serverAddress) {
+                        $headers = [
+                            'GET /client HTTP/1.1',
+                            'Host: ' . $this->config['server_host'],
+                            'User-Agent: ReactPHP',
+                            'Tunnel: 1',
+                            'Authorization: ' . ($this->config['token'] ?? ''),
+                            'Local-Host: ' . $this->config['local_host'] . (($this->config['local_port'] ?? '') ? (':' . $this->config['local_port']) : ''),
+                            'Domain: ' . $this->config['domain'],
+                            'Single-Tunnel: ' . ($this->config['single_tunnel'] ?? 0),
+                            'Is-P2p: 1',
+                            // 'Local-Tunnel-Address: ' . $connection->getLocalAddress(),
+                        ];
 
-            $parseBuffer = new ParseBuffer();
-            $parseBuffer->on('response', function ($response) use ($deferred, $client) {
+                        $request = implode("\r\n", $headers) . "\r\n\r\n";
+                        $connection->write($request);
 
-                if ($response->getStatusCode() == 200) {
-                    $uuid = $response->getHeaderLine('Uuid');
-                    $this->config['uuid'] = $uuid;
-                    
-                    static::getLogger()->notice("P2pTunnel::".__FUNCTION__." 200", [
-                        'class' => __CLASS__,
-                        'response' => Helper::toString($response)
-                    ]);
-                }
-                // 服务端回复客户端的地址
-                else if ($response->getStatusCode() === 411) {
-                    if (!isset($this->config['uuid'])) {
-                        $this->config['uuid'] = Uuid::uuid4()->toString();
+
+                        $fnc = null;
+                        $parseBuffer = new ParseBuffer();
+
+                        $parseBuffer->on('response', function ($response) use ($deferred, $connection, $udpTunnel, $server, $fn, &$fnc) {
+                            if ($response->getStatusCode() == 200) {
+                                $uuid = $response->getHeaderLine('Uuid');
+                                $this->config['uuid'] = $uuid;
+
+                                static::getLogger()->debug("P2pTunnel::" . __FUNCTION__ . " 200", [
+                                    'class' => __CLASS__,
+                                    'response' => Helper::toString($response)
+                                ]);
+
+                                // 给服务端发送本地地址和ip范围
+                                $connection->write(implode("\r\n", [
+                                    "HTTP/1.1 410 OK",
+                                    "Local-Address: " . $this->localAddress,
+                                    'IP-Whitelist: ' . $this->getIpWhitelist(),
+                                    'IP-Blacklist: ' . $this->getIpBlacklist(),
+                                    'token: ' . ($this->config['token'] ?? ''),
+                                    "\r\n"
+                                ]));
+
+                            }
+                            // 服务端回复客户端的地址
+                            else if ($response->getStatusCode() === 411) {
+                                if (!isset($this->config['uuid'])) {
+                                    $this->config['uuid'] = Uuid::uuid4()->toString();
+                                }
+                                echo 'receive server address: ' . $response->getHeaderLine('Address') . PHP_EOL;
+                                $address = $response->getHeaderLine('Address');
+                                // PeerManager::$currentAddress = $address;
+                                $this->currentAddress = $address;
+                                $udpTunnel->removeListener('connection', $fn);
+                                $connection->removeListener('data', $fnc);
+                                $fn = null;
+                                $connection->write("HTTP/1.1 413 OK\r\n\r\n");
+                                $deferred->resolve($udpTunnel);
+                                $udpTunnel->emit('connection', [$connection, $address, $server]);
+
+                                // 客户端关闭
+                                // $connection->close();
+                                // 本地服务端监听客户端打开的端口
+                                // $deferred->resolve(new UdpTunnel('0.0.0.0:' . explode(':', $this->localAddress)[1], null, function ($server, $tunnel) {
+                                //     // $client->send(implode("\r\n", [
+                                //     //     "HTTP/1.1 410 OK",
+                                //     //     "Local-Address: " . $client->getLocalAddress(),
+                                //     //     ...$ipRanges,
+                                //     //     "\r\n"
+                                //     // ]));
+                                //     // 给服务端回复可以广播地址了
+                                //     $tunnel->setKcp(true);
+                                //     $server->send("HTTP/1.1 413 OK\r\n\r\n", $this->serverAddress);
+                                // }));
+                            }
+                        });
+                        $connection->on('data', $fnc = function ($message) use ($parseBuffer) {
+                            $parseBuffer->handleBuffer($message);
+                        });
+                       
                     }
-                    echo 'receive server address: ' . $response->getHeaderLine('Address') . PHP_EOL;
-                    $address = $response->getHeaderLine('Address');
-                    // PeerManager::$currentAddress = $address;
-                    $this->currentAddress = $address;
-                    // 客户端关闭
-                    $client->close();
-                    // 本地服务端监听客户端打开的端口
-                    $deferred->resolve(new UdpTunnel('0.0.0.0:' . explode(':', $this->localAddress)[1], null, function ($server) {
-                        // $client->send(implode("\r\n", [
-                        //     "HTTP/1.1 410 OK",
-                        //     "Local-Address: " . $client->getLocalAddress(),
-                        //     ...$ipRanges,
-                        //     "\r\n"
-                        // ]));
-                        // 给服务端回复可以广播地址了
-                        $server->send("HTTP/1.1 413 OK\r\n\r\n", $this->serverAddress);
-                    }));
-                }
-            });
+                });
 
-            $client->on('message', function ($message, $serverAddress, $client) use ($parseBuffer) {
-                $parseBuffer->handleBuffer($message);
+                $udpTunnel->createConnection('', $this->serverAddress, $_server, $_start);
             });
         }, function ($e) use ($deferred) {
             $deferred->reject($e);
@@ -246,7 +270,7 @@ class P2pTunnel extends EventEmitter implements ConnectorInterface, \Wpjscc\Pene
             if (empty($addresses)) {
                 $addresses = $response->getHeader('Addresses');
             }
-            static::getLogger()->error("P2pTunnel::".__FUNCTION__." addresses", [
+            static::getLogger()->error("P2pTunnel::" . __FUNCTION__ . " addresses", [
                 'class' => __CLASS__,
                 'addresses' => $addresses,
             ]);
@@ -288,7 +312,7 @@ class P2pTunnel extends EventEmitter implements ConnectorInterface, \Wpjscc\Pene
                             'active' => time(),
                             'timer' => \React\EventLoop\Loop::addPeriodicTimer(0.5, function () use ($peer) {
                                 echo 'send punch to ' . $peer . PHP_EOL . PHP_EOL;
-                                $this->server->send("HTTP/1.1 414 punch \r\n".$this->header, $peer);
+                                $this->server->send("HTTP/1.1 414 punch \r\n" . $this->header, $peer);
                             })
                         ]);
 
@@ -297,7 +321,6 @@ class P2pTunnel extends EventEmitter implements ConnectorInterface, \Wpjscc\Pene
                             PeerManager::removeTimer($this->currentAddress, $peer);
                             // 取消perrs
                             PeerManager::removePeer($this->currentAddress, $peer);
-
                         });
                     }
                 }
@@ -306,7 +329,7 @@ class P2pTunnel extends EventEmitter implements ConnectorInterface, \Wpjscc\Pene
         // 收到 打孔
         else if ($response->getStatusCode() === 414) {
             // 回复 punched
-            $this->server->send("HTTP/1.1 415 punched\r\n".$this->header, $address);
+            $this->server->send("HTTP/1.1 415 punched\r\n" . $this->header, $address);
         }
         // 收到 punched  连上对方了 
         else if ($response->getStatusCode() === 415) {
@@ -333,7 +356,7 @@ class P2pTunnel extends EventEmitter implements ConnectorInterface, \Wpjscc\Pene
                 // PeerManager::$peereds[$address] = true;
 
                 PeerManager::addPeered($this->currentAddress, $address);
-               
+
                 // $this->emit('connection', [
                 //     ConnectionManager::$connections[$address]['connection'],
                 //     $address,
@@ -349,7 +372,18 @@ class P2pTunnel extends EventEmitter implements ConnectorInterface, \Wpjscc\Pene
             $virtualConnection = $this->getVirtualConnection($response, $address);
             $data = $response->getHeaderLine('Data');
             $data = base64_decode($data);
-            $virtualConnection->emit('data', [$data]);
+            if (!$virtualConnection) {
+                static::getLogger()->error("P2pTunnel::" . __FUNCTION__ . " 416", [
+                    'class' => __CLASS__,
+                    'address' => $address,
+                    'data' => $data,
+                ]);
+            }
+
+            // 消息的无序性 导致 416 先过来了，或者一端先连上对端了
+            if ($virtualConnection) {
+                $virtualConnection->emit('data', [$data]);
+            }
         }
         // else if ($response->getStatusCode() === 300) {
         //     $this->server->send("HTTP/1.1 301 OK\r\n".$this->header, $address);
@@ -357,7 +391,7 @@ class P2pTunnel extends EventEmitter implements ConnectorInterface, \Wpjscc\Pene
         // 收到远端的pong
         else if ($response->getStatusCode() === 301) {
             if ($address != $this->serverAddress) {
-                
+
                 // 一端能连接对方，但对方连接不到自己，这种情况下，能ping通，就可以连接上
                 // if (!in_array($address, array_keys(PeerManager::$peereds))) {
                 if (!PeerManager::hasPeered($this->currentAddress, $address)) {
@@ -384,14 +418,11 @@ class P2pTunnel extends EventEmitter implements ConnectorInterface, \Wpjscc\Pene
                     // PeerManager::$peereds[$address] = true;
                     PeerManager::addPeered($this->currentAddress, $address);
                     $this->getVirtualConnection($response, $address);
-
                 }
             }
-        }
-        else {
+        } else {
             echo "ignore other response code" . PHP_EOL;
         }
-
     }
 
     public function getIpWhitelist()
@@ -410,7 +441,7 @@ class P2pTunnel extends EventEmitter implements ConnectorInterface, \Wpjscc\Pene
             // $connection = ConnectionManager::$connections[$address]['connection'];
             $connection = PeerManager::getConnection($this->currentAddress, $address);
             var_dump($this->currentAddress, $address);
- 
+
             $read = new ThroughStream;
             $write = new ThroughStream;
 
@@ -434,10 +465,10 @@ class P2pTunnel extends EventEmitter implements ConnectorInterface, \Wpjscc\Pene
             });
 
             PeerManager::addVirtualConnection($this->currentAddress, $address, $virtualConnection);
-           
+
 
             if ($address != $this->serverAddress) {
-                static::getLogger()->debug("P2pTunnel::".__FUNCTION__, [
+                static::getLogger()->debug("P2pTunnel::" . __FUNCTION__, [
                     'class' => __CLASS__,
                     'address' => $address,
                     'server_ip_and_port' => $this->serverAddress,

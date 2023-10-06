@@ -29,8 +29,8 @@ class Udp
 
     public function run()
     {
-     
-        $tunnel = new UdpTunnel('0.0.0.0:'.$this->port);
+
+        $tunnel = new UdpTunnel('0.0.0.0:' . $this->port, null);
 
         $tunnel->on('connection', function ($connection) {
             echo 'udp user: '.$connection->getLocalAddress().' is connected'."\n";

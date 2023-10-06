@@ -78,7 +78,10 @@ class Tunnel implements \Wpjscc\Penetration\Log\LogManagerInterface
         }
         
         else if ($protocol == 'udp') {
-            $socket = new UdpTunnel('0.0.0.0:' . $this->server80port);
+            $socket = new UdpTunnel('0.0.0.0:' . $this->server80port, null , function($server, $tunnel) {
+                // $tunnel->supportKcp();
+
+            } );
         }
 
         else if ($protocol == 'tls') {

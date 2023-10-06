@@ -49,7 +49,7 @@ class ClientManager implements \Wpjscc\Penetration\Log\LogManagerInterface
             $tunneProtocol = $config['tunnel_protocol'];
             static::getLogger()->debug('start create tunnel connection');
 
-            static::getTunnel($config, $protocol ?: $tunneProtocol)->then(function ($connection) use ($function, &$config) {
+            static::getTunnel($config, $protocol ?: $tunneProtocol)->then(function ($connection) use ($function, &$config, $protocol) {
                 static::getLogger()->debug('Connection established:', [
                     'local_address' => $connection->getLocalAddress(),
                     'remote_address' => $connection->getRemoteAddress(),
@@ -69,6 +69,7 @@ class ClientManager implements \Wpjscc\Penetration\Log\LogManagerInterface
                 $request = implode("\r\n", $headers) . "\r\n\r\n";
                 static::getLogger()->debug('send create tunnel request', [
                     'request' => $request,
+                    'protocol' => $protocol
                 ]);
                 $connection->write($request);
 

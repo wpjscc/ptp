@@ -5,6 +5,7 @@ namespace Wpjscc\Penetration\P2p\Client;
 
 use Wpjscc\Penetration\Proxy\ProxyManager;
 use Wpjscc\Penetration\Helper;
+use RingCentral\Psr7;
 
 class PeerManager implements \Wpjscc\Penetration\Log\LogManagerInterface
 {
@@ -116,6 +117,13 @@ class PeerManager implements \Wpjscc\Penetration\Log\LogManagerInterface
             static::getLogger()->error("peer: ". $connection->getRemoteAddress() ." domain is empty", [
                 'request' => Helper::toString($request)
             ]);
+            echo $d = base64_decode($request->getHeaderLine('Data')) . PHP_EOL;
+
+            if (strpos($d, "\r\n\r\n") !==false) {
+                $r = Psr7\parse_response($d);
+                var_dump(base64_decode($r->getHeaderLine('Data')));
+            } 
+
             $connection->write("HTTP/1.1 400 Bad Request\r\n\r\n");
             $connection->end();
             return;

@@ -10,7 +10,14 @@
         "ramsey/uuid": "^4.2",
         "psr/log": "^1.1",
         "clue/zlib-react": "^1.2",
-        "darsyn/ip": "^4.1"
+        "darsyn/ip": "^4.1",
+        "wpjscc/kcp-php": "dev-stable"
+    },
+    "repositories": {
+        "wpjscc/kcp-php": {
+            "type": "path",
+            "url": "/root/Code/kcp-php"
+        }
     },
     "autoload": {
         "psr-4": {

@@ -103,4 +103,13 @@ final Class Helper
     {
 
     }
+
+    public static function getMillisecond() {
+        // var_dump(time(), microtime(true));
+        // exit();
+        // return time();
+        list($microSec, $sec) = explode(' ', microtime());
+        $t =  (float) sprintf('%.0f', (floatval($microSec) + floatval($sec)) * 1000);
+        return $t;
+    }
 }

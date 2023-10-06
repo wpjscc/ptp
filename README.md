@@ -106,4 +106,19 @@ sysctl -w net.core.rmem_default=5000000
 sysctl -w net.core.wmem_default=5000000
 ```
 
+https://github.com/xtaci/kcptun#quickstart
+```
+net.core.rmem_max=26214400 // BDP - bandwidth delay product
+net.core.rmem_default=26214400
+net.core.wmem_max=26214400
+net.core.wmem_default=26214400
+net.core.netdev_max_backlog=2048 // proportional to -rcvwnd
+```
+## todo
 
+* 带宽限制
+* 加密与压缩
+* udp 传输长度
+* 最大数量限制
+* 服务描述（新开一个描述码，统一处理这个描述码）
+* 水管

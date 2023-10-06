@@ -9,7 +9,7 @@ class PingPong
 {
     public static function pingPong($connection, $address, $header = '')
     {
-       
+
         $connection->on('data', function ($buffer) use ($connection, $address, $header) {
             if ($buffer == "HTTP/1.1 300 OK\r\n\r\n") {
                 if ($header) {

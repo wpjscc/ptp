@@ -57,7 +57,7 @@ class Tunnel implements \Wpjscc\Penetration\Log\LogManagerInterface
             $tunnel = (new WebsocketTunnel())->connect("wss://".$this->serverHost.":".$this->server443port);
         }
         else if ($protocol == 'udp') {
-            $tunnel = (new UdpTunnel())->connect($this->serverHost.":".$this->server80port);
+            $tunnel = (new UdpTunnel(false))->connect($this->serverHost.":".$this->server80port);
         }
         elseif ($protocol == 'tls') {
             if (!$this->server443port) {

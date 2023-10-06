@@ -17,7 +17,7 @@ use Wpjscc\Penetration\Helper;
 LogManager::$logLevels = [
     // LogLevel::ALERT,
     // LogLevel::CRITICAL,
-    // LogLevel::DEBUG,
+    LogLevel::DEBUG,
     // LogLevel::EMERGENCY,
     LogLevel::ERROR,
     // LogLevel::INFO,
