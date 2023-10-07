@@ -147,7 +147,7 @@ LogManager::$logLevels = [
     LogLevel::ERROR,
     // LogLevel::INFO,
     LogLevel::WARNING,
-    // LogLevel::NOTICE,
+    LogLevel::NOTICE,
 
 ];
 LogManager::setLogger(new \Wpjscc\Penetration\Log\EchoLog());
@@ -184,7 +184,7 @@ function getParam($key, $default = null){
     return $default;
 }
 
-\React\EventLoop\Loop::addPeriodicTimer(3, function () use ($localServer80Port) {
+\React\EventLoop\Loop::addPeriodicTimer(2, function () use ($localServer80Port) {
 
     // echo PHP_EOL."current peer ip address: " .PeerManager::$currentAddress . PHP_EOL;
     // echo "current peer local address: " .PeerManager::$localAddress . PHP_EOL;

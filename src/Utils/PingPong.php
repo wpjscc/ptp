@@ -11,7 +11,7 @@ class PingPong
     {
 
         $connection->on('data', function ($buffer) use ($connection, $address, $header) {
-            if ($buffer == "HTTP/1.1 300 OK\r\n\r\n") {
+            if (strpos($buffer, "HTTP/1.1 300 OK\r\n\r\n") !== false) {
                 if ($header) {
                     $connection->write("HTTP/1.1 301 OK\r\n".$header);
                 } else {

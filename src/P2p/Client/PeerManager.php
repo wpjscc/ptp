@@ -15,6 +15,7 @@ class PeerManager implements \Wpjscc\Penetration\Log\LogManagerInterface
 
     protected static $peers = [];
     protected static $peereds = [];
+    // protected static $tcpPeereds = [];
     protected static $timers = [];
 
     protected static $connections = [];
@@ -98,12 +99,39 @@ class PeerManager implements \Wpjscc\Penetration\Log\LogManagerInterface
         }
     }
 
+    // public static function addTcpPeered($address, $peer)
+    // {
+    //     if (!isset(static::$tcpPeereds[$address])) {
+    //         static::$tcpPeereds[$address] = [];
+    //     }
+
+    //     if (!isset(static::$tcpPeereds[$address][$peer])) {
+    //         static::$tcpPeereds[$address][$peer] = true;
+    //     }
+    // }
+
+    // public static function hasTcpPeered($address, $peer)
+    // {
+    //     return isset(static::$tcpPeereds[$address][$peer]);
+    // }
+    
+    // public static function removeTcpPeered($address, $peer)
+    // {
+    //     if (isset(static::$tcpPeereds[$address][$peer])) {
+    //         unset(static::$tcpPeereds[$address][$peer]);
+    //     }
+    // }
+
     public static function print()
     {
         foreach (static::$peereds as $address => $peereds) {
             echo "====> address: {$address} ".PHP_EOL;
             echo "      peereds: " . implode(',', array_keys($peereds)) . PHP_EOL;
         }
+
+        // foreach (static::$tcpPeereds as $address => $peereds) {
+        //     echo "      tcp-peereds: " . implode(',', array_keys($peereds)) . PHP_EOL;
+        // }
 
     }
 
@@ -115,7 +143,8 @@ class PeerManager implements \Wpjscc\Penetration\Log\LogManagerInterface
         $uris = array_values(array_filter(explode(',', $uri)));
         if (empty($uris)) {
             static::getLogger()->error("peer: ". $connection->getRemoteAddress() ." domain is empty", [
-                'request' => Helper::toString($request)
+                'request' => Helper::toString($request),
+                'protocol' => $connection->protocol ?? '',
             ]);
             echo $d = base64_decode($request->getHeaderLine('Data')) . PHP_EOL;
 
@@ -128,8 +157,21 @@ class PeerManager implements \Wpjscc\Penetration\Log\LogManagerInterface
             $connection->end();
             return;
         }
+        static::getLogger()->debug('add peer', [
+            'uri' => $uri,
+            'protocol' => $connection->protocol ?? '',
+        ]);
         foreach ($uris as $key => $_uri) {
-            static::getLogger()->notice('add tunnel connection', [
+
+            if (strpos($_uri, ':') === false) {
+                if ($connection->protocol == 'p2p-udp') {
+                    $_uri = 'p2p-udp-'.$_uri;
+                } else if ($connection->protocol == 'p2p-tcp') {
+                    $_uri = 'p2p-tcp-'.$_uri;
+                }
+            }
+
+            static::getLogger()->debug('add tunnel connection', [
                 'uuid' => $uuid,
                 'uri' => $_uri,
                 'request' => Helper::toString($request)
@@ -179,6 +221,13 @@ class PeerManager implements \Wpjscc\Penetration\Log\LogManagerInterface
 
         $isExist = false;
         foreach ($uris as $uri) {
+            if (strpos($uri, ':') === false) {
+                if ($connection->protocol == 'p2p-udp') {
+                    $uri = 'p2p-udp-'.$uri;
+                } else if ($connection->protocol == 'p2p-tcp') {
+                    $uri = 'p2p-tcp-'.$uri;
+                }
+            }
             if (isset(ProxyManager::$remoteDynamicConnections[$uri]) && ProxyManager::$remoteDynamicConnections[$uri]->count() > 0) {
                 static::getLogger()->debug('add dynamic connection by p2p single tunnel', [
                     'uri' => $request->getHeaderLine('Uri'),

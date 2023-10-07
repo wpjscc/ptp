@@ -71,7 +71,8 @@ class P2pTunnel extends EventEmitter implements ConnectorInterface, \Wpjscc\Pene
                 PeerManager::addConnection($this->currentAddress, $address, $connection);
 
                 $parseBuffer = new ParseBuffer();
-                $parseBuffer->setAddress($address);
+                $parseBuffer->setLocalAddress($this->currentAddress);
+                $parseBuffer->setRemoteAddress($address);
                 $parseBuffer->on('response', [$this, 'handleResponse']);
 
                 $connection->on('data', function ($data) use ($connection, $parseBuffer, $uri, $address) {
@@ -85,25 +86,11 @@ class P2pTunnel extends EventEmitter implements ConnectorInterface, \Wpjscc\Pene
 
                 $connection->on('close', function () use ($address, $uri) {
 
-                    // if (isset(PeerManager::$timers[$address])) {
-                    //     echo "close and cancel timer $address" . PHP_EOL;
-                    //     \React\EventLoop\Loop::cancelTimer(PeerManager::$timers[$address]['timer']);
-                    //     unset(PeerManager::$timers[$address]);
-                    // }
+                    // 移除打孔定时器
                     PeerManager::removeTimer($this->currentAddress, $address);
-
-                    // if (in_array($address, PeerManager::$peers)) {
-                    //     echo "close remove peers $address" . PHP_EOL;
-                    //     PeerManager::$peers = array_values(array_diff(PeerManager::$peers, [$address]));
-                    // }
+                    // 移除打孔的peer
                     PeerManager::removePeer($this->currentAddress, $address);
-
-
-                    // if (isset(PeerManager::$peereds[$address])) {
-                    //     echo "close remove peereds $address" . PHP_EOL;
-                    //     unset(PeerManager::$peereds[$address]);
-                    // }
-
+                    // 移除已经打孔成功的
                     PeerManager::removePeered($this->currentAddress, $address);
 
 
@@ -153,7 +140,6 @@ class P2pTunnel extends EventEmitter implements ConnectorInterface, \Wpjscc\Pene
                     // $tunnel->supportKcp();
                     $_server = $server;
                     $_start = $start;
-                    // $server->send("HTTP/1.1 413 OK\r\n\r\n", $this->serverAddress);
                 });
 
                 \React\Promise\Timer\timeout($deferred->promise(), 3)->then(null, function ($e) use ($deferred) {
@@ -171,7 +157,7 @@ class P2pTunnel extends EventEmitter implements ConnectorInterface, \Wpjscc\Pene
                             'Authorization: ' . ($this->config['token'] ?? ''),
                             'Local-Host: ' . $this->config['local_host'] . (($this->config['local_port'] ?? '') ? (':' . $this->config['local_port']) : ''),
                             'Domain: ' . $this->config['domain'],
-                            'Single-Tunnel: ' . ($this->config['single_tunnel'] ?? 0),
+                            // 'Single-Tunnel: ' . ($this->config['single_tunnel'] ?? 0),
                             'Is-P2p: 1',
                             // 'Local-Tunnel-Address: ' . $connection->getLocalAddress(),
                         ];
@@ -218,7 +204,7 @@ class P2pTunnel extends EventEmitter implements ConnectorInterface, \Wpjscc\Pene
                                 $fn = null;
                                 $connection->write("HTTP/1.1 413 OK\r\n\r\n");
                                 $deferred->resolve($udpTunnel);
-                                $udpTunnel->emit('connection', [$connection, $address, $server]);
+                                $udpTunnel->emit('connection', [$connection, $this->serverAddress, $server]);
 
                                 // 客户端关闭
                                 // $connection->close();
@@ -262,7 +248,8 @@ class P2pTunnel extends EventEmitter implements ConnectorInterface, \Wpjscc\Pene
 
     protected function handleResponse($response, $parseBuffer)
     {
-        $address = $parseBuffer->getAddress();
+        $localAddress = $parseBuffer->getLocalAddress();
+        $remoteAddress = $parseBuffer->getRemoteAddress();
         // 收到服务端的广播地址
         if ($response->getStatusCode() === 413) {
             $addresses = array_values(array_filter([$response->getHeaderLine('Address')]));
@@ -307,6 +294,8 @@ class P2pTunnel extends EventEmitter implements ConnectorInterface, \Wpjscc\Pene
                             continue;
                         }
 
+                        static::punchTcpPeer($peer);
+
                         // 开始打孔
                         PeerManager::addTimer($this->currentAddress, $peer, [
                             'active' => time(),
@@ -329,13 +318,13 @@ class P2pTunnel extends EventEmitter implements ConnectorInterface, \Wpjscc\Pene
         // 收到 打孔
         else if ($response->getStatusCode() === 414) {
             // 回复 punched
-            $this->server->send("HTTP/1.1 415 punched\r\n" . $this->header, $address);
+            $this->server->send("HTTP/1.1 415 punched\r\n" . $this->header, $remoteAddress);
         }
         // 收到 punched  连上对方了 
         else if ($response->getStatusCode() === 415) {
             // 避免多次连接
             // if (!isset(PeerManager::$peereds[$address])) {
-            if (!PeerManager::hasPeered($this->currentAddress, $address)) {
+            if (!PeerManager::hasPeered($this->currentAddress, $remoteAddress)) {
 
                 // 取消定时器
                 // if (isset(PeerManager::$timers[$address])) {
@@ -343,39 +332,39 @@ class P2pTunnel extends EventEmitter implements ConnectorInterface, \Wpjscc\Pene
                 //     \React\EventLoop\Loop::cancelTimer(PeerManager::$timers[$address]['timer']);
                 //     unset(PeerManager::$timers[$address]);
                 // }
-                PeerManager::removeTimer($this->currentAddress, $address);
+                PeerManager::removeTimer($this->currentAddress, $remoteAddress);
 
                 // 取消perrs
                 // if (in_array($address, PeerManager::$peers)) {
                 //     echo "punched success and remove peers $address" . PHP_EOL;
                 //     PeerManager::$peers = array_values(array_diff(PeerManager::$peers, [$address]));
                 // }
-                PeerManager::removePeer($this->currentAddress, $address);
+                PeerManager::removePeer($this->currentAddress, $remoteAddress);
 
                 // 记录已经连上的
                 // PeerManager::$peereds[$address] = true;
 
-                PeerManager::addPeered($this->currentAddress, $address);
+                PeerManager::addPeered($this->currentAddress, $remoteAddress);
 
                 // $this->emit('connection', [
                 //     ConnectionManager::$connections[$address]['connection'],
                 //     $address,
                 //     $this->server
                 // ]);
-                $this->getVirtualConnection($response, $address);
+                $this->getVirtualConnection($response, $localAddress, $remoteAddress);
             } else {
-                echo "punched success already peered $address" . PHP_EOL;
+                echo "punched success already peered $remoteAddress" . PHP_EOL;
             }
         }
         // 收到远端数据了
         else if ($response->getStatusCode() === 416) {
-            $virtualConnection = $this->getVirtualConnection($response, $address);
+            $virtualConnection = $this->getVirtualConnection($response, $localAddress, $remoteAddress);
             $data = $response->getHeaderLine('Data');
             $data = base64_decode($data);
             if (!$virtualConnection) {
                 static::getLogger()->error("P2pTunnel::" . __FUNCTION__ . " 416", [
                     'class' => __CLASS__,
-                    'address' => $address,
+                    'address' => $remoteAddress,
                     'data' => $data,
                 ]);
             }
@@ -385,16 +374,39 @@ class P2pTunnel extends EventEmitter implements ConnectorInterface, \Wpjscc\Pene
                 $virtualConnection->emit('data', [$data]);
             }
         }
+        // 注册服务的信息
+        else if ($response->getStatusCode() === 417) {
+            $data = $response->getHeaderLine('Data');
+            $data = json_decode(base64_decode($data), true);
+            var_dump($data);
+
+            $name = $data['name'] ?? '';
+            $desc = $data['desc'] ?? '';
+            static::getLogger()->debug("P2pTunnel::" . __FUNCTION__ . " 417", [
+                'class' => __CLASS__,
+                'address' => $remoteAddress,
+                'name' => $name,
+                'desc' => $desc,
+            ]);
+            var_dump($name, $desc, $data);
+
+            // 触发下信息
+
+
+
+            $this->getVirtualConnection($response, $localAddress, $remoteAddress);
+
+        }
         // else if ($response->getStatusCode() === 300) {
         //     $this->server->send("HTTP/1.1 301 OK\r\n".$this->header, $address);
         // } 
         // 收到远端的pong
         else if ($response->getStatusCode() === 301) {
-            if ($address != $this->serverAddress) {
+            if ($remoteAddress != $this->serverAddress) {
 
                 // 一端能连接对方，但对方连接不到自己，这种情况下，能ping通，就可以连接上
                 // if (!in_array($address, array_keys(PeerManager::$peereds))) {
-                if (!PeerManager::hasPeered($this->currentAddress, $address)) {
+                if (!PeerManager::hasPeered($this->currentAddress, $remoteAddress)) {
                     // 结构
                     //                           NAT B 192.168.0.1
                     //                         
@@ -413,16 +425,122 @@ class P2pTunnel extends EventEmitter implements ConnectorInterface, \Wpjscc\Pene
                     // Client B ->  NAT B -> NAT A -> Client A (是不通的，除非Client A先发起连接，这样Client B就能连上Client A了)
                     // Client A ----send punch---> Client B (发送不过去，不在一个网段)
                     // 这里在B上处理  $address 是 192.168.0.101
-                    echo "pong success but not peered address $address" . PHP_EOL;
-                    echo "add peereds $address" . PHP_EOL;
+                    echo "pong success but not peered address $remoteAddress" . PHP_EOL;
+                    echo "add peereds $remoteAddress" . PHP_EOL;
                     // PeerManager::$peereds[$address] = true;
-                    PeerManager::addPeered($this->currentAddress, $address);
-                    $this->getVirtualConnection($response, $address);
+                    PeerManager::addPeered($localAddress, $remoteAddress);
+                    $this->getVirtualConnection($response, $localAddress, $remoteAddress);
                 }
             }
         } else {
             echo "ignore other response code" . PHP_EOL;
         }
+    }
+
+    protected function punchTcpPeer($peer, $time = 0)
+    {
+        if ($time > 1000) {
+            static::getLogger()->warning("P2pTunnel::" . __FUNCTION__ . " timeout", [
+                'class' => __CLASS__,
+                'peer' => $peer,
+                'time' => $time,
+            ]);
+            return;
+        }
+        $time++;
+        $remoteAddress = strpos($peer, '://') == false ? 'tcp://' . $peer : $peer;
+        $localAddress = strpos($this->localAddress, '://') == false ? 'tcp://'.$this->localAddress : $this->localAddress;
+
+        (new \React\Socket\Connector([
+            'timeout' => 5,
+            "tcp" => [
+                "bindto" => $this->localAddress
+            ]
+        ]))->connect($peer)->then(function ($connection) use ($peer) {
+
+            $localAddress = $connection->getLocalAddress();
+            $remoteAddress = $connection->getRemoteAddress();
+
+
+            $connection->protocol = 'p2p-tcp';
+            $data = [
+                'name' => $this->config['name'] ?? 'tcp',
+                'desc' => $this->config['desc'] ?? 'tcp',
+            ];
+
+            $data = base64_encode(json_encode($data));
+
+            $connection->write("HTTP/1.1 417 OK\r\nData: $data\r\n" . $this->header);
+
+            static::getLogger()->debug("P2pTunnel::" . __FUNCTION__ . " connected", [
+                'class' => __CLASS__,
+                'peer' => $peer,
+                'address' => $connection->getRemoteAddress()
+            ]);
+            
+            // $address = $connection->getRemoteAddress();
+            PeerManager::addPeered($localAddress, $remoteAddress);
+            PeerManager::addConnection($localAddress, $remoteAddress, $connection);
+
+            $parseBuffer = new ParseBuffer();
+            $parseBuffer->setLocalAddress($localAddress);
+            $parseBuffer->setRemoteAddress($remoteAddress);
+            $parseBuffer->on('response', [$this, 'handleResponse']);
+
+            $connection->on('data', function ($data) use ($connection, $parseBuffer, $localAddress, $remoteAddress) {
+                // fix bug $getVirtualConnection $connection is null 
+                echo 'tcp receive ' . $data . ' from ' . $connection->getRemoteAddress() . PHP_EOL;
+
+                PeerManager::addConnection($localAddress, $remoteAddress, $connection);
+                $parseBuffer->handleBuffer($data);
+            });
+
+            echo ('tcp connection:' . $remoteAddress . "\n");
+
+
+            PingPong::pingPong($connection, $peer, $this->header);
+            $connection->on('close', function () use ($connection, $localAddress, $remoteAddress, $peer) {
+                echo 'close ' . $connection->getRemoteAddress() . PHP_EOL;
+                PeerManager::removePeered($localAddress, $remoteAddress);
+                PeerManager::removeConnection($localAddress, $remoteAddress);
+            });
+        }, function ($e) use ($localAddress, $remoteAddress, $time) {
+            static::getLogger()->error($e->getMessage(), [
+                'class' => __CLASS__,
+                'peer' => $remoteAddress,
+                'time' => $time,
+                'file' => $e->getFile(),
+                'line' => $e->getLine(),
+            ]);
+            
+            if (!PeerManager::hasPeered($localAddress,$remoteAddress)) {
+                \React\EventLoop\Loop::addTimer(0.001, function () use ($remoteAddress, $time) {
+                    self::punchTcpPeer($remoteAddress, $time);
+                });
+            } else {
+                static::getLogger()->debug("P2pTunnel::" . __FUNCTION__ . " hasTcpPeered", [
+                    'class' => __CLASS__,
+                    'peer' => $remoteAddress,
+                    'time' => $time,
+                ]);
+            }
+
+            return $e;
+        })->otherwise(function ($e) use ($localAddress,$remoteAddress, $time) {
+            static::getLogger()->error($e->getMessage().'-222', [
+                'class' => __CLASS__,
+                'peer' => $remoteAddress,
+                'time' => $time,
+                'file' => $e->getFile(),
+                'line' => $e->getLine(),
+            ]);
+            if (!PeerManager::hasPeered($localAddress, $remoteAddress)) {
+                \React\EventLoop\Loop::addTimer(0.001, function () use ($remoteAddress, $time) {
+                    self::punchTcpPeer($remoteAddress, $time);
+                });
+            }
+            return $e;
+        });
     }
 
     public function getIpWhitelist()
@@ -435,12 +553,12 @@ class P2pTunnel extends EventEmitter implements ConnectorInterface, \Wpjscc\Pene
         return $this->config['ip_blacklist'] ?? '';
     }
 
-    protected function getVirtualConnection($response, $address)
+    protected function getVirtualConnection($response, $localAddress,$address)
     {
-        if (empty(PeerManager::getVirtualConnection($this->currentAddress, $address))) {
+        if (empty(PeerManager::getVirtualConnection($localAddress, $address))) {
             // $connection = ConnectionManager::$connections[$address]['connection'];
-            $connection = PeerManager::getConnection($this->currentAddress, $address);
-            var_dump($this->currentAddress, $address);
+            $connection = PeerManager::getConnection($localAddress, $address);
+            var_dump($localAddress, $address);
 
             $read = new ThroughStream;
             $write = new ThroughStream;
@@ -453,10 +571,10 @@ class P2pTunnel extends EventEmitter implements ConnectorInterface, \Wpjscc\Pene
             $virtualConnection = new CompositeConnectionStream($read, $write, new Connection(
                 $this->server->getLocalAddress(),
                 $address
-            ), 'p2p_udp');
+            ), $connection->protocol == 'p2p-tcp' ? 'p2p-tcp' : 'p2p-udp');
 
-            $connection->on('close', function () use ($virtualConnection, $address) {
-                PeerManager::removeConnection($this->currentAddress, $address);
+            $connection->on('close', function () use ($virtualConnection, $localAddress, $address) {
+                PeerManager::removeConnection($localAddress, $address);
                 $virtualConnection->close();
             });
 
@@ -464,7 +582,14 @@ class P2pTunnel extends EventEmitter implements ConnectorInterface, \Wpjscc\Pene
                 $connection->close();
             });
 
-            PeerManager::addVirtualConnection($this->currentAddress, $address, $virtualConnection);
+            $data = [
+                'name' => $this->config['name'] ?? '',
+                'desc' => $this->config['desc'] ?? '',
+            ];
+            $data = base64_encode(json_encode($data));
+            $connection->write("HTTP/1.1 417 OK\r\nData: $data\r\n" . $this->header);
+
+            PeerManager::addVirtualConnection($localAddress, $address, $virtualConnection);
 
 
             if ($address != $this->serverAddress) {
@@ -478,6 +603,6 @@ class P2pTunnel extends EventEmitter implements ConnectorInterface, \Wpjscc\Pene
                 // PingPong::pingPong($virtualConnection, $address);
             }
         }
-        return PeerManager::getVirtualConnection($this->currentAddress, $address);
+        return PeerManager::getVirtualConnection($localAddress, $address);
     }
 }

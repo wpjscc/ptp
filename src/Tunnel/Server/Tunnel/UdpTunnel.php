@@ -127,8 +127,8 @@ class UdpTunnel extends EventEmitter implements ServerInterface,\Wpjscc\Penetrat
                     }
                 });
     
-                // $kcp->setNodelay(2, 2, true);
-                // $kcp->setInterval(10);
+                $kcp->setNodelay(true, 2, true);
+                $kcp->setInterval(10);
                 // $kcp->setRxMinRto(10);
                 // $kcp->setFastresend(1);
 

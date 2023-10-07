@@ -76,8 +76,8 @@ class ProxyManager implements \Wpjscc\Penetration\Log\LogManagerInterface
                     $singleTunnel = static::$remoteTunnelConnections[$uri][$tunnelConnection]['Single-Tunnel'] ?? false;
                     $uuid = Uuid::uuid4()->toString();
                     if ($singleTunnel) {
-                        if (($tunnelConnection->protocol ?? '') == 'p2p_udp') {
-                            static::getLogger()->notice('send create dynamic connection by p2p_udp single tunnel', [
+                        if (in_array(($tunnelConnection->protocol ?? ''), ['p2p-udp', 'p2p-tcp'])) {
+                            static::getLogger()->notice("send create dynamic connection by p2p {$tunnelConnection->protocol}  single tunnel", [
                                 'uri' => $uri,
                                 'uuid' => $uuid,
                                 'remote_address' => $tunnelConnection->getRemoteAddress(),
@@ -96,8 +96,8 @@ class ProxyManager implements \Wpjscc\Penetration\Log\LogManagerInterface
                             // 通知客户端创建一个单通道
                             $tunnelConnection->write("HTTP/1.1 310 OK\r\nUuid:{$uuid}" . "\r\n\r\n");
                         }
-                    } else if (($tunnelConnection->protocol ?? '') == 'p2p_udp') {
-                        static::getLogger()->notice('send create dynamic connection by p2p_udp single tunnel11', [
+                    } else if (in_array(($tunnelConnection->protocol ?? ''), ['p2p-udp', 'p2p-tcp'])) {
+                        static::getLogger()->notice("send create dynamic connection by p2p {$tunnelConnection->protocol} single tunnel11", [
                             'uri' => $uri,
                             'uuid' => $uuid,
                             'remote_address' => $tunnelConnection->getRemoteAddress(),

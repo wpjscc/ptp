@@ -12,7 +12,8 @@ class ParseBuffer extends EventEmitter implements \Wpjscc\Penetration\Log\LogMan
 
     protected $buffer = '';
     protected $connection;
-    protected $address;
+    protected $localAddress;
+    protected $remoteAddress;
 
     public function handleBuffer($buffer)
     {
@@ -56,14 +57,24 @@ class ParseBuffer extends EventEmitter implements \Wpjscc\Penetration\Log\LogMan
     }
 
 
-    public function setAddress($address)
+    public function setLocalAddress($address)
     {
-        $this->address = $address;
+        $this->localAddress = $address;
     }
 
-    public function getAddress()
+    public function getLocalAddress()
     {
-        return $this->address;
+        return $this->localAddress;
+    }
+
+    public function setRemoteAddress($address)
+    {
+        $this->remoteAddress = $address;
+    }
+
+    public function getRemoteAddress()
+    {
+        return $this->remoteAddress;
     }
 
 

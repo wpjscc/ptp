@@ -187,6 +187,8 @@ class UdpTunnel implements ConnectorInterface, \Wpjscc\Penetration\Log\LogManage
                     $kcp->update(Helper::getMillisecond() - $start);
                 }
             });
+            $kcp->setNodelay(true, 2, true);
+            $kcp->setInterval(10);
             // $kcp->setNodelay(2, 2, true);
             // $kcp->setInterval(10);
             // $kcp->setRxMinRto(10);
