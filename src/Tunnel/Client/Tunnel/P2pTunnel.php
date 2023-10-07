@@ -289,6 +289,16 @@ class P2pTunnel extends EventEmitter implements ConnectorInterface, \Wpjscc\Pene
                             continue;
                         }
 
+                        // 取消perrs
+                        if (PeerManager::hasPeered('tcp://'. $this->currentAddress, 'tcp://'. $peer)) {
+                            echo "broadcast_address but tcp $peer had peered" . PHP_EOL;
+                            // remove peers 
+                            PeerManager::removePeer($this->currentAddress, $peer);
+                            continue;
+                        }
+
+
+
                         // 过滤ip白名单和黑名单
                         if (!Ip::addressInIpWhitelist($peer, $this->getIpWhitelist()) || Ip::addressInIpBlacklist($peer, $this->getIpBlacklist())) {
                             echo "broadcast_address but $peer not in ip whitelist or in ip blacklist" . PHP_EOL;
