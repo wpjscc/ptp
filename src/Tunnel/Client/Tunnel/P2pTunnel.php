@@ -36,6 +36,8 @@ class P2pTunnel extends EventEmitter implements ConnectorInterface, \Wpjscc\Pene
     protected $currentAddress = '';
     protected $localAddress = '';
 
+    protected static $currentTcpNumber = 0;
+
     public function __construct(&$config = [])
     {
         $this->config = &$config;
@@ -293,8 +295,9 @@ class P2pTunnel extends EventEmitter implements ConnectorInterface, \Wpjscc\Pene
                             PeerManager::removePeer($this->currentAddress, $peer);
                             continue;
                         }
+                        static::$currentTcpNumber++;
 
-                        static::punchTcpPeer($peer);
+                        static::punchTcpPeer($peer, 0 , static::$currentTcpNumber);
 
                         // 开始打孔
                         PeerManager::addTimer($this->currentAddress, $peer, [
@@ -437,22 +440,32 @@ class P2pTunnel extends EventEmitter implements ConnectorInterface, \Wpjscc\Pene
         }
     }
 
-    protected function punchTcpPeer($peer, $time = 0)
+    protected function punchTcpPeer($peer, $times = 0, $currentNumber = 0)
     {
-        if ($time > 1000) {
-            static::getLogger()->warning("P2pTunnel::" . __FUNCTION__ . " timeout", [
+        if ($currentNumber != static::$currentTcpNumber) {
+            static::getLogger()->debug("P2pTunnel::" . __FUNCTION__ . " currentNumber", [
                 'class' => __CLASS__,
                 'peer' => $peer,
-                'time' => $time,
+                'currentNumber' => $currentNumber,
+                'static::$currentTcpNumber' => static::$currentTcpNumber,
             ]);
             return;
         }
-        $time++;
+
+        if ($times > 10) {
+            static::getLogger()->warning("P2pTunnel::" . __FUNCTION__ . " timeout", [
+                'class' => __CLASS__,
+                'peer' => $peer,
+                'times' => $times,
+            ]);
+            return;
+        }
+        $times++;
         $remoteAddress = strpos($peer, '://') == false ? 'tcp://' . $peer : $peer;
         $localAddress = strpos($this->localAddress, '://') == false ? 'tcp://'.$this->localAddress : $this->localAddress;
 
-        (new \React\Socket\Connector([
-            'timeout' => 5,
+         (new \React\Socket\Connector([
+            'timeout' => 1,
             "tcp" => [
                 "bindto" => $this->localAddress
             ]
@@ -504,39 +517,41 @@ class P2pTunnel extends EventEmitter implements ConnectorInterface, \Wpjscc\Pene
                 PeerManager::removePeered($localAddress, $remoteAddress);
                 PeerManager::removeConnection($localAddress, $remoteAddress);
             });
-        }, function ($e) use ($localAddress, $remoteAddress, $time) {
+        }, function ($e) use ($localAddress, $remoteAddress, $times, $currentNumber) {
             static::getLogger()->error($e->getMessage(), [
                 'class' => __CLASS__,
+                'local_address' => $localAddress,
                 'peer' => $remoteAddress,
-                'time' => $time,
+                'times' => $times,
                 'file' => $e->getFile(),
                 'line' => $e->getLine(),
             ]);
             
             if (!PeerManager::hasPeered($localAddress,$remoteAddress)) {
-                \React\EventLoop\Loop::addTimer(0.001, function () use ($remoteAddress, $time) {
-                    self::punchTcpPeer($remoteAddress, $time);
+                \React\EventLoop\Loop::addTimer(0.001, function () use ($remoteAddress, $times, $currentNumber) {
+                    self::punchTcpPeer($remoteAddress, $times, $currentNumber);
                 });
             } else {
                 static::getLogger()->debug("P2pTunnel::" . __FUNCTION__ . " hasTcpPeered", [
                     'class' => __CLASS__,
                     'peer' => $remoteAddress,
-                    'time' => $time,
+                    'time' => $times,
                 ]);
             }
 
             return $e;
-        })->otherwise(function ($e) use ($localAddress,$remoteAddress, $time) {
+        })->otherwise(function ($e) use ($localAddress,$remoteAddress, $times, $currentNumber) {
             static::getLogger()->error($e->getMessage().'-222', [
                 'class' => __CLASS__,
+                'local_address' => $localAddress,
                 'peer' => $remoteAddress,
-                'time' => $time,
+                'times' => $times,
                 'file' => $e->getFile(),
                 'line' => $e->getLine(),
             ]);
             if (!PeerManager::hasPeered($localAddress, $remoteAddress)) {
-                \React\EventLoop\Loop::addTimer(0.001, function () use ($remoteAddress, $time) {
-                    self::punchTcpPeer($remoteAddress, $time);
+                \React\EventLoop\Loop::addTimer(0.001, function () use ($remoteAddress, $times, $currentNumber) {
+                    self::punchTcpPeer($remoteAddress, $times, $currentNumber);
                 });
             }
             return $e;

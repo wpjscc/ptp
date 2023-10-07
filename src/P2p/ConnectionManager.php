@@ -19,6 +19,7 @@ class ConnectionManager
         $token = self::$connections[$protocol][$address]['token'] ?: null;
 
         $connections = self::$connections[$protocol] ?? [];
+        $i = 0;
         foreach ($connections as $peerAddress => $value1) {
             $connection = $connections[$peerAddress]['connection'];
             $peerIpLocalAddress = $connections[$peerAddress]['local_address'] ?: null;
@@ -51,12 +52,20 @@ class ConnectionManager
             var_dump('broadcastAddress', $protocol);
 
             $connection = $connections[$peerAddress]['connection'];
-            $connection->write("HTTP/1.1 413 OK\r\nAddress: {$connections[$address]['local_address']}\r\n\r\n");
-            $connection->write("HTTP/1.1 413 OK\r\nAddress: {$address}\r\n\r\n");
+    
+            \React\EventLoop\Loop::addTimer(0.2 * $i, function () use ($connections, $connection, $address, $peerAddress) {
+                $connection->write("HTTP/1.1 413 OK\r\nAddress: {$address}\r\n\r\n");
+                $connections[$address]['connection']->write("HTTP/1.1 413 OK\r\nAddress: {$peerAddress}\r\n\r\n");
+            });
 
+            $i++;
 
-            $connections[$address]['connection']->write("HTTP/1.1 413 OK\r\nAddress: {$connections[$peerAddress]['local_address']}\r\n\r\n");
-            $connections[$address]['connection']->write("HTTP/1.1 413 OK\r\nAddress: {$peerAddress}\r\n\r\n");
+            \React\EventLoop\Loop::addTimer(0.2 * $i, function () use ($connections, $connection, $address, $peerAddress) {
+                $connection->write("HTTP/1.1 413 OK\r\nAddress: {$connections[$address]['local_address']}\r\n\r\n");
+                $connections[$address]['connection']->write("HTTP/1.1 413 OK\r\nAddress: {$connections[$peerAddress]['local_address']}\r\n\r\n");
+            });
+            $i++;
+
         }
     }
 }
