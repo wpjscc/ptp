@@ -161,16 +161,17 @@ class PeerManager implements \Wpjscc\Penetration\Log\LogManagerInterface
             'uri' => $uri,
             'protocol' => $connection->protocol ?? '',
         ]);
-        foreach ($uris as $key => $_uri) {
-
-            if (strpos($_uri, ':') === false) {
+        foreach ($uris as $key1 => $uri) {
+            if (strpos($uri, ':') === false) {
                 if ($connection->protocol == 'p2p-udp') {
-                    $_uri = 'p2p-udp-'.$_uri;
+                    $uri = 'p2p-udp-'.$uri;
                 } else if ($connection->protocol == 'p2p-tcp') {
-                    $_uri = 'p2p-tcp-'.$_uri;
+                    $uri = 'p2p-tcp-'.$uri;
                 }
+                array_push($uris, $uri);
             }
-
+        }
+        foreach ($uris as $key => $_uri) {
             static::getLogger()->debug('add tunnel connection', [
                 'uuid' => $uuid,
                 'uri' => $_uri,
@@ -220,14 +221,26 @@ class PeerManager implements \Wpjscc\Penetration\Log\LogManagerInterface
         $uris = array_values(array_filter(explode(',', $uri)));
 
         $isExist = false;
-        foreach ($uris as $uri) {
-            if (strpos($uri, ':') === false) {
+
+        foreach ($uris as $key1 => $_uri) {
+            if (strpos($_uri, ':') === false) {
                 if ($connection->protocol == 'p2p-udp') {
-                    $uri = 'p2p-udp-'.$uri;
+                    $_uri = 'p2p-udp-'.$_uri;
                 } else if ($connection->protocol == 'p2p-tcp') {
-                    $uri = 'p2p-tcp-'.$uri;
+                    $_uri = 'p2p-tcp-'.$_uri;
                 }
+                array_push($uris, $_uri);
             }
+        }
+
+        foreach ($uris as $uri) {
+            // if (strpos($uri, ':') === false) {
+            //     if ($connection->protocol == 'p2p-udp') {
+            //         $uri = 'p2p-udp-'.$uri;
+            //     } else if ($connection->protocol == 'p2p-tcp') {
+            //         $uri = 'p2p-tcp-'.$uri;
+            //     }
+            // }
             if (isset(ProxyManager::$remoteDynamicConnections[$uri]) && ProxyManager::$remoteDynamicConnections[$uri]->count() > 0) {
                 static::getLogger()->debug('add dynamic connection by p2p single tunnel', [
                     'uri' => $request->getHeaderLine('Uri'),
