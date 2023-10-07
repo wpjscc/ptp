@@ -185,6 +185,7 @@ class P2pTunnel extends EventEmitter implements ConnectorInterface, \Wpjscc\Pene
                                 $connection->write(implode("\r\n", [
                                     "HTTP/1.1 410 OK",
                                     "Local-Address: " . $this->localAddress,
+                                    'Is-Need-Local: ' . ($this->config['is_need_local'] ?? 0),
                                     'IP-Whitelist: ' . $this->getIpWhitelist(),
                                     'IP-Blacklist: ' . $this->getIpBlacklist(),
                                     'token: ' . ($this->config['token'] ?? ''),
@@ -278,6 +279,7 @@ class P2pTunnel extends EventEmitter implements ConnectorInterface, \Wpjscc\Pene
                     // PeerManager::$peers = array_values(array_unique(array_merge($addresses, PeerManager::$peers)));
                     $peers = PeerManager::addPeer($this->currentAddress, $addresses);
                     foreach ($peers as $k => $peer) {
+                        
                         // 取消定时器
                         PeerManager::removeTimer($this->currentAddress, $peer);
 
@@ -289,8 +291,8 @@ class P2pTunnel extends EventEmitter implements ConnectorInterface, \Wpjscc\Pene
                             continue;
                         }
 
-                        // 取消perrs
-                        if (PeerManager::hasPeered('tcp://'. $this->currentAddress, 'tcp://'. $peer)) {
+                        // 取消perrs[tcp]
+                        if (PeerManager::hasPeered('tcp://'. $this->localAddress, 'tcp://'. $peer)) {
                             echo "broadcast_address but tcp $peer had peered" . PHP_EOL;
                             // remove peers 
                             PeerManager::removePeer($this->currentAddress, $peer);
@@ -462,7 +464,7 @@ class P2pTunnel extends EventEmitter implements ConnectorInterface, \Wpjscc\Pene
             return;
         }
 
-        if ($times > 10) {
+        if ($times >= 10) {
             static::getLogger()->warning("P2pTunnel::" . __FUNCTION__ . " timeout", [
                 'class' => __CLASS__,
                 'peer' => $peer,
