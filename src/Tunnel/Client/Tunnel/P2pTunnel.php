@@ -314,12 +314,13 @@ class P2pTunnel extends EventEmitter implements ConnectorInterface, \Wpjscc\Pene
                             PeerManager::removePeer($this->currentAddress, $peer);
                             continue;
                         }
-                        $this->currentTcpNumber++;
 
-                        // $this->server->send("HTTP/1.1 414 punch \r\n" . $this->header, $peer);
-
-                        static::punchTcpPeer($peer, 0 , $this->currentTcpNumber);
-
+                        // 没被连上才可以连, 一个 tcp client 只能连一个 对端,(大概率是nat对tcp限制了)
+                        if (!PeerManager::localAddressIsPeerd('tcp://'. $this->localAddress) && !in_array('tcp://'.$peer,PeerManager::getTcpPeeredAddrs())) {
+                            $this->currentTcpNumber++;
+                            static::punchTcpPeer($peer, 0 , $this->currentTcpNumber);
+                        }
+                       
                         // 开始打孔
                         PeerManager::addTimer($this->currentAddress, $peer, [
                             'active' => time(),

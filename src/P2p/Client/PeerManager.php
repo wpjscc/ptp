@@ -95,7 +95,19 @@ class PeerManager implements \Wpjscc\Penetration\Log\LogManagerInterface
     {
         if (isset(static::$peereds[$address][$peer])) {
             unset(static::$peereds[$address][$peer]);
+            if (empty(static::$peereds[$address])) {
+                unset(static::$peereds[$address]);
+            }
         }
+    }
+
+    public static function localAddressIsPeerd($address)
+    {
+        if (isset(static::$peereds[$address]) && !empty(static::$peereds[$address])) {
+            return true;
+        }
+
+        return false;
     }
 
     // public static function addTcpPeered($address, $peer)
@@ -349,5 +361,16 @@ class PeerManager implements \Wpjscc\Penetration\Log\LogManagerInterface
     public static function getAddrs()
     {
         return array_unique(array_values(array_merge(array_keys(static::$localAddrToRemoteAddr), array_values(static::$localAddrToRemoteAddr))));
+    }
+
+    public static function getTcpPeeredAddrs()
+    {
+        $peered = [];
+        foreach (static::$connections as $address => $value) {
+            if (strpos($address, 'tcp://') === 0) {
+                $peered = array_merge($peered, array_keys($value));
+            }
+        }
+        return array_unique($peered);  
     }
 }

@@ -104,7 +104,7 @@ class ConnectionManager
         }
     }
     // 消费queues
-    public static function consumeQueues($timer = 2)
+    public static function consumeQueues($timer = 1)
     {
         
         \React\EventLoop\Loop::addPeriodicTimer($timer, function () {
