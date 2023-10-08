@@ -317,24 +317,27 @@ class P2pTunnel extends EventEmitter implements ConnectorInterface, \Wpjscc\Pene
 
                         $this->server->send("HTTP/1.1 414 punch \r\n" . $this->header, $peer);
 
-                        // 没被连上才可以连, 一个 tcp client 只能连一个 对端,(大概率是nat对tcp限制了)
-                        if (!PeerManager::localAddressIsPeerd('tcp://'. $this->localAddress) && !in_array('tcp://'.$peer,PeerManager::getTcpPeeredAddrs())) {
-                            static::getLogger()->debug("P2pTunnel::" . __FUNCTION__ . " tcp peering", [
-                                'class' => __CLASS__,
-                                'peer' => $peer,
-                                'current_address' => $this->currentAddress,
-                                'local_address' => $this->localAddress,
-                            ]);
-                            $this->currentTcpNumber++;
-                            static::punchTcpPeer($peer, 0 , $this->currentTcpNumber);
-                        } else {
-                           static::getLogger()->debug("P2pTunnel::" . __FUNCTION__ . " tcp peered", [
-                                'class' => __CLASS__,
-                                'peer' => $peer,
-                                'current_address' => $this->currentAddress,
-                                'local_address' => $this->localAddress,
-                            ]);
+                        if ($this->config['try_tcp'] ?? false) {
+                            // 没被连上才可以连, 一个 tcp client 只能连一个 对端,(大概率是nat对tcp限制了)
+                            if (!PeerManager::localAddressIsPeerd('tcp://'. $this->localAddress) && !in_array('tcp://'.$peer,PeerManager::getTcpPeeredAddrs())) {
+                                static::getLogger()->debug("P2pTunnel::" . __FUNCTION__ . " tcp peering", [
+                                    'class' => __CLASS__,
+                                    'peer' => $peer,
+                                    'current_address' => $this->currentAddress,
+                                    'local_address' => $this->localAddress,
+                                ]);
+                                $this->currentTcpNumber++;
+                                static::punchTcpPeer($peer, 0 , $this->currentTcpNumber);
+                            } else {
+                            static::getLogger()->debug("P2pTunnel::" . __FUNCTION__ . " tcp peered", [
+                                    'class' => __CLASS__,
+                                    'peer' => $peer,
+                                    'current_address' => $this->currentAddress,
+                                    'local_address' => $this->localAddress,
+                                ]);
+                            }
                         }
+                        
                        
                         // 开始打孔
                         PeerManager::addTimer($this->currentAddress, $peer, [
