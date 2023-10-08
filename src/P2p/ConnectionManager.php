@@ -10,6 +10,8 @@ class ConnectionManager
 {
     public static $connections = [];
 
+    protected static $queues = [];
+
     public static function broadcastAddress($protocol, $address)
     {
     
@@ -35,7 +37,9 @@ class ConnectionManager
             $peerToken = $connections[$peerAddress]['token'] ?: null;
 
             if ($token || $peerToken) {
-                if ($token !== $peerToken) {
+                $tokens = explode(',', $token);
+                $peerTokens = explode(',', $peerToken);
+                if (empty(array_values(array_filter(array_intersect($tokens, $peerTokens))))) {
                     continue;
                 }
             }
@@ -45,12 +49,25 @@ class ConnectionManager
             } else {
                 var_dump('broadcastAddress public address', $protocol);
 
-                \React\EventLoop\Loop::addTimer(2 * $i, function () use ($connections, $connection, $address, $peerAddress) {
-                    $connection->write("HTTP/1.1 413 OK\r\nAddress: {$address}\r\n\r\n");
-                    $connections[$address]['connection']->write("HTTP/1.1 413 OK\r\nAddress: {$peerAddress}\r\n\r\n");
-                });
+                $f = function () use ($protocol, $address, $peerAddress) {
+                    if (!isset(ConnectionManager::$connections[$protocol][$address]) || !isset(ConnectionManager::$connections[$protocol][$peerAddress])) {
+                        return false;
+                    }
+
+                    ConnectionManager::$connections[$protocol][$peerAddress]['connection']->write("HTTP/1.1 413 OK\r\nAddress: {$address}\r\n\r\n");
+                    ConnectionManager::$connections[$protocol][$address]['connection']->write("HTTP/1.1 413 OK\r\nAddress: {$peerAddress}\r\n\r\n");
+
+                    echo "broadcastAddress public address: {$address} ====> {$peerAddress}\n";
+                    echo "broadcastAddress public address: {$peerAddress} ====> {$address}\n";
+                    return true;
+                };
+                array_push(self::$queues, $f);
+                // \React\EventLoop\Loop::addTimer(2 * $i, function () use ($connections, $connection, $address, $peerAddress) {
+                //     $connection->write("HTTP/1.1 413 OK\r\nAddress: {$address}\r\n\r\n");
+                //     $connections[$address]['connection']->write("HTTP/1.1 413 OK\r\nAddress: {$peerAddress}\r\n\r\n");
+                // });
     
-                $i++;
+                // $i++;
             }
 
 
@@ -60,15 +77,44 @@ class ConnectionManager
                 var_dump('broadcastAddress local address', $protocol);
             
                 if ($isNeedLocal && $peerIsNeedLocal) {
-                    \React\EventLoop\Loop::addTimer(2 * $i, function () use ($connections, $connection, $address, $peerAddress) {
-                        $connection->write("HTTP/1.1 413 OK\r\nAddress: {$connections[$address]['local_address']}\r\n\r\n");
-                        $connections[$address]['connection']->write("HTTP/1.1 413 OK\r\nAddress: {$connections[$peerAddress]['local_address']}\r\n\r\n");
-                    });
-                    $i++;
+                    $f = function () use ($protocol, $address, $peerAddress) {
+                        if (!isset(ConnectionManager::$connections[$protocol][$address]) || !isset(ConnectionManager::$connections[$protocol][$peerAddress])) {
+                            return false;
+                        }
+                        $localAddress = ConnectionManager::$connections[$protocol][$address]['local_address'];
+                        $peerLocalAddress = ConnectionManager::$connections[$protocol][$peerAddress]['local_address'];
+                        ConnectionManager::$connections[$protocol][$peerAddress]['connection']->write("HTTP/1.1 413 OK\r\nAddress: {$localAddress}\r\n\r\n");
+                        ConnectionManager::$connections[$protocol][$address]['connection']->write("HTTP/1.1 413 OK\r\nAddress: {$peerLocalAddress}\r\n\r\n");
+
+                        echo "broadcastAddress local address: [{$address} {$localAddress}] ====> [{$peerAddress} {$peerLocalAddress}]\n";
+                        echo "broadcastAddress local address: [{$peerAddress} {$peerLocalAddress}] ====> [{$address} {$localAddress}]\n";
+
+                        return true;
+                    };
+                    array_push(self::$queues, $f);
+                    // \React\EventLoop\Loop::addTimer(2 * $i, function () use ($connections, $connection, $address, $peerAddress) {
+                    //     $connection->write("HTTP/1.1 413 OK\r\nAddress: {$connections[$address]['local_address']}\r\n\r\n");
+                    //     $connections[$address]['connection']->write("HTTP/1.1 413 OK\r\nAddress: {$connections[$peerAddress]['local_address']}\r\n\r\n");
+                    // });
+                    // $i++;
                 }
 
             }
 
         }
+    }
+    // 消费queues
+    public static function consumeQueues($timer = 2)
+    {
+        
+        \React\EventLoop\Loop::addPeriodicTimer($timer, function () {
+            while (count(self::$queues) > 0) {
+                $f = array_shift(self::$queues);
+                $state = $f();
+                if ($state) {
+                    break;
+                }
+            }
+        });
     }
 }

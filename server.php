@@ -12,7 +12,8 @@ use Wpjscc\Penetration\Proxy\ProxyManager;
 use Wpjscc\Penetration\Log\LogManager;
 use Psr\Log\LogLevel;
 use Wpjscc\Penetration\Helper;
-
+use Wpjscc\Penetration\P2p\Client\PeerManager;
+use Wpjscc\Penetration\P2p\ConnectionManager;
 
 LogManager::$logLevels = [
     // LogLevel::ALERT,
@@ -60,6 +61,9 @@ $tunnel = new Tunnel(
 $tunnel->run();
 
 $startTime = time();
+
+
+ConnectionManager::consumeQueues();
 
 \React\EventLoop\Loop::get()->addPeriodicTimer(5, function () use ($tcpManager, $udpManager, $httpPort, $server80Port, $server443Port) {
     $tcpManager->checkPorts(Config::getTcpPorts(Config::getConfig(getParam('--ini-path', './server.ini'))));
