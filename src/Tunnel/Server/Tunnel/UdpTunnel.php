@@ -39,7 +39,6 @@ class UdpTunnel extends EventEmitter implements ServerInterface,\Wpjscc\Penetrat
                 call_user_func($callback, $server, $this, $start);
             }
             $server->on('message', function ($message, $address, $server) use ($start) {
-                var_dump('message', $message, $address);
                 $this->createConnection($message, $address, $server, $start);
             });
 

@@ -194,7 +194,7 @@ function getParam($key, $default = null){
 
     // $addresses = array_keys(ConnectionManager::$connections);
     // echo "current connections address:". implode(',', $addresses) . PHP_EOL;
-    echo "====> uris: " . implode(', ', array_map(function ($uri) use ($localServer80Port) { 
+    echo "====> p2p uris: " . implode(', ', array_map(function ($uri) use ($localServer80Port) { 
         if (strpos($uri, ':') !== false) {
             return $uri;
         }

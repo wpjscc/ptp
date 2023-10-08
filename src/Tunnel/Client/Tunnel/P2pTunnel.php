@@ -263,6 +263,7 @@ class P2pTunnel extends EventEmitter implements ConnectorInterface, \Wpjscc\Pene
             static::getLogger()->error("P2pTunnel::" . __FUNCTION__ . " addresses", [
                 'class' => __CLASS__,
                 'addresses' => $addresses,
+                'current_address' => $this->currentAddress,
             ]);
 
             if (!empty($addresses)) {
