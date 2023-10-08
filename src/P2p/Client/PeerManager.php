@@ -214,7 +214,7 @@ class PeerManager implements \Wpjscc\Penetration\Log\LogManagerInterface
                 ]);
                 if (ProxyManager::$remoteTunnelConnections[$_uri]->count() == 0) {
                     unset(ProxyManager::$remoteTunnelConnections[$_uri]);
-                    unset(ProxyManager::$uriToToken[$_uri]);
+                    unset(ProxyManager::$uriToInfo[$_uri]);
                 }
             });
         }

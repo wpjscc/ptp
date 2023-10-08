@@ -63,6 +63,7 @@ class ClientManager implements \Wpjscc\Penetration\Log\LogManagerInterface
                     'Local-Host: ' . $config['local_host'] . (($config['local_port']??'') ? (':'. $config['local_port']) : ''),
                     'Domain: ' . $config['domain'],
                     'Single-Tunnel: ' . ($config['single_tunnel'] ?? 0),
+                    'Is-Private: ' . ($config['is_private'] ?? 0),
                     // 'Local-Tunnel-Address: ' . $connection->getLocalAddress(),
                 ];
 

@@ -43,7 +43,7 @@ class ProxyManager implements \Wpjscc\Penetration\Log\LogManagerInterface
 
     public static $remoteDynamicConnections = [];
 
-    public static $uriToToken = [];
+    public static $uriToInfo = [];
 
 
     public static function createRemoteDynamicConnection($uri)
@@ -183,7 +183,7 @@ class ProxyManager implements \Wpjscc\Penetration\Log\LogManagerInterface
                     ]);
                     if (static::$remoteTunnelConnections[$_uri]->count() == 0) {
                         unset(static::$remoteTunnelConnections[$_uri]);
-                        unset(static::$uriToToken[$_uri]);
+                        unset(static::$uriToInfo[$_uri]);
                     }
                 });
             }

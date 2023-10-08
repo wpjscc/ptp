@@ -263,13 +263,19 @@ class Tunnel implements \Wpjscc\Penetration\Log\LogManagerInterface
     public function validate($request)
     {
         $domain = $request->getHeaderLine('Domain');
+        $isPrivate = $request->getHeaderLine('Is-Private');
 
-        if (isset(ProxyManager::$uriToToken[$domain])) {
-            if (ProxyManager::$uriToToken[$domain] != $request->getHeaderLine('Authorization')) {
-                return false;
+        $uris = explode(',', $domain);
+
+        foreach ($uris as $uri) {
+            if (isset(ProxyManager::$uriToInfo[$uri])) {
+                if (ProxyManager::$uriToInfo[$uri]['token'] != $request->getHeaderLine('Authorization')) {
+                    return false;
+                }
+            } else {
+                ProxyManager::$uriToInfo[$uri]['token'] = $request->getHeaderLine('Authorization');
+                ProxyManager::$uriToInfo[$uri]['is_private'] = $isPrivate ? true : false;
             }
-        } else {
-            ProxyManager::$uriToToken[$domain] = $request->getHeaderLine('Authorization');
         }
 
 
