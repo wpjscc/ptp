@@ -103,6 +103,7 @@ class P2pTunnel extends EventEmitter implements ServerInterface, \Wpjscc\Penetra
                 ConnectionManager::$connections[$this->protocol][$this->remoteAddress]['ip_whitelist'] = $response->getHeaderLine('Ip-Whitelist');
                 ConnectionManager::$connections[$this->protocol][$this->remoteAddress]['ip_blacklist'] = $response->getHeaderLine('Ip-Blacklist');
                 ConnectionManager::$connections[$this->protocol][$this->remoteAddress]['is_need_local'] = $response->getHeaderLine('Is-Need-Local');
+                ConnectionManager::$connections[$this->protocol][$this->remoteAddress]['try_tcp'] = $response->getHeaderLine('Try-Tcp');
                 ConnectionManager::$connections[$this->protocol][$this->remoteAddress]['token'] = $response->getHeaderLine('token');
                 $this->connection->write("HTTP/1.1 411 OK\r\nAddress: {$this->remoteAddress}\r\n\r\n");
             }

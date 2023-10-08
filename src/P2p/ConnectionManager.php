@@ -19,6 +19,7 @@ class ConnectionManager
         $ipWhitelist = self::$connections[$protocol][$address]['ip_whitelist'] ?: null;
         $ipBlacklist = self::$connections[$protocol][$address]['ip_blacklist'] ?: null;
         $isNeedLocal = self::$connections[$protocol][$address]['is_need_local'] ?: null;
+        $tryTcp = self::$connections[$protocol][$address]['try_tcp'] ?: '';
         $token = self::$connections[$protocol][$address]['token'] ?: null;
 
         $connections = self::$connections[$protocol] ?? [];
@@ -54,8 +55,10 @@ class ConnectionManager
                         return false;
                     }
 
-                    ConnectionManager::$connections[$protocol][$peerAddress]['connection']->write("HTTP/1.1 413 OK\r\nAddress: {$address}\r\n\r\n");
-                    ConnectionManager::$connections[$protocol][$address]['connection']->write("HTTP/1.1 413 OK\r\nAddress: {$peerAddress}\r\n\r\n");
+                    $tryTcp = ConnectionManager::$connections[$protocol][$address]['try_tcp'] ?: '0';
+                    ConnectionManager::$connections[$protocol][$peerAddress]['connection']->write("HTTP/1.1 413 OK\r\n\Try-tcp: {$tryTcp}\r\nAddress: {$address}\r\n\r\n");
+                    $peerTryTcp = ConnectionManager::$connections[$protocol][$peerAddress]['try_tcp'] ?: '0';
+                    ConnectionManager::$connections[$protocol][$address]['connection']->write("HTTP/1.1 413 OK\r\nTry-tcp: {$peerTryTcp}\r\nAddress: {$peerAddress}\r\n\r\n");
 
                     echo "broadcastAddress public address: {$address} ====> {$peerAddress}\n";
                     echo "broadcastAddress public address: {$peerAddress} ====> {$address}\n";
@@ -82,9 +85,12 @@ class ConnectionManager
                             return false;
                         }
                         $localAddress = ConnectionManager::$connections[$protocol][$address]['local_address'];
+                        $tryTcp = ConnectionManager::$connections[$protocol][$address]['try_tcp'] ?: '0';
                         $peerLocalAddress = ConnectionManager::$connections[$protocol][$peerAddress]['local_address'];
-                        ConnectionManager::$connections[$protocol][$peerAddress]['connection']->write("HTTP/1.1 413 OK\r\nAddress: {$localAddress}\r\n\r\n");
-                        ConnectionManager::$connections[$protocol][$address]['connection']->write("HTTP/1.1 413 OK\r\nAddress: {$peerLocalAddress}\r\n\r\n");
+                        $peerTryTcp = ConnectionManager::$connections[$protocol][$peerAddress]['try_tcp'] ?: '0';
+                        
+                        ConnectionManager::$connections[$protocol][$peerAddress]['connection']->write("HTTP/1.1 413 OK\r\nTry-tcp: {$tryTcp}\r\nAddress: {$localAddress}\r\n\r\n");
+                        ConnectionManager::$connections[$protocol][$address]['connection']->write("HTTP/1.1 413 OK\r\nTry-tcp: {$peerTryTcp}\r\nAddress: {$peerLocalAddress}\r\n\r\n");
 
                         echo "broadcastAddress local address: [{$address} {$localAddress}] ====> [{$peerAddress} {$peerLocalAddress}]\n";
                         echo "broadcastAddress local address: [{$peerAddress} {$peerLocalAddress}] ====> [{$address} {$localAddress}]\n";

@@ -190,6 +190,7 @@ class P2pTunnel extends EventEmitter implements ConnectorInterface, \Wpjscc\Pene
                                     'IP-Whitelist: ' . $this->getIpWhitelist(),
                                     'IP-Blacklist: ' . $this->getIpBlacklist(),
                                     'token: ' . ($this->config['token'] ?? ''),
+                                    'Try-Tcp: ' . ($this->config['try_tcp'] ?? '0'),
                                     "\r\n"
                                 ]));
 
@@ -317,7 +318,7 @@ class P2pTunnel extends EventEmitter implements ConnectorInterface, \Wpjscc\Pene
 
                         $this->server->send("HTTP/1.1 414 punch \r\n" . $this->header, $peer);
 
-                        if ($this->config['try_tcp'] ?? false) {
+                        if (($this->config['try_tcp'] ?? false ) && $response->getHeaderLine('Try-Tcp')) {
                             // 没被连上才可以连, 一个 tcp client 只能连一个 对端,(大概率是nat对tcp限制了)
                             if (!PeerManager::localAddressIsPeerd('tcp://'. $this->localAddress) && !in_array('tcp://'.$peer,PeerManager::getTcpPeeredAddrs())) {
                                 static::getLogger()->debug("P2pTunnel::" . __FUNCTION__ . " tcp peering", [
