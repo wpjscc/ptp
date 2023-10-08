@@ -36,7 +36,7 @@ class P2pTunnel extends EventEmitter implements ConnectorInterface, \Wpjscc\Pene
     protected $currentAddress = '';
     protected $localAddress = '';
 
-    protected static $currentTcpNumber = 0;
+    protected $currentTcpNumber = 0;
 
     public function __construct(&$config = [])
     {
@@ -79,6 +79,7 @@ class P2pTunnel extends EventEmitter implements ConnectorInterface, \Wpjscc\Pene
 
                 $connection->on('data', function ($data) use ($connection, $parseBuffer, $uri, $address) {
                     // fix bug $getVirtualConnection $connection is null 
+                    // var_dump('connection:p2pTunnelData', $data);
                     PeerManager::addConnection($this->currentAddress, $address, $connection);
                     $parseBuffer->handleBuffer($data);
                 });
@@ -202,6 +203,7 @@ class P2pTunnel extends EventEmitter implements ConnectorInterface, \Wpjscc\Pene
                                 $address = $response->getHeaderLine('Address');
                                 // PeerManager::$currentAddress = $address;
                                 $this->currentAddress = $address;
+                                PeerManager::addLocalAddrToRemoteAddr($this->localAddress, $address);
                                 $udpTunnel->removeListener('connection', $fn);
                                 $connection->removeListener('data', $fnc);
                                 $fn = null;
@@ -260,10 +262,11 @@ class P2pTunnel extends EventEmitter implements ConnectorInterface, \Wpjscc\Pene
             if (empty($addresses)) {
                 $addresses = $response->getHeader('Addresses');
             }
-            static::getLogger()->error("P2pTunnel::" . __FUNCTION__ . " addresses", [
+            static::getLogger()->debug("P2pTunnel::" . __FUNCTION__ . ":". $response->getStatusCode(), [
                 'class' => __CLASS__,
                 'addresses' => $addresses,
                 'current_address' => $this->currentAddress,
+                'local_address' => $this->localAddress,
             ]);
 
             if (!empty($addresses)) {
@@ -271,34 +274,37 @@ class P2pTunnel extends EventEmitter implements ConnectorInterface, \Wpjscc\Pene
                     return strpos($address, '://') === false ? $address : explode('://', $address)[1];
                 }, $addresses);
 
-                $addresses = array_diff($addresses, PeerManager::getPeers($this->currentAddress), [
-                    $this->currentAddress,
-                    $this->localAddress
-                ]);
+                $addresses = array_diff($addresses, PeerManager::getPeers($this->currentAddress), PeerManager::getAddrs());
 
                 if (!empty($addresses)) {
                     // PeerManager::$peers = array_values(array_unique(array_merge($addresses, PeerManager::$peers)));
                     $peers = PeerManager::addPeer($this->currentAddress, $addresses);
+                    static::getLogger()->debug("P2pTunnel::" . __FUNCTION__ . " peers", [
+                        'class' => __CLASS__,
+                        'peers' => $peers,
+                        'current_address' => $this->currentAddress,
+                        'local_address' => $this->localAddress,
+                    ]);
                     foreach ($peers as $k => $peer) {
                         
                         // 取消定时器
                         PeerManager::removeTimer($this->currentAddress, $peer);
 
                         // 取消perrs
-                        if (PeerManager::hasPeered($this->currentAddress, $peer)) {
+                        if (PeerManager::hasPeered($this->currentAddress, $peer) && PeerManager::hasPeered('tcp://'. $this->localAddress, 'tcp://'. $peer)) {
                             echo "broadcast_address but $peer had peered" . PHP_EOL;
                             // remove peers 
                             PeerManager::removePeer($this->currentAddress, $peer);
                             continue;
                         }
 
-                        // 取消perrs[tcp]
-                        if (PeerManager::hasPeered('tcp://'. $this->localAddress, 'tcp://'. $peer)) {
-                            echo "broadcast_address but tcp $peer had peered" . PHP_EOL;
-                            // remove peers 
-                            PeerManager::removePeer($this->currentAddress, $peer);
-                            continue;
-                        }
+                        // // 取消perrs[tcp]
+                        // if () {
+                        //     echo "broadcast_address but tcp $peer had peered" . PHP_EOL;
+                        //     // remove peers 
+                        //     PeerManager::removePeer($this->currentAddress, $peer);
+                        //     continue;
+                        // }
 
 
 
@@ -308,14 +314,16 @@ class P2pTunnel extends EventEmitter implements ConnectorInterface, \Wpjscc\Pene
                             PeerManager::removePeer($this->currentAddress, $peer);
                             continue;
                         }
-                        static::$currentTcpNumber++;
+                        $this->currentTcpNumber++;
 
-                        static::punchTcpPeer($peer, 0 , static::$currentTcpNumber);
+                        // $this->server->send("HTTP/1.1 414 punch \r\n" . $this->header, $peer);
+
+                        static::punchTcpPeer($peer, 0 , $this->currentTcpNumber);
 
                         // 开始打孔
                         PeerManager::addTimer($this->currentAddress, $peer, [
                             'active' => time(),
-                            'timer' => \React\EventLoop\Loop::addPeriodicTimer(0.5, function () use ($peer) {
+                            'timer' => \React\EventLoop\Loop::addPeriodicTimer(0.4, function () use ($peer) {
                                 echo 'send punch to ' . $peer . PHP_EOL . PHP_EOL;
                                 $this->server->send("HTTP/1.1 414 punch \r\n" . $this->header, $peer);
                             })
@@ -341,7 +349,10 @@ class P2pTunnel extends EventEmitter implements ConnectorInterface, \Wpjscc\Pene
             // 避免多次连接
             // if (!isset(PeerManager::$peereds[$address])) {
             if (!PeerManager::hasPeered($this->currentAddress, $remoteAddress)) {
-
+                static::getLogger()->debug("P2pTunnel::" . __FUNCTION__ . "415 punched", [
+                    'class' => __CLASS__,
+                    'address' => $remoteAddress,
+                ]);
                 // 取消定时器
                 // if (isset(PeerManager::$timers[$address])) {
                 //     echo "punched success and cancel timer $address" . PHP_EOL;
@@ -455,12 +466,13 @@ class P2pTunnel extends EventEmitter implements ConnectorInterface, \Wpjscc\Pene
 
     protected function punchTcpPeer($peer, $times = 0, $currentNumber = 0)
     {
-        if ($currentNumber != static::$currentTcpNumber) {
-            static::getLogger()->debug("P2pTunnel::" . __FUNCTION__ . " currentNumber", [
+        if ($currentNumber != $this->currentTcpNumber) {
+            static::getLogger()->error("P2pTunnel::" . __FUNCTION__ . " currentNumber", [
                 'class' => __CLASS__,
+                "bindto" => $this->localAddress,
                 'peer' => $peer,
                 'currentNumber' => $currentNumber,
-                'static::$currentTcpNumber' => static::$currentTcpNumber,
+                '$this->currentTcpNumber' => $this->currentTcpNumber,
             ]);
             return;
         }
@@ -533,6 +545,8 @@ class P2pTunnel extends EventEmitter implements ConnectorInterface, \Wpjscc\Pene
         }, function ($e) use ($localAddress, $remoteAddress, $times, $currentNumber) {
             static::getLogger()->error($e->getMessage(), [
                 'class' => __CLASS__,
+                "bindto" => $this->localAddress,
+                'currentNumber' => $currentNumber,
                 'local_address' => $localAddress,
                 'peer' => $remoteAddress,
                 'times' => $times,
@@ -556,6 +570,8 @@ class P2pTunnel extends EventEmitter implements ConnectorInterface, \Wpjscc\Pene
         })->otherwise(function ($e) use ($localAddress,$remoteAddress, $times, $currentNumber) {
             static::getLogger()->error($e->getMessage().'-222', [
                 'class' => __CLASS__,
+                "bindto" => $this->localAddress,
+                'currentNumber' => $currentNumber,
                 'local_address' => $localAddress,
                 'peer' => $remoteAddress,
                 'times' => $times,

@@ -121,7 +121,6 @@ class ClientManager implements \Wpjscc\Penetration\Log\LogManagerInterface
                 $function($config);
             }
         }
-
         foreach (static::$configs as $config1) {
 
             if ($config1['protocol'] != 'p2p') {

@@ -1,4 +1,4 @@
-<?php 
+<?php
 
 
 namespace Wpjscc\Penetration\P2p\Client;
@@ -17,24 +17,25 @@ class PeerManager implements \Wpjscc\Penetration\Log\LogManagerInterface
     protected static $timers = [];
 
     protected static $connections = [];
+    protected static $localAddrToRemoteAddr = [];
 
 
     public static function addPeer($address, $peer)
     {
         $peer = (array) $peer;
 
-       if (!isset(static::$peers[$address])) {
+        if (!isset(static::$peers[$address])) {
             static::$peers[$address] = [];
-       }
+        }
 
 
-       $diff = array_diff($peer, static::$peers[$address]);
+        $diff = array_diff($peer, static::$peers[$address]);
 
-       if (!empty($diff)) {
+        if (!empty($diff)) {
             static::$peers[$address] = array_values(array_merge(static::$peers[$address], $diff));
-       }
+        }
 
-       return static::$peers[$address];
+        return static::$peers[$address];
     }
 
     public static function removePeer($address, $peer)
@@ -59,7 +60,7 @@ class PeerManager implements \Wpjscc\Penetration\Log\LogManagerInterface
             static::$timers[$address] = [];
         }
 
-       static::removeTimer($address, $peer);
+        static::removeTimer($address, $peer);
 
         static::$timers[$address][$peer] = $data;
     }
@@ -112,7 +113,7 @@ class PeerManager implements \Wpjscc\Penetration\Log\LogManagerInterface
     // {
     //     return isset(static::$tcpPeereds[$address][$peer]);
     // }
-    
+
     // public static function removeTcpPeered($address, $peer)
     // {
     //     if (isset(static::$tcpPeereds[$address][$peer])) {
@@ -122,16 +123,16 @@ class PeerManager implements \Wpjscc\Penetration\Log\LogManagerInterface
 
     public static function print()
     {
-        
+
         echo "====> current p2p connection address: " . implode(', ', static::getConnectionAddresses()) . PHP_EOL;
 
         foreach (static::$peereds as $address => $peereds) {
-            echo "====> address: {$address} ".PHP_EOL;
+            echo "====> address: {$address} " . PHP_EOL;
             echo "      peereds: " . implode(',', array_keys($peereds)) . PHP_EOL;
         }
 
         if (empty(static::$peereds)) {
-            echo "====> no peer is connected".PHP_EOL;
+            echo "====> no peer is connected" . PHP_EOL;
         }
 
         // foreach (static::$tcpPeereds as $address => $peereds) {
@@ -147,16 +148,16 @@ class PeerManager implements \Wpjscc\Penetration\Log\LogManagerInterface
 
         $uris = array_values(array_filter(explode(',', $uri)));
         if (empty($uris)) {
-            static::getLogger()->error("peer: ". $connection->getRemoteAddress() ." domain is empty", [
+            static::getLogger()->error("peer: " . $connection->getRemoteAddress() . " domain is empty", [
                 'request' => Helper::toString($request),
                 'protocol' => $connection->protocol ?? '',
             ]);
             echo $d = base64_decode($request->getHeaderLine('Data')) . PHP_EOL;
 
-            if (strpos($d, "\r\n\r\n") !==false) {
+            if (strpos($d, "\r\n\r\n") !== false) {
                 $r = Psr7\parse_response($d);
                 var_dump(base64_decode($r->getHeaderLine('Data')));
-            } 
+            }
 
             $connection->write("HTTP/1.1 400 Bad Request\r\n\r\n");
             $connection->end();
@@ -169,9 +170,9 @@ class PeerManager implements \Wpjscc\Penetration\Log\LogManagerInterface
         foreach ($uris as $key1 => $uri) {
             if (strpos($uri, ':') === false) {
                 if ($connection->protocol == 'p2p-udp') {
-                    $uri = 'p2p-udp-'.$uri;
+                    $uri = 'p2p-udp-' . $uri;
                 } else if ($connection->protocol == 'p2p-tcp') {
-                    $uri = 'p2p-tcp-'.$uri;
+                    $uri = 'p2p-tcp-' . $uri;
                 }
                 array_push($uris, $uri);
             }
@@ -222,7 +223,7 @@ class PeerManager implements \Wpjscc\Penetration\Log\LogManagerInterface
         $request = $response;
         $uri = $request->getHeaderLine('Uri');
 
-      
+
         $uris = array_values(array_filter(explode(',', $uri)));
 
         $isExist = false;
@@ -230,9 +231,9 @@ class PeerManager implements \Wpjscc\Penetration\Log\LogManagerInterface
         foreach ($uris as $key1 => $_uri) {
             if (strpos($_uri, ':') === false) {
                 if ($connection->protocol == 'p2p-udp') {
-                    $_uri = 'p2p-udp-'.$_uri;
+                    $_uri = 'p2p-udp-' . $_uri;
                 } else if ($connection->protocol == 'p2p-tcp') {
-                    $_uri = 'p2p-tcp-'.$_uri;
+                    $_uri = 'p2p-tcp-' . $_uri;
                 }
                 array_push($uris, $_uri);
             }
@@ -294,6 +295,10 @@ class PeerManager implements \Wpjscc\Penetration\Log\LogManagerInterface
     public static function removeConnection($address, $peer)
     {
 
+        if (strpos($address, '://') === false) {
+            static::removeLocalAddrToRemoteAddrByRemoteAddr($address);
+        }
+
         $connection = static::getConnection($address, $peer);
         if ($connection) {
             $connection->close();
@@ -321,6 +326,28 @@ class PeerManager implements \Wpjscc\Penetration\Log\LogManagerInterface
     }
 
 
- 
+    public static function addLocalAddrToRemoteAddr($localAddr, $remoteAddr)
+    {
+        static::$localAddrToRemoteAddr[$localAddr] = $remoteAddr;
+    }
 
+    public static function getLocalAddrToRemoteAddr($localAddr)
+    {
+        return static::$localAddrToRemoteAddr[$localAddr] ?? null;
+    }
+
+    public static function removeLocalAddrToRemoteAddr($localAddr)
+    {
+        unset(static::$localAddrToRemoteAddr[$localAddr]);
+    }
+
+    public static function removeLocalAddrToRemoteAddrByRemoteAddr($remoteAddr)
+    {
+        unset(static::$localAddrToRemoteAddr[array_search($remoteAddr, static::$localAddrToRemoteAddr)]);
+    }
+
+    public static function getAddrs()
+    {
+        return array_unique(array_values(array_merge(array_keys(static::$localAddrToRemoteAddr), array_values(static::$localAddrToRemoteAddr))));
+    }
 }

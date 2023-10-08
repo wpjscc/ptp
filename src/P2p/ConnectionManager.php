@@ -22,6 +22,11 @@ class ConnectionManager
         $connections = self::$connections[$protocol] ?? [];
         $i = 0;
         foreach ($connections as $peerAddress => $value1) {
+
+            if ($peerAddress === $address) {
+                continue;
+            }
+
             $connection = $connections[$peerAddress]['connection'];
             $peerIpLocalAddress = $connections[$peerAddress]['local_address'] ?: null;
             $peerIpWhitelist = $connections[$peerAddress]['ip_whitelist'] ?: null;
