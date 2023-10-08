@@ -320,6 +320,9 @@ class PeerManager implements \Wpjscc\Penetration\Log\LogManagerInterface
             $virtualConnection->close();
         }
         unset(static::$connections[$address][$peer]);
+        if (empty(static::$connections[$address])) {
+            unset(static::$connections[$address]);
+        }
     }
 
     public static function getConnectionAddresses()
