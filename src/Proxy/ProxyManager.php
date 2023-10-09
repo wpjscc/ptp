@@ -420,8 +420,6 @@ class ProxyManager implements \Wpjscc\Penetration\Log\LogManagerInterface
                     $proxyConnection->write($buffer);
                     $buffer = '';
                 }
-
-                // $connection->write("HTTP/1.1 200 OK\r\nServer: ReactPHP/1\r\nContent-Type: text/plain; charset=utf-8\r\nContent-Length: 39\r\n\r\nno   111proxy connection for email.test");
             }, function ($e) use ($connection, $request, &$buffer) {
                 $buffer = '';
                 $content = $e->getMessage(). " no proxy connection-2";
