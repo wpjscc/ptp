@@ -9,6 +9,7 @@ use Evenement\EventEmitter;
 use Darsyn\IP\Exception;
 use Darsyn\IP\Version\IPv4;
 use Ramsey\Uuid\Nonstandard\Uuid;
+use Wpjscc\Penetration\Client\ClientManager;
 use Wpjscc\Penetration\P2p\Client\PeerManager;
 use Wpjscc\Penetration\P2p\ConnectionManager;
 use Wpjscc\Penetration\Utils\PingPong;
@@ -162,7 +163,8 @@ class P2pTunnel extends EventEmitter implements ConnectorInterface, \Wpjscc\Pene
                             'Authorization: ' . ($this->config['token'] ?? ''),
                             'Local-Host: ' . $this->config['local_host'] . (($this->config['local_port'] ?? '') ? (':' . $this->config['local_port']) : ''),
                             'Domain: ' . $this->config['domain'],
-                            // 'Single-Tunnel: ' . ($this->config['single_tunnel'] ?? 0),
+                            'Single-Tunnel: ' . ($this->config['single_tunnel'] ?? 0),
+                            'Is-Private: ' . ($this->config['is_private'] ?? 1),
                             'Is-P2p: 1',
                             // 'Local-Tunnel-Address: ' . $connection->getLocalAddress(),
                         ];
@@ -214,25 +216,21 @@ class P2pTunnel extends EventEmitter implements ConnectorInterface, \Wpjscc\Pene
                                 $deferred->resolve($udpTunnel);
                                 $udpTunnel->emit('connection', [$connection, $this->serverAddress, $server]);
 
-                                // 客户端关闭
-                                // $connection->close();
-                                // 本地服务端监听客户端打开的端口
-                                // $deferred->resolve(new UdpTunnel('0.0.0.0:' . explode(':', $this->localAddress)[1], null, function ($server, $tunnel) {
-                                //     // $client->send(implode("\r\n", [
-                                //     //     "HTTP/1.1 410 OK",
-                                //     //     "Local-Address: " . $client->getLocalAddress(),
-                                //     //     ...$ipRanges,
-                                //     //     "\r\n"
-                                //     // ]));
-                                //     // 给服务端回复可以广播地址了
-                                //     $tunnel->setKcp(true);
-                                //     $server->send("HTTP/1.1 413 OK\r\n\r\n", $this->serverAddress);
-                                // }));
                             }
                         });
                         $connection->on('data', $fnc = function ($message) use ($parseBuffer) {
                             $parseBuffer->handleBuffer($message);
                         });
+
+                        // p2p support single tunnel, 但是不开启
+                        // if ($this->config['single_tunnel'] ?? 0) {
+                        //     $singleTunnel = (new SingleTunnel());
+                        //     $singleTunnel->overConnection($connection);
+                        //     $singleTunnel->on('connection', function ($connection, $response) {
+                        //         $buffer = '';
+                        //         ClientManager::handleLocalConnection($connection, $this->config, $buffer, $response);
+                        //     });
+                        // }
                        
                     }
                 });
@@ -643,10 +641,13 @@ class P2pTunnel extends EventEmitter implements ConnectorInterface, \Wpjscc\Pene
                 $address
             ), $connection->protocol == 'p2p-tcp' ? 'p2p-tcp' : 'p2p-udp');
 
-            $connection->on('close', function () use ($virtualConnection, $localAddress, $address) {
-                PeerManager::removeConnection($localAddress, $address);
-                $virtualConnection->close();
-            });
+            if ($connection) {
+                $connection->on('close', function () use ($virtualConnection, $localAddress, $address) {
+                    PeerManager::removeConnection($localAddress, $address);
+                    $virtualConnection->close();
+                });
+            }
+           
 
             $virtualConnection->on('close', function () use ($connection, $address) {
                 $connection->close();

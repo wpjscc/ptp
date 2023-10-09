@@ -76,6 +76,9 @@ class ClientManager implements \Wpjscc\Penetration\Log\LogManagerInterface
                 //         |                                             |
                 //      Client A                                      Client B
                 // 外部User 可通过 tunnel 访问到 Client A 或者 Client B 的内部服务
+                if (!isset($config['domain'])) {
+                    continue;
+                }
                 static::runTunnel($config);
             }
         }
@@ -98,6 +101,9 @@ class ClientManager implements \Wpjscc\Penetration\Log\LogManagerInterface
             }
             $number = $config1['pool_count'];
             for ($i = 0; $i < $number; $i++) {
+                // 可以不需要设置点对点访问的信息（仅仅是为了适配 visit_domain）
+                static::setVisitUriInfo($config1);
+
                 static::runP2p($config1);
             }
         }

@@ -6,6 +6,8 @@ namespace Wpjscc\Penetration\P2p\Client;
 use Wpjscc\Penetration\Proxy\ProxyManager;
 use Wpjscc\Penetration\Helper;
 use RingCentral\Psr7;
+use Wpjscc\Penetration\Client\ClientManager;
+use Wpjscc\Penetration\Tunnel\Client\Tunnel\SingleTunnel;
 
 class PeerManager implements \Wpjscc\Penetration\Log\LogManagerInterface
 {
