@@ -174,10 +174,21 @@ class ProxyManager implements \Wpjscc\Penetration\Log\LogManagerInterface
                     static::$remoteTunnelConnections[$_uri] = new \SplObjectStorage;
                 }
 
-                // todo 最大数量限制
+                if (static::$remoteTunnelConnections[$_uri]->count() >= 5) {
+                    static::getLogger()->error('tunnel connection count is more than 5', [
+                        'uri' => $_uri,
+                        'uuid' => $uuid,
+                    ]);
+                    $connection->write("HTTP/1.1 205 Not Support Created\r\n\r\n");
+                    $connection->end();
+                    return;
+                }
+
                 static::$remoteTunnelConnections[$_uri]->attach($connection, [
                     'Single-Tunnel' => $request->getHeaderLine('Single-Tunnel'),
                     'Local-Host' => $request->getHeaderLine('Local-Host'),
+                    'Local-Protocol' => $request->getHeaderLine('Local-Protocol'),
+                    'Local-Replace-Host' => $request->getHeaderLine('Local-Replace-Host'),
                     'Uuid' => $uuid,
                 ]);
                 $connection->on('close', function () use ($_uri, $connection, $request, $uuid) {
@@ -240,7 +251,7 @@ class ProxyManager implements \Wpjscc\Penetration\Log\LogManagerInterface
                 });
             }
 
-            // 广播地址用的，和上方的单通道不冲突
+            // p2p 广播地址用的，和上方的单通道不冲突
             if (($connection->protocol ?? '') === 'udp') {
                 if ($request->getHeaderLine('Is-P2p')) {
                     static::getLogger()->notice('create p2p tunnel', [
@@ -423,6 +434,14 @@ class ProxyManager implements \Wpjscc\Penetration\Log\LogManagerInterface
                 $connection->removeListener('data', $fn);
                 $proxyConnection->pipe($connection);
                 $connection->pipe($proxyConnection);
+
+                $proxyConnection->on('close', function () use ($connection) {
+                    $connection->close();
+                });
+
+                $connection->on('close', function () use ($proxyConnection) {
+                    $proxyConnection->close();
+                });
 
                 if ($buffer) {
                     $proxyConnection->write($buffer);

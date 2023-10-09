@@ -61,10 +61,12 @@ class ProxyConnection implements \Wpjscc\Penetration\Log\LogManagerInterface
             });
             var_dump(isset($clientConnection->tunnelConnection));
             $localHost = ProxyManager::$remoteTunnelConnections[$this->uri][$clientConnection->tunnelConnection]['Local-Host'];
+            $localProtocol = ProxyManager::$remoteTunnelConnections[$this->uri][$clientConnection->tunnelConnection]['Local-Protocol'];
+            $localReplaceHost = ProxyManager::$remoteTunnelConnections[$this->uri][$clientConnection->tunnelConnection]['Local-Replace-Host'];
 
             $proxyReplace = "";
             $proxyReplace = "\r\nHost: $localHost\r\n";
-
+            $first = true;
             if ($request && !$request->hasHeader('X-Forwarded-Host')) {
                 $host = $request->getUri()->getHost();
                 $port = $request->getUri()->getPort();
@@ -108,8 +110,9 @@ class ProxyConnection implements \Wpjscc\Penetration\Log\LogManagerInterface
             ]);
            
 
-            $middle = new ThroughStream(function ($data) use ($proxyReplace, $uuid, $request) {
-                if ($proxyReplace) {
+            $middle = new ThroughStream(function ($data) use (&$first,$localReplaceHost,$proxyReplace, $uuid, $request) {
+                if ($first && $localReplaceHost && $proxyReplace) {
+                    // $first = false; // http/1.1 one connection
                     $host = $request->getUri()->getHost();
                     $port = $request->getUri()->getPort();
                     if ($port) {
@@ -153,7 +156,6 @@ class ProxyConnection implements \Wpjscc\Penetration\Log\LogManagerInterface
                         'uuid' => $uuid,
                         'length' => strlen($buffer),
                     ]);
-                    // file_put_contents('/root/Code/reactphp-intranet-penetration/server.txt', $buffer, FILE_APPEND);
                     return $buffer;
                 }))->pipe($userConnection);
             }
@@ -210,14 +212,17 @@ class ProxyConnection implements \Wpjscc\Penetration\Log\LogManagerInterface
             });
 
             if ($buffer) {
-                $host = $request->getUri()->getHost();
-                $port = $request->getUri()->getPort();
-
-                if ($port) {
-                    $host .= ':'.$port;
+                
+                if ($first && $localReplaceHost) {
+                    // $first = false; // http/1.1 one connection
+                    $host = $request->getUri()->getHost();
+                    $port = $request->getUri()->getPort();
+                    if ($port) {
+                        $host .= ':'.$port;
+                    }
+                    $buffer = str_replace("\r\nHost: " .$host . "\r\n", $proxyReplace, $buffer);
                 }
-                var_dump($host,777777777);
-                $buffer = str_replace("\r\nHost: " .$host . "\r\n", $proxyReplace, $buffer);
+
                 $clientConnection->write($buffer);
                 $buffer = '';
             }

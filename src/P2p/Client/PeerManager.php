@@ -200,10 +200,22 @@ class PeerManager implements \Wpjscc\Penetration\Log\LogManagerInterface
                 ProxyManager::$remoteTunnelConnections[$_uri] = new \SplObjectStorage;
             }
 
-            // todo 最大数量限制
+            if (ProxyManager::$remoteTunnelConnections[$_uri]->count()>=5) {
+                static::getLogger()->error('remote tunnel connection count is more than 5', [
+                    'uri' => $_uri,
+                    'uuid' => $uuid,
+                    'request' => Helper::toString($request)
+                ]);
+                $connection->write("HTTP/1.1 205 Not Support Created\r\n\r\n");
+                $connection->end();
+                return;
+            }
+
             ProxyManager::$remoteTunnelConnections[$_uri]->attach($connection, [
                 'Single-Tunnel' => $request->getHeaderLine('Single-Tunnel'),
                 'Local-Host' => $request->getHeaderLine('Local-Host'),
+                'Local-Protocol' => $request->getHeaderLine('Local-Protocol'),
+                'Local-Replace-Host' => $request->getHeaderLine('Local-Replace-Host'),
                 'Uuid' => $uuid,
             ]);
             $connection->on('close', function () use ($_uri, $connection, $request, $uuid) {

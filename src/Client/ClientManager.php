@@ -32,6 +32,11 @@ class ClientManager implements \Wpjscc\Penetration\Log\LogManagerInterface
         $common['server_tls']  = $common['server_tls'] ?? false;
         $common['protocol']  = $common['protocol'] ?? '';
         $common['tunnel_protocol']  = $common['tunnel_protocol'] ?? 'tcp';
+        if (empty($common['local_protocol'])) {
+            $common['local_protocol'] = 'tcp';
+            // 当本地服务服务时 http 时 ，需要主动打开
+            //$common['local_replace_host'] = '1';
+        }
         unset($inis['common']);
 
         foreach ($inis as $config) {
@@ -117,6 +122,8 @@ class ClientManager implements \Wpjscc\Penetration\Log\LogManagerInterface
                     'Tunnel: 1',
                     'Authorization: ' . ($config['token'] ?? ''),
                     'Local-Host: ' . $config['local_host'] . (($config['local_port']??'') ? (':'. $config['local_port']) : ''),
+                    'Local-Protocol: ' . $config['local_protocol'],
+                    'Local-Replace-Host: ' . ($config['local_replace_host'] ?? 0),
                     'Domain: ' . $config['domain'],
                     'Single-Tunnel: ' . ($config['single_tunnel'] ?? 0),
                     'Is-Private: ' . ($config['is_private'] ?? 0),

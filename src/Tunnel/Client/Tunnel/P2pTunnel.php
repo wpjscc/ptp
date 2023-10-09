@@ -49,6 +49,8 @@ class P2pTunnel extends EventEmitter implements ConnectorInterface, \Wpjscc\Pene
             'Tunnel: 1',
             'Authorization: ' . ($config['token'] ?? ''),
             'Local-Host: ' . $config['local_host'] . (($config['local_port'] ?? '') ? (':' . $config['local_port']) : ''),
+            'Local-Protocol: ' . ($config['local_protocol']),
+            'Local-Replace-Host: ' . ($config['local_replace_host'] ?? 0),
             'Domain: ' . $config['domain'],
             'Uri: ' . $config['domain'],
             "\r\n"
