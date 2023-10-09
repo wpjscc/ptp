@@ -15,6 +15,9 @@ use Wpjscc\Penetration\Helper;
 use Wpjscc\Penetration\P2p\Client\PeerManager;
 use Wpjscc\Penetration\P2p\ConnectionManager;
 
+
+\Wpjscc\Penetration\Environment::$type = 'server';
+
 LogManager::$logLevels = [
     // LogLevel::ALERT,
     // LogLevel::CRITICAL,
@@ -31,8 +34,8 @@ LogManager::setLogger(new \Wpjscc\Penetration\Log\EchoLog());
 
 $inis = Config::getConfig(getParam('--ini-path', './server.ini'));
 
-$server80Port = $inis['common']['server_80_port'] ?? '';
-$server443Port = $inis['common']['server_443_port'] ?? '';
+$server80Port = $inis['common']['tunnel_80_port'] ?? '';
+$server443Port = $inis['common']['tunnel_443_port'] ?? '';
 
 // http server
 $httpPort = $inis['common']['http_port'] ?? 8080;

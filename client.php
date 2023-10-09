@@ -137,6 +137,8 @@ function decompressed($data) {
 // });
 // exit();
 
+
+\Wpjscc\Penetration\Environment::$type = 'client';
 $config = Config::getConfig(getParam('--ini-path', './client.ini'));
 
 LogManager::$logLevels = [

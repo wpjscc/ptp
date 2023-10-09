@@ -30,23 +30,30 @@ class Http implements \Wpjscc\Penetration\Log\LogManagerInterface
 
         $tunnel->on('connection', function ($userConnection) {
             echo 'http user: '.$userConnection->getLocalAddress().' is connected'."\n";
-            
+
+            $first = true;
             $buffer = '';
-            $userConnection->on('data', $fn = function ($chunk) use ($userConnection, &$buffer,  &$fn) {
+            $userConnection->on('data', $fn = function ($chunk) use ($userConnection, &$buffer,  &$fn, &$first) {
                 $buffer .= $chunk;
                 $pos = strpos($buffer, "\r\n\r\n");
 
                 // CONNECT
-                if (($pos !== false) && (strpos($buffer, "CONNECT") === 0)) {
+                if ($first && ($pos !== false) && (strpos($buffer, "CONNECT") === 0)) {
                     $userConnection->removeListener('data', $fn);
                     $fn = null;
                     try {
+                        $token = '';
+                        $pattern = '/Proxy-Authorization: ([^\r\n]+)/i';
+                        if (preg_match($pattern, $buffer, $matches1)) {
+                            $proxyAuthorizationValue = $matches1[1];
+                            $token = $proxyAuthorizationValue;
+                        }
                         $pattern = "/CONNECT ([^\s]+) HTTP\/(\d+\.\d+)/";
                         if (preg_match($pattern, $buffer, $matches)) {
                             $host = $matches[1];
                             $version = $matches[2];
                             $userConnection->write("HTTP/{$version} 200 Connection Established\r\n\r\n");
-                            $request = Psr7\parse_request("GET /connect HTTP/1.1\r\nHost: $host}\r\n\r\n");
+                            $request = Psr7\parse_request("GET /connect HTTP/1.1\r\nHost: $host\r\nProxy-Authorization: {$token}\r\n\r\n");
                             ProxyManager::pipe($userConnection, $request);
                             $buffer = '';
                         } else {
@@ -66,7 +73,7 @@ class Http implements \Wpjscc\Penetration\Log\LogManagerInterface
                     }
                     return;
                 }
-
+                $first = false;
                 if ($pos !== false) {
                     $userConnection->removeListener('data', $fn);
                     $fn = null;

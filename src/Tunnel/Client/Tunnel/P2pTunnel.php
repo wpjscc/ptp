@@ -44,7 +44,7 @@ class P2pTunnel extends EventEmitter implements ConnectorInterface, \Wpjscc\Pene
 
         // 发送给其他客户端的
         $header = [
-            'Host: ' . $config['server_host'],
+            'Host: ' . $config['tunnel_host'],
             'User-Agent: ReactPHP',
             'Tunnel: 1',
             'Authorization: ' . ($config['token'] ?? ''),
@@ -154,7 +154,7 @@ class P2pTunnel extends EventEmitter implements ConnectorInterface, \Wpjscc\Pene
                     if ($address == $this->serverAddress) {
                         $headers = [
                             'GET /client HTTP/1.1',
-                            'Host: ' . $this->config['server_host'],
+                            'Host: ' . $this->config['tunnel_host'],
                             'User-Agent: ReactPHP',
                             'Tunnel: 1',
                             'Authorization: ' . ($this->config['token'] ?? ''),

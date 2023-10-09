@@ -6,11 +6,11 @@ use React\Promise\Deferred;
 use React\Promise\Timer\TimeoutException;
 use Wpjscc\Penetration\Tunnel\Server\Tunnel\SingleTunnel;
 use Ramsey\Uuid\Uuid;
+use Wpjscc\Penetration\Client\ClientManager;
 use Wpjscc\Penetration\Helper;
 use Wpjscc\Penetration\Utils\PingPong;
+use Wpjscc\Penetration\Utils\Ip;
 use Wpjscc\Penetration\Tunnel\Server\Tunnel\P2pTunnel;
-use Darsyn\IP\Version\IPv4;
-use Darsyn\IP\Exception;
 
 class ProxyManager implements \Wpjscc\Penetration\Log\LogManagerInterface
 {
@@ -29,6 +29,11 @@ class ProxyManager implements \Wpjscc\Penetration\Log\LogManagerInterface
 
     public static function getProxyConnection($uri)
     {
+
+        if (!isset(static::$remoteTunnelConnections[$uri])) {
+            return false;
+        }
+
         if (isset(static::$proxyConnections[$uri])) {
             return static::$proxyConnections[$uri];
         }
@@ -311,43 +316,120 @@ class ProxyManager implements \Wpjscc\Penetration\Log\LogManagerInterface
     {
         $host = $request->getUri()->getHost();
         $port = $request->getUri()->getPort();
-        $uri = $host;
         echo "host is $host\n";
-        try {
-            
-            IPv4::factory($host);
-            if ($port) {
-                $uri = $uri.':'.$port;
-            }
-
-        } catch (Exception\InvalidIpAddressException $e) {
-            echo 'The IP address supplied is invalid!'."\n";
-        }
-
-        if (($connection->protocol ?? '') =='udp') {
-            $uri = 'udp://'. $uri;
-        }
+       
+        $uri = Ip::getUri($host, $port, $connection->protocol ?? '');
 
         echo "pipe uri is $uri\n";
 
         $proxyConnection = ProxyManager::getProxyConnection($uri);
         if ($proxyConnection === false) {
-            $buffer = '';
-            $content = "no proxy connection\n";
-            $headers = [
-                'HTTP/1.1 200 OK',
-                'Server: ReactPHP/1',
-                'Content-Type: text/html; charset=UTF-8',
-                'Content-Length: '.strlen($content),
-            ];
-            $connection->write(implode("\r\n", $headers)."\r\n\r\n".$content);
-            $connection->end();
+            if (\Wpjscc\Penetration\Environment::$type == 'client') {
+                static::pipeRemote($connection, $request, $buffer);
+            } else {
+                $buffer = '';
+                $content = "no proxy connection\n";
+                $headers = [
+                    'HTTP/1.1 200 OK',
+                    'Server: ReactPHP/1',
+                    'Content-Type: text/html; charset=UTF-8',
+                    'Content-Length: '.strlen($content),
+                ];
+                $connection->write(implode("\r\n", $headers)."\r\n\r\n".$content);
+                $connection->end();
+            }
+            
         } else {
             echo 'user: '.$uri.' is arive'."\n";
             if ($callback) {
                 call_user_func($callback, $proxyConnection);
             }
+
+            if (ProxyManager::$uriToInfo[$uri]['is_private']) {
+                $hadTokens = ProxyManager::$uriToInfo[$uri]['tokens'];
+                $tokens = array_values(array_filter(explode(',', $request->getHeaderLine('Proxy-Authorization'))));
+                if (empty(array_intersect($hadTokens, $tokens))) {
+                    $buffer = '';
+                    $content = "Proxy Authorization is Failed\n";
+                    $headers = [
+                        'HTTP/1.1 200 OK',
+                        'Server: ReactPHP/1',
+                        'Content-Type: text/html; charset=UTF-8',
+                        'Content-Length: '.strlen($content),
+                    ];
+                    $connection->write(implode("\r\n", $headers)."\r\n\r\n".$content);
+                    $connection->end();
+                    return;
+                }
+            }
+           
+
             $proxyConnection->pipe($connection, $buffer, $request);
+        }
+    }
+
+    // client -> server
+    public static function pipeRemote($connection, $request, &$buffer = '')
+    {
+        $host = $request->getUri()->getHost();
+        $port = $request->getUri()->getPort();
+        echo "pipeRemote host is $host\n";
+       
+        $uri = Ip::getUri($host, $port, $connection->protocol ?? '');
+
+        echo "pipeRemote pipe uri is $uri\n";
+
+        $proxyConnection = ProxyManager::getProxyConnection($uri);
+        if ($proxyConnection === false) {
+            if (!isset(ClientManager::$visitUriToInfo[$uri]['tokens']) || empty(ClientManager::$visitUriToInfo[$uri]['tokens'])) {
+                $buffer = '';
+                $content = "local no $uri service, try pipe remote failed, no config for $uri";
+                $headers = [
+                    'HTTP/1.1 200 OK',
+                    'Server: ReactPHP/1',
+                    'Content-Type: text/html; charset=UTF-8',
+                    'Content-Length: '.strlen($content),
+                ];
+                $connection->write(implode("\r\n", $headers)."\r\n\r\n".$content);
+                $connection->end();
+                return;
+            }
+
+            $connection->on('data', $fn =function($chunk) use (&$buffer) {
+                $buffer .= $chunk;
+            });
+
+            (new \Wpjscc\Penetration\Tunnel\Local\Tunnel\TcpTunnel([
+                'local_host' => $host,
+                'local_port' => $port,
+                'local_proxy' => ClientManager::$visitUriToInfo[$uri]['remote_proxy'],
+                'token' => implode(',', ClientManager::$visitUriToInfo[$uri]['tokens']),
+                'timeout' => 1,
+            ]))->connect($uri)->then(function ($remoteConnection) use ($connection, $request, &$buffer, $fn, $uri) {
+                static::getLogger()->debug('pipe remote success', [
+                    'uri' => $uri,
+                ]);
+                $connection->removeListener('data', $fn);
+                $remoteConnection->pipe($connection);
+                $connection->pipe($remoteConnection);
+
+                if ($buffer) {
+                    $remoteConnection->write($buffer);
+                    $buffer = '';
+                }
+
+            }, function ($e) use ($connection, $request, &$buffer) {
+                $buffer = '';
+                $content = $e->getMessage(). " no proxy connection-2\n";
+                $headers = [
+                    'HTTP/1.1 200 OK',
+                    'Server: ReactPHP/1',
+                    'Content-Type: text/html; charset=UTF-8',
+                    'Content-Length: '.strlen($content),
+                ];
+                $connection->write(implode("\r\n", $headers)."\r\n\r\n".$content);
+                $connection->end();
+            });
         }
     }
 }

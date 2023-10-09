@@ -25,9 +25,9 @@ class Tunnel implements \Wpjscc\Penetration\Log\LogManagerInterface
 
         $this->config = &$config;
         $this->protocol = $config['tunnel_protocol'] ?? 'tcp';
-        $this->serverHost = $config['server_host'];
-        $this->server80port = $config['server_80_port'];
-        $this->server443port = $config['server_443_port'] ?? '';
+        $this->serverHost = $config['tunnel_host'];
+        $this->server80port = $config['tunnel_80_port'];
+        $this->server443port = $config['tunnel_443_port'] ?? '';
         $this->timeout = $config['timeout'] ?? 6;
 
     }
@@ -49,10 +49,10 @@ class Tunnel implements \Wpjscc\Penetration\Log\LogManagerInterface
         }
         elseif ($protocol == 'wss') {
             if (!$this->server443port) {
-                static::getLogger()->error('wss protocol must set server_443_port', [
+                static::getLogger()->error('wss protocol must set tunnel_443_port', [
                     'server443port' => $this->server443port,
                 ]);
-                throw new \Exception('wss protocol must set server_443_port');
+                throw new \Exception('wss protocol must set tunnel_443_port');
             }
             $tunnel = (new WebsocketTunnel())->connect("wss://".$this->serverHost.":".$this->server443port);
         }
@@ -61,10 +61,10 @@ class Tunnel implements \Wpjscc\Penetration\Log\LogManagerInterface
         }
         elseif ($protocol == 'tls') {
             if (!$this->server443port) {
-                static::getLogger()->error('tls protocol must set server_443_port', [
+                static::getLogger()->error('tls protocol must set tunnel_443_port', [
                     'server443port' => $this->server443port,
                 ]);
-                throw new \Exception('tls protocol must set server_443_port');
+                throw new \Exception('tls protocol must set tunnel_443_port');
             }
             $tunnel = (new TcpTunnel(array('timeout' => $this->timeout)))->connect("tls://".$this->serverHost.":".$this->server443port);
         }

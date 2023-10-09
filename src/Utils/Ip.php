@@ -50,5 +50,27 @@ class Ip
         return $isInIpRange;
     }
 
+    public static function getUri($host, $port, $protocol)
+    {
+        $uri = $host;
+
+        try {
+            
+            IPv4::factory($host);
+            if ($port) {
+                $uri = $uri.':'.$port;
+            }
+
+        } catch (Exception\InvalidIpAddressException $e) {
+            echo 'The IP address supplied is invalid!'."\n";
+        }
+
+        if ($protocol =='udp') {
+            $uri = 'udp://'. $uri;
+        }
+        
+        return $uri;
+    }
+
     
 }

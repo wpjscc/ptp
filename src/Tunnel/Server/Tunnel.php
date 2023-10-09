@@ -33,13 +33,13 @@ class Tunnel implements \Wpjscc\Penetration\Log\LogManagerInterface
     public function __construct($config)
     {
         $this->config = $config;
-        $host = $config['server_host'] ?? '';
+        $host = $config['tunnel_host'] ?? '';
         if ($host) {
             $this->host = $host;
         }
         $this->protocol = $config['tunnel_protocol'] ?? 'tcp';
-        $this->server80port = $config['server_80_port'];
-        $this->server443port = $config['server_443_port'] ?? '';
+        $this->server80port = $config['tunnel_80_port'];
+        $this->server443port = $config['tunnel_443_port'] ?? '';
         $this->certPemPath = $config['cert_pem_path'] ?? '';
         $this->certKeyPath = $config['cert_key_path'] ?? '';
     }
@@ -71,7 +71,7 @@ class Tunnel implements \Wpjscc\Penetration\Log\LogManagerInterface
             }
 
             if (!$this->server443port) {
-                throw new \Exception('wss protocol must set server_443_port');
+                throw new \Exception('wss protocol must set tunnel_443_port');
             }
 
             $socket = new WebsocketTunnel($this->host, $this->server443port, '0.0.0.0', null, $context, $socket);
@@ -90,7 +90,7 @@ class Tunnel implements \Wpjscc\Penetration\Log\LogManagerInterface
             }
 
             if (!$this->server443port) {
-                throw new \Exception('tls protocol must set server_443_port');
+                throw new \Exception('tls protocol must set tunnel_443_port');
             }
             
             $socket = new TcpTunnel('tls://0.0.0.0:' . $this->server443port, $context);
@@ -165,8 +165,9 @@ class Tunnel implements \Wpjscc\Penetration\Log\LogManagerInterface
             ]);
 
             $buffer = '';
+            $first = true;
             $that = $this;
-            $connection->on('data', $fn = function ($chunk) use ($connection, &$buffer, &$fn, $that, $protocol, $socket) {
+            $connection->on('data', $fn = function ($chunk) use ($connection, &$buffer, &$fn, $that, $protocol, $socket, &$first) {
                 static::getLogger()->notice("client: {$protocol} is data ", [
                     'remoteAddress' => $connection->getRemoteAddress(),
                     'length' => strlen($chunk),
@@ -175,6 +176,46 @@ class Tunnel implements \Wpjscc\Penetration\Log\LogManagerInterface
 
                 $pos = strpos($buffer, "\r\n\r\n");
                 if ($pos !== false) {
+                    if ($first && (strpos($buffer, "CONNECT") === 0)) {
+                    var_dump($buffer);
+
+                        $connection->removeListener('data', $fn);
+                        $fn = null;
+                        try {
+                            
+                            $token = '';
+                            $pattern = '/Proxy-Authorization: ([^\r\n]+)/i';
+                            if (preg_match($pattern, $buffer, $matches1)) {
+                                $proxyAuthorizationValue = $matches1[1];
+                                $token = $proxyAuthorizationValue;
+                            }
+
+                            $pattern = "/CONNECT ([^\s]+) HTTP\/(\d+\.\d+)/";
+                            if (preg_match($pattern, $buffer, $matches)) {
+                                $host = $matches[1];
+                                $version = $matches[2];
+                                $connection->write("HTTP/{$version} 200 Connection Established\r\n\r\n");
+                                $request = Psr7\parse_request("GET /connect HTTP/1.1\r\nHost: $host\r\nProxy-Authorization: {$token}\r\n\r\n");
+                                ProxyManager::pipe($connection, $request);
+                                $buffer = '';
+                            } else {
+                                $buffer = '';
+                                $connection->write('Invalid request');
+                                $connection->end();
+                            }
+                        } catch (\Exception $e) {
+                            static::getLogger()->error($e->getMessage(), [
+                                'class' => __CLASS__,
+                                'file' => $e->getFile(),
+                                'line' => $e->getLine(),
+                            ]);
+                            $buffer = '';
+                            $connection->write($e->getMessage());
+                            $connection->end();
+                        }
+                        return;
+                    }
+                    $first = false;
                     $connection->removeListener('data', $fn);
                     $fn = null;
                     // try to parse headers as request message
@@ -264,16 +305,18 @@ class Tunnel implements \Wpjscc\Penetration\Log\LogManagerInterface
     {
         $domain = $request->getHeaderLine('Domain');
         $isPrivate = $request->getHeaderLine('Is-Private');
+        $tokens = array_values(array_filter(explode(',', $request->getHeaderLine('Authorization'))));
 
         $uris = explode(',', $domain);
 
         foreach ($uris as $uri) {
             if (isset(ProxyManager::$uriToInfo[$uri])) {
-                if (ProxyManager::$uriToInfo[$uri]['token'] != $request->getHeaderLine('Authorization')) {
+                $hadTokens = ProxyManager::$uriToInfo[$uri]['tokens'] ?? [];
+                if (!empty($hadTokens) && empty(array_intersect($hadTokens, $tokens))) {
                     return false;
                 }
             } else {
-                ProxyManager::$uriToInfo[$uri]['token'] = $request->getHeaderLine('Authorization');
+                ProxyManager::$uriToInfo[$uri]['tokens'] = $tokens;
                 ProxyManager::$uriToInfo[$uri]['is_private'] = $isPrivate ? true : false;
             }
         }

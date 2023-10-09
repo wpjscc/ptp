@@ -4,7 +4,7 @@ namespace Wpjscc\Penetration\Tunnel\Local\Tunnel;
 
 use React\Socket\Connector;
 
-class TcpTunnel
+class TcpTunnel implements \React\Socket\ConnectorInterface
 {
     protected $config;
     public function __construct($config)
@@ -25,7 +25,9 @@ class TcpTunnel
         $proxy = null;
 
         if ($config['local_proxy'] ?? '') {
-            $proxy = new \Clue\React\HttpProxy\ProxyConnector($config['local_proxy']);
+            $proxy = new \Clue\React\HttpProxy\ProxyConnector($config['local_proxy'], null, [
+                'Proxy-Authorization' => $this->config['token'] ?? ''
+            ]);
         }
         
         return (new Connector(

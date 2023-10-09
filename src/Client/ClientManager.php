@@ -14,6 +14,7 @@ use Wpjscc\Penetration\P2p\Client\PeerManager;
 use Wpjscc\Penetration\Proxy\ProxyManager;
 use Ramsey\Uuid\Uuid;
 use Wpjscc\Penetration\Utils\PingPong;
+use Wpjscc\Penetration\Utils\Ip;
 
 class ClientManager implements \Wpjscc\Penetration\Log\LogManagerInterface
 {
@@ -24,6 +25,8 @@ class ClientManager implements \Wpjscc\Penetration\Log\LogManagerInterface
     public static $localDynamicConnections = [];
 
     static $configs = [];
+    // static $uriToInfo = [];
+    static $visitUriToInfo = [];
 
     public static function createLocalTunnelConnection($inis)
     {
@@ -56,7 +59,7 @@ class ClientManager implements \Wpjscc\Penetration\Log\LogManagerInterface
                 ]);
                 $headers = [
                     'GET /client HTTP/1.1',
-                    'Host: ' . $config['server_host'],
+                    'Host: ' . $config['tunnel_host'],
                     'User-Agent: ReactPHP',
                     'Tunnel: 1',
                     'Authorization: ' . ($config['token'] ?? ''),
@@ -119,6 +122,7 @@ class ClientManager implements \Wpjscc\Penetration\Log\LogManagerInterface
             $number = $config['pool_count'];
 
             for ($i = 0; $i < $number; $i++) {
+                static::setUriInfo($config);
                 $function($config);
             }
         }
@@ -134,6 +138,46 @@ class ClientManager implements \Wpjscc\Penetration\Log\LogManagerInterface
                 static::runP2p($config1);
             }
         }
+    }
+
+
+    public static function setUriInfo($config)
+    {
+        $domain = $config['domain'] ?? '';
+        $visitDomain = $config['visit_domain'] ?? '';
+        $token = $config['token'] ?? '';
+        // $uris = explode(',', $domain);
+        // foreach ($uris as $key => $uri) {
+        //     static::$uriToInfo[$uri]['config'] = $config;
+        //     if (!isset(static::$uriToInfo[$uri]['tokens'])) {
+        //         static::$uriToInfo[$uri]['tokens'] = [];
+        //     }
+        //     if ($token) {
+        //         static::$uriToInfo[$uri]['tokens'][] = $token;
+        //     }
+        // }
+
+        $visitUris = explode(',', $visitDomain);
+        foreach ($visitUris as $key => $visitUri) {
+            static::$visitUriToInfo[$visitUri]['config'] = $config;
+            if (!isset(static::$visitUriToInfo[$visitUri]['tokens'])) {
+                static::$visitUriToInfo[$visitUri]['tokens'] = [];
+            }
+            if ($token) {
+                static::$visitUriToInfo[$visitUri]['tokens'][] = $token;
+            }
+
+            $protocol = $config['protocol'] ?? '';
+            $tunnelProtocol = $config['tunnel_protocol'] ?? '';
+
+            if (in_array($protocol, ['tls', 'wss']) || in_array($tunnelProtocol, ['tls', 'wss'])) {
+                static::$visitUriToInfo[$visitUri]['remote_proxy'] = 'https://'.$config['tunnel_host'].':'.$config['tunnel_443_port'];
+            } else {
+                static::$visitUriToInfo[$visitUri]['remote_proxy'] = 'http://'.$config['tunnel_host'].':'.$config['tunnel_80_port'];
+            }
+
+        }
+
     }
 
     public static function runP2p($config)
@@ -297,7 +341,7 @@ class ClientManager implements \Wpjscc\Penetration\Log\LogManagerInterface
         static::getTunnel($config)->then(function ($connection) use ($tunnelConnection, $config) {
             $headers = [
                 'GET /client HTTP/1.1',
-                'Host: ' . $config['server_host'],
+                'Host: ' . $config['tunnel_host'],
                 'User-Agent: ReactPHP',
                 'Authorization: ' . ($config['token'] ?? ''),
                 'Domain: ' . $config['domain'],

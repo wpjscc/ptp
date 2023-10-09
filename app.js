@@ -877,9 +877,9 @@
 
         constructor($config) {
             this.protocol = $config['tunnel_protocol'] || 'tcp';
-            this.server_host = $config['server_host'];
-            this.server_80_port = $config['server_80_port'];
-            this.server_443_port = $config['server_443_port'];
+            this.tunnel_host = $config['tunnel_host'];
+            this.tunnel_80_port = $config['tunnel_80_port'];
+            this.tunnel_443_port = $config['tunnel_443_port'];
             this.timeout = $config['timeout'] || 6;
 
             this.local_host = $config['local_host'];
@@ -896,16 +896,16 @@
             console.log('protocol is ' + $protocol)
 
             if ($protocol == 'ws') {
-                return new WebSocketTunnel().connect('ws://' + this.server_host + ':' + this.server_80_port + '/tunnel');
+                return new WebSocketTunnel().connect('ws://' + this.tunnel_host + ':' + this.tunnel_80_port + '/tunnel');
             }
             else if ($protocol == 'wss') {
-                return new WebSocketTunnel().connect('wss://' + this.server_host + ':' + this.server_443_port + '/tunnel');
+                return new WebSocketTunnel().connect('wss://' + this.tunnel_host + ':' + this.tunnel_443_port + '/tunnel');
             }
             else if ($protocol == 'tcp') {
-                return new TcpTunnel().connect(this.server_host + ':' + this.server_80_port);
+                return new TcpTunnel().connect(this.tunnel_host + ':' + this.tunnel_80_port);
             }
             else if ($protocol == 'udp') {
-                return new UdpTunnel().connect(this.server_host + ':' + this.server_80_port);
+                return new UdpTunnel().connect(this.tunnel_host + ':' + this.tunnel_80_port);
             }
 
             return new Promise((resolve, reject) => {
@@ -939,9 +939,9 @@
     var inisString = `
 [common]
     pool_count = 1
-    server_host = 192.168.1.9
-    server_80_port = 32126
-    server_443_port = 32125
+    tunnel_host = 192.168.1.9
+    tunnel_80_port = 32126
+    tunnel_443_port = 32125
     protocol = ws
     tunnel_protocol = tcp
 
@@ -1027,7 +1027,7 @@
                     console.log($config)
                     let $headers = [
                         'GET /client HTTP/1.1',
-                        'Host: ' + $config['server_host'],
+                        'Host: ' + $config['tunnel_host'],
                         'User-Agent: ReactPHP',
                         'Tunnel: 1',
                         'Authorization: ' + ($config['token'] || ''),
@@ -1175,7 +1175,7 @@
             new Tunnel($config).getTunnel($tunnel_protocol || $protocol).then(function ($connection) {
                 let $headers = [
                     'GET /client HTTP/1.1',
-                    'Host: ' + $config['server_host'],
+                    'Host: ' + $config['tunnel_host'],
                     'User-Agent: ReactPHP',
                     'Authorization: ' + ($config['token'] || ''),
                     'Domain: ' + $config['domain'],
