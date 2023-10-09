@@ -83,8 +83,7 @@ class ClientManager implements \Wpjscc\Penetration\Log\LogManagerInterface
         //                                |
         //         +----------------------+----------------------+
         //         |                                             |
-
-
+        //      ----------------------------------------------------------
         //         |                                             |
         //      Client A <--------------tcp/udp--------------> Client B
         // 打通后可通过tcp 或者 udp 访问对端
