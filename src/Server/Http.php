@@ -36,7 +36,6 @@ class Http implements \Wpjscc\Penetration\Log\LogManagerInterface
             $userConnection->on('data', $fn = function ($chunk) use ($userConnection, &$buffer,  &$fn, &$first) {
                 $buffer .= $chunk;
                 $pos = strpos($buffer, "\r\n\r\n");
-                var_dump($chunk);
 
                 // CONNECT
                 if ($first && ($pos !== false) && (strpos($buffer, "CONNECT") === 0)) {

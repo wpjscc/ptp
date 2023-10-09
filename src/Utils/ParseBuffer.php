@@ -77,6 +77,11 @@ class ParseBuffer extends EventEmitter implements \Wpjscc\Penetration\Log\LogMan
         return $this->remoteAddress;
     }
 
+    public function getBuffer()
+    {
+        return $this->buffer;
+    }
+
 
    
 }

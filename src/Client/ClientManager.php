@@ -4,17 +4,11 @@ namespace Wpjscc\Penetration\Client;
 
 use Wpjscc\Penetration\Tunnel\Client\Tunnel;
 use Wpjscc\Penetration\Tunnel\Client\Tunnel\SingleTunnel;
-use React\Socket\Connector;
-use RingCentral\Psr7;
-use Psr\Log\LoggerInterface;
 use Wpjscc\Penetration\Helper;
 use Wpjscc\Penetration\Utils\ParseBuffer;
 use Wpjscc\Penetration\P2p\Client\HandleResponse;
 use Wpjscc\Penetration\P2p\Client\PeerManager;
-use Wpjscc\Penetration\Proxy\ProxyManager;
-use Ramsey\Uuid\Uuid;
 use Wpjscc\Penetration\Utils\PingPong;
-use Wpjscc\Penetration\Utils\Ip;
 
 class ClientManager implements \Wpjscc\Penetration\Log\LogManagerInterface
 {
@@ -40,13 +34,73 @@ class ClientManager implements \Wpjscc\Penetration\Log\LogManagerInterface
         $common['tunnel_protocol']  = $common['tunnel_protocol'] ?? 'tcp';
         unset($inis['common']);
 
-
         foreach ($inis as $config) {
             static::$configs = array_merge(static::$configs, [
                 array_merge($common, $config)
             ]);
         }
 
+        // 运行tunnel
+        foreach (static::$configs as $config) {
+            if ($config['protocol'] == 'p2p') {
+                continue;
+            }
+            $number = $config['pool_count'];
+
+            for ($i = 0; $i < $number; $i++) {
+                // 设置点对点访问的信息 (流量经过服务端) is_private 并且 token 一样
+                //                           Server
+                //                         
+                //                                |
+                //                                |
+                //         +-------tcp/tls--------+--------tcp/tls-------+
+                //         |                                             |
+                //         |                                             |
+                //         |                                             |
+                //      Client A                                      Client B
+                // Client A 和 Client B 能通过本地域名互相访问
+                static::setVisitUriInfo($config);
+                // 注册通道
+                //                           Server
+                //                         
+                //                                |------<----tcp/udp/tls/wss/ws/http/https----<----+
+                //                                |                                                 |
+                //         +-tcp/tls/udp/wss/ws-<-+->-tcp/tls/udp/wss/ws-+                          |   
+                //         |                                             |                          User 
+                //         |                                             |
+                //         |                                             |
+                //      Client A                                      Client B
+                // 外部User 可通过 tunnel 访问到 Client A 或者 Client B 的内部服务
+                static::runTunnel($config);
+            }
+        }
+
+
+        // 运行p2p,打通后,流量不经过服务端
+        //                              Server
+        //                         
+        //                                |
+        //                                |
+        //         +----------------------+----------------------+
+        //         |                                             |
+
+
+        //         |                                             |
+        //      Client A <--------------tcp/udp--------------> Client B
+        // 打通后可通过tcp 或者 udp 访问对端
+        foreach (static::$configs as $config1) {
+            if ($config1['protocol'] != 'p2p') {
+                continue;
+            }
+            $number = $config1['pool_count'];
+            for ($i = 0; $i < $number; $i++) {
+                static::runP2p($config1);
+            }
+        }
+    }
+
+    public static function runTunnel($config)
+    {
         $function = function ($config) use (&$function) {
             $protocol = $config['protocol'];
             $tunneProtocol = $config['tunnel_protocol'];
@@ -57,7 +111,7 @@ class ClientManager implements \Wpjscc\Penetration\Log\LogManagerInterface
                     'local_address' => $connection->getLocalAddress(),
                     'remote_address' => $connection->getRemoteAddress(),
                 ]);
-                $headers = [
+                $request = implode("\r\n", [
                     'GET /client HTTP/1.1',
                     'Host: ' . $config['tunnel_host'],
                     'User-Agent: ReactPHP',
@@ -67,23 +121,24 @@ class ClientManager implements \Wpjscc\Penetration\Log\LogManagerInterface
                     'Domain: ' . $config['domain'],
                     'Single-Tunnel: ' . ($config['single_tunnel'] ?? 0),
                     'Is-Private: ' . ($config['is_private'] ?? 0),
-                    // 'Local-Tunnel-Address: ' . $connection->getLocalAddress(),
-                ];
-
-                $request = implode("\r\n", $headers) . "\r\n\r\n";
+                    "\r\n"
+                ]);
                 static::getLogger()->debug('send create tunnel request', [
                     'request' => $request,
                     'protocol' => $protocol
                 ]);
                 $connection->write($request);
 
-                $buffer = '';
-                $connection->on('data', $fn = function ($chunk) use ($connection, &$config, &$buffer, &$fn) {
-                    $buffer .= $chunk;
-                    ClientManager::handleLocalTunnelBuffer($connection, $buffer, $config, $fn);
+                $parseBuffer = new ParseBuffer();
+                $parseBuffer->on('response', function ($response) use ($connection, &$config) {
+                    static::handleTunnelResponse($response, $connection, $config);
                 });
 
-                $connection->on('close', function () use ($function, &$config) {
+                $connection->on('data', function ($chunk) use ($parseBuffer) {
+                    $parseBuffer->handleBuffer($chunk);
+                });
+
+                $connection->on('close', function () use ($function, $config) {
                     static::getLogger()->debug('Connection closed', [
                         'uuid' => $config['uuid'] ?? '',
                     ]);
@@ -112,51 +167,14 @@ class ClientManager implements \Wpjscc\Penetration\Log\LogManagerInterface
             });
         };
 
-
-        foreach (static::$configs as $config) {
-
-            if ($config['protocol'] == 'p2p') {
-                continue;
-            }
-
-            $number = $config['pool_count'];
-
-            for ($i = 0; $i < $number; $i++) {
-                static::setUriInfo($config);
-                $function($config);
-            }
-        }
-        foreach (static::$configs as $config1) {
-
-            if ($config1['protocol'] != 'p2p') {
-                continue;
-            }
-
-            $number = $config1['pool_count'];
-
-            for ($i = 0; $i < $number; $i++) {
-                static::runP2p($config1);
-            }
-        }
+        $function($config);
     }
 
 
-    public static function setUriInfo($config)
+    public static function setVisitUriInfo($config)
     {
-        $domain = $config['domain'] ?? '';
         $visitDomain = $config['visit_domain'] ?? '';
         $token = $config['token'] ?? '';
-        // $uris = explode(',', $domain);
-        // foreach ($uris as $key => $uri) {
-        //     static::$uriToInfo[$uri]['config'] = $config;
-        //     if (!isset(static::$uriToInfo[$uri]['tokens'])) {
-        //         static::$uriToInfo[$uri]['tokens'] = [];
-        //     }
-        //     if ($token) {
-        //         static::$uriToInfo[$uri]['tokens'][] = $token;
-        //     }
-        // }
-
         $visitUris = explode(',', $visitDomain);
         foreach ($visitUris as $key => $visitUri) {
             static::$visitUriToInfo[$visitUri]['config'] = $config;
@@ -188,7 +206,6 @@ class ClientManager implements \Wpjscc\Penetration\Log\LogManagerInterface
         $tunnel->on('connection', function ($connection, $response, $address) use (&$config) {
             // 相当于服务端
             $uuid = $config['uuid'];
-            // $response = $response->withHeader('Uuid', $uuid);
 
             // 将对端连接添加到可用连接池
             PeerManager::handleClientConnection($connection, $response, $uuid);
@@ -198,11 +215,6 @@ class ClientManager implements \Wpjscc\Penetration\Log\LogManagerInterface
             $handleResponse->on('connection', function ($singleConnection) use ($response, $connection, $uuid) {
                 PeerManager::handleOverVirtualConnection($singleConnection, $response, $connection, $uuid);
             });
-            // $parseBuffer = new ParseBuffer;
-            // $parseBuffer->on('response', [$handleResponse, 'handleResponse']);
-            // $connection->on('data', function ($data) use ($parseBuffer) {
-            //     $parseBuffer->handleBuffer($data);
-            // });
         });
     }
 
@@ -211,62 +223,53 @@ class ClientManager implements \Wpjscc\Penetration\Log\LogManagerInterface
         return (new Tunnel($config))->getTunnel($protocol);
     }
 
-    public static function handleLocalTunnelBuffer($connection, &$buffer, &$config)
+    // 处理通道返回的数据
+    //                           Server x.x.x.x
+    //                         
+    //                                |
+    //                                |
+    //                                ↓
+    //         +-----<----Tunnel---<---
+    //         |                                             
+    //         |                                             
+    //         ↓                                             
+    //      Client                                                                       
+    public static function handleTunnelResponse($response, $connection, &$config)
     {
-        $pos = strpos($buffer, "\r\n\r\n");
-        if ($pos !== false) {
-            $httpPos = strpos($buffer, "HTTP/1.1");
-            if ($httpPos === false) {
-                $httpPos = 0;
-            }
-            try {
-                $response = Psr7\parse_response(substr($buffer, $httpPos, $pos - $httpPos));
-            } catch (\Exception $e) {
-                // invalid response message, close connection
-                static::getLogger()->error($e->getMessage(), [
-                    'class' => __CLASS__,
-                    'file' => $e->getFile(),
-                    'line' => $e->getLine(),
-                ]);
-                $connection->close();
-                return;
-            }
-            $buffer = substr($buffer, $pos + 4);
-            // 创建通道成功
-            if ($response->getStatusCode() === 200) {
-                static::addLocalTunnelConnection($connection, $response, $config);
-            }
-            // 请求创建代理连接
-            elseif ($response->getStatusCode() === 201) {
-                static::createLocalDynamicConnections($connection, $config);
-            }
-            // 服务端ping
-            elseif ($response->getStatusCode() === 300) {
-                static::getLogger()->debug('server ping', [
-                    'class' => __CLASS__,
-                ]);
-                $connection->write("HTTP/1.1 301 OK\r\n\r\n");
-            }
-            elseif ($response->getStatusCode() === 301) {
-                static::getLogger()->debug('server pong', [
-                    'class' => __CLASS__,
-                ]);
-            } 
-            else {
-                static::getLogger()->warning("ignore status_code", [
-                    'class' => __CLASS__,
-                    'status_code' => $response->getStatusCode(),
-                    'reason_phrase' => $response->getReasonPhrase(),
-                ]);
-                // $connection->close();
-                // return;
-            }
-            ClientManager::handleLocalTunnelBuffer($connection, $buffer, $config);
+        // 服务端返回成功
+        if ($response->getStatusCode() === 200) {
+            static::addLocalTunnelConnection($connection, $response, $config);
+        }
+        // 请求创建代理连接
+        elseif ($response->getStatusCode() === 201) {
+            static::createDynamicTunnelConnections($connection, $config);
+        }
+        // 服务端ping
+        elseif ($response->getStatusCode() === 300) {
+            static::getLogger()->debug('server ping', [
+                'class' => __CLASS__,
+            ]);
+            // $connection->write("HTTP/1.1 301 OK\r\n\r\n");
+        }
+        // 服务端pong
+        elseif ($response->getStatusCode() === 301) {
+            static::getLogger()->debug('server pong', [
+                'class' => __CLASS__,
+            ]);
+        } 
+        else {
+            static::getLogger()->warning("ignore status_code", [
+                'class' => __CLASS__,
+                'status_code' => $response->getStatusCode(),
+                'reason_phrase' => $response->getReasonPhrase(),
+            ]);
         }
     }
 
-    public static function addLocalTunnelConnection($connection, $response, &$config)
+    // 添加通道
+    protected static function addLocalTunnelConnection($connection, $response, &$config)
     {
+
         $uri = $response->getHeaderLine('Uri');
         $uuid = $response->getHeaderLine('Uuid');
 
@@ -291,6 +294,9 @@ class ClientManager implements \Wpjscc\Penetration\Log\LogManagerInterface
                 'class' => __CLASS__,
             ]);
             static::$localTunnelConnections[$uri]->detach($connection);
+            if (static::$localTunnelConnections[$uri]->count() == 0) {
+               unset(static::$localTunnelConnections[$uri]);
+            }
         });
 
         // 单通道 接收所有权，处理后续数据请求
@@ -332,83 +338,89 @@ class ClientManager implements \Wpjscc\Penetration\Log\LogManagerInterface
         });
     }
 
-    public static function createLocalDynamicConnections($tunnelConnection, &$config)
+
+    // 创建动态代理连接
+    //                              Server
+    //         +--dynamic tunnel-----  +  ----<<<<<<<------+
+    //         |                                             |                                           
+    //      Client                                          User 
+    public static function createDynamicTunnelConnections($tunnelConnection, &$config)
     {
         static::getLogger()->notice(__FUNCTION__, [
             'uuid' => $config['uuid'],
         ]);
 
         static::getTunnel($config)->then(function ($connection) use ($tunnelConnection, $config) {
-            $headers = [
+            $connection->write(implode("\r\n", [
                 'GET /client HTTP/1.1',
                 'Host: ' . $config['tunnel_host'],
                 'User-Agent: ReactPHP',
                 'Authorization: ' . ($config['token'] ?? ''),
                 'Domain: ' . $config['domain'],
                 'Uuid: ' . $config['uuid'],
-            ];
-            $connection->write(implode("\r\n", $headers) . "\r\n\r\n");
-            ClientManager::handleLocalDynamicConnection($connection, $config);
+                "\r\n"
+            ]));
+            static::handleDynamicTunnelConnection($connection, $config);
         });
     }
 
-    public static function handleLocalDynamicConnection($connection, $config)
+    public static function handleDynamicTunnelConnection($connection, $config)
     {
         static::getLogger()->notice(__FUNCTION__, [
             'uuid' => $config['uuid'],
         ]);
-
-        $buffer = '';
-        $connection->on('data', $fn = function ($chunk) use ($connection, $config, &$buffer, &$fn) {
-            $buffer .= $chunk;
-            while ($buffer) {
-                $pos = strpos($buffer, "\r\n\r\n");
-                if ($pos !== false) {
-                    $httpPos = strpos($buffer, "HTTP/1.1");
-                    if ($httpPos === false) {
-                        $httpPos = 0;
-                    }
-                    try {
-                        $response = Psr7\parse_response(substr($buffer, $httpPos, $pos));
-                    } catch (\Exception $e) {
-                        // invalid response message, close connection
-                        static::getLogger()->error($e->getMessage(), [
-                            'class' => __CLASS__,
-                            'file' => $e->getFile(),
-                            'line' => $e->getLine(),
-                        ]);
-                        $connection->close();
-                        return;
-                    }
-
-                    $buffer = substr($buffer, $pos + 4);
-
-                    // 第一次创建代理成功
-                    if ($response->getStatusCode() === 200) {
-                        ClientManager::addLocalDynamicConnection($connection, $response);
-                        // 第二次过来请求了
-                    } elseif ($response->getStatusCode() === 201) {
-                        $connection->removeListener('data', $fn);
-                        $fn = null;
-                        ClientManager::handleLocalConnection($connection, $config, $buffer, $response);
-                        break;
-                    } else {
-                        static::getLogger()->error('error', [
-                            'status_code' => $response->getStatusCode(),
-                            'reason_phrase' => $response->getReasonPhrase(),
-                        ]);
-                        $connection->removeListener('data', $fn);
-                        $fn = null;
-                        $connection->close();
-                        return;
-                    }
-                } else {
-                    break;
-                }
-            }
+        $parseBuffer = new ParseBuffer();
+        $parseBuffer->on('response', function ($response, $parseBuffer) use ($connection, $config) {
+            static::handleDynamicTunnelResponse($response, $connection, $config, $parseBuffer);
+        });
+        $connection->on('data', $fn = function ($chunk) use ($parseBuffer) {
+            $parseBuffer->handleBuffer($chunk);
         });
         $connection->resume();
     }
+
+    public static function handleDynamicTunnelResponse($response, $connection, $config, $parseBuffer)
+    {
+        // 第一次创建代理成功
+        if ($response->getStatusCode() === 200) {
+            ClientManager::addLocalDynamicConnection($connection, $response);
+            // 第二次过来请求了
+        } elseif ($response->getStatusCode() === 201) {
+            $connection->removeAllListeners('data');
+            $buffer = $parseBuffer->getBuffer();
+            ClientManager::handleLocalConnection($connection, $config, $buffer, $response);
+        } else {
+            static::getLogger()->error('error', [
+                'status_code' => $response->getStatusCode(),
+                'reason_phrase' => $response->getReasonPhrase(),
+            ]);
+            $connection->close();
+        }
+    }
+
+
+    // 处理本地请求
+    //                             local proxy                                  Server
+    //                                |                                            |
+    //                                |                                            |-----------tcp/tls/wss/ws/http/https-----CU-----+
+    //                                UC                                           |                                                |
+    //                                |                                            |                                                |
+    //         +---------CU--CB-------+-------CU--CB---------+--------CU--CB-------|--tcp/tls/udp/wss/ws----CB--+                   |   
+    //         |                      |                      |                                                  |                   |
+    //         |                      |                      |                                                  |                   |
+    //         |                      |                      |                                                  |                   User
+    //         |                      |                      |                                                  |
+    //         |                      |                      |                                                  |
+    //       localhost C--tcp/tls/wss/http/https/unix---CA--Client A ---------------tcp/udp-----AB--------------Client B
+    // 到达 localhost 的路径有三条
+
+    // User --> Server --> Client A --> local (内网穿透)
+    // Client B --> Server --> Client A --> local （点对点 with server）
+    // Client B --> Client A --> local （打孔后 点对点 no server）
+
+    // User->Server 的协议可以是 tcp/tls/wss/ws/http/https
+    // Client->Server 的协议可以是 tcp/tls/udp/wss/ws
+    // Client->local 的协议可以是 tcp/tls/wss/http/https/unix
 
     public static function handleLocalConnection($connection, $config, &$buffer, $response)
     {
@@ -431,8 +443,8 @@ class ClientManager implements \Wpjscc\Penetration\Log\LogManagerInterface
             ]);
             // var_dump($buffer);
             // 交换数据
-
-            $connection->pipe(new \React\Stream\ThroughStream(function ($buffer) use ($config, $connection, $response, $localProcol) {
+            $isReplaced = false;
+            $connection->pipe(new \React\Stream\ThroughStream(function ($buffer) use ($config, $connection, $response, $localProcol, &$isReplaced) {
                 if (strpos($buffer, 'POST /close HTTP/1.1') !== false) {
                     static::getLogger()->debug('udp dynamic connection receive close request', [
                         'tunnel_uuid' => $config['uuid'],
@@ -454,7 +466,8 @@ class ClientManager implements \Wpjscc\Penetration\Log\LogManagerInterface
                     'dynamic_tunnel_uuid' => $response->getHeaderLine('Uuid'),
                     'length' => strlen($buffer),
                 ]);
-                if ($localProcol == 'unix') {
+                if ($localProcol == 'unix' && !$isReplaced) {
+                    $isReplaced = true;
                     $domain = explode(',', $config['domain'])[0];
                     $buffer = str_replace('Host: ' . $config['local_host'], 'Host: '.$domain, $buffer);
                 }
