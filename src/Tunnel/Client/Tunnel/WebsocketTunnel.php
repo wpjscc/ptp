@@ -28,17 +28,11 @@ class WebsocketTunnel implements ConnectorInterface, \Wpjscc\Penetration\Log\Log
             $read = new ThroughStream;
             $write = new ThroughStream;
             $write->on('data', function ($data) use ($conn, $uri, $protocol) {
-                static::getLogger()->error('sendDataToServer', [
+                static::getLogger()->debug('sendDataToServer', [
                     'uri' => $uri,
                     'protocol' => $protocol,
                     'length' => strlen($data),
                 ]);
-                // try {
-                //    $response =  Psr7\parse_response($data);
-                //    echo base64_decode($response->getHeaderLine('Data'));
-                // } catch (\Throwable $th) {
-                //     //throw $th;
-                // }
                 $conn->send(base64_encode($data));
             });
 

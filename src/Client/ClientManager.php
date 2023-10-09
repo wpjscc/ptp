@@ -190,6 +190,7 @@ class ClientManager implements \Wpjscc\Penetration\Log\LogManagerInterface
             if ($token) {
                 static::$visitUriToInfo[$visitUri]['tokens'][] = $token;
             }
+            static::$visitUriToInfo[$visitUri]['tokens'] = array_unique(static::$visitUriToInfo[$visitUri]['tokens']);
 
             $protocol = $config['protocol'] ?? '';
             $tunnelProtocol = $config['tunnel_protocol'] ?? '';

@@ -174,7 +174,7 @@ class ProxyManager implements \Wpjscc\Penetration\Log\LogManagerInterface
                     static::$remoteTunnelConnections[$_uri] = new \SplObjectStorage;
                 }
 
-                if (static::$remoteTunnelConnections[$_uri]->count() >= 5) {
+                if (static::$remoteTunnelConnections[$_uri]->count() >= \Wpjscc\Penetration\Config::getKey('common.max_tunnel_number', 5)) {
                     static::getLogger()->error('tunnel connection count is more than 5', [
                         'uri' => $_uri,
                         'uuid' => $uuid,
@@ -342,7 +342,7 @@ class ProxyManager implements \Wpjscc\Penetration\Log\LogManagerInterface
                     'uri' => $uri,
                 ]);
                 $buffer = '';
-                static::endConnection($connection, "proxy connection for $uri is fail");
+                static::endConnection($connection, "no proxy connection for $uri");
             }
             
         } else {
@@ -407,8 +407,17 @@ class ProxyManager implements \Wpjscc\Penetration\Log\LogManagerInterface
                     'uri' => $uri,
                 ]);
                 $connection->removeListener('data', $fn);
-                $proxyConnection->pipe($connection);
-                $connection->pipe($proxyConnection);
+
+                // when fail has some problem see https://github.com/clue/reactphp-http-proxy/issues/52
+                // $proxyConnection->pipe($connection);
+                // $connection->pipe($proxyConnection);
+
+                $proxyConnection->on('data', function ($chunk) use ($connection) {
+                    $connection->write($chunk);
+                });
+                $connection->on('data', function ($chunk) use ($proxyConnection) {
+                    $proxyConnection->write($chunk);
+                });
 
                 $proxyConnection->on('close', function () use ($connection) {
                     $connection->close();
@@ -444,14 +453,14 @@ class ProxyManager implements \Wpjscc\Penetration\Log\LogManagerInterface
 
     protected static function endConnection($connection, $content)
     {
-        $connection->write([
+        $connection->write(implode("\r\n",[
             'HTTP/1.1 200 OK',
             'Server: ReactPHP/1',
             'Content-Type: text/plain; charset=utf-8',
-            'Content-Length: '.strlen($content),
+            // 'Content-Length: '.strlen($content),
             "\r\n",
             $content
-        ]);
+        ]));
         $connection->end();
     }
 }

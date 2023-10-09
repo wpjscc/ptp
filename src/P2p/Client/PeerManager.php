@@ -200,7 +200,7 @@ class PeerManager implements \Wpjscc\Penetration\Log\LogManagerInterface
                 ProxyManager::$remoteTunnelConnections[$_uri] = new \SplObjectStorage;
             }
 
-            if (ProxyManager::$remoteTunnelConnections[$_uri]->count()>=5) {
+            if (ProxyManager::$remoteTunnelConnections[$_uri]->count()>= \Wpjscc\Penetration\Config::getKey('common.max_tunnel_number', 5)) {
                 static::getLogger()->error('remote tunnel connection count is more than 5', [
                     'uri' => $_uri,
                     'uuid' => $uuid,

@@ -7,6 +7,9 @@ use Wpjscc\Penetration\Parse\Ini;
 
 class Config
 {
+    static $inis;
+    static $iniPath;
+
     public static function getConfig($iniPath)
     {
         if (!$iniPath || !file_exists($iniPath)) {
@@ -14,8 +17,23 @@ class Config
         }
         
         $inis = (new Ini)->parse(file_get_contents($iniPath));
-
+        static::$inis = $inis;
+        static::$iniPath = $iniPath;
         return $inis;
+    }
+
+    public static function getKey($key, $default = null)
+    {
+        if (!static::$inis) {
+            throw new \Exception('inis is required');
+        }
+        $value = static::getValueByKey(static::$inis, $key);
+
+        if ($value === null) {
+            return $default;
+        }
+
+        return $value;
     }
 
     public static function getValueByKey($inis, $key)

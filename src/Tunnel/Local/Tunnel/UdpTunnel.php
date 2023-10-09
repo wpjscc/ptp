@@ -36,7 +36,7 @@ class UdpTunnel implements ConnectorInterface, \Wpjscc\Penetration\Log\LogManage
             $write = new ThroughStream;
 
             $write->on('data', function ($data) use ($client, $uri, $protocol) {
-                static::getLogger()->info('sendDataToServer', [
+                static::getLogger()->debug('sendDataToServer', [
                     'class' => __CLASS__,
                     'uri' => $uri,
                     'protocol' => $protocol,
