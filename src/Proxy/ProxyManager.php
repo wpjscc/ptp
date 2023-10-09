@@ -327,12 +327,15 @@ class ProxyManager implements \Wpjscc\Penetration\Log\LogManagerInterface
             if (\Wpjscc\Penetration\Environment::$type == 'client') {
                 static::pipeRemote($connection, $request, $buffer);
             } else {
+                static::getLogger()->warning('no proxy connection', [
+                    'uri' => $uri,
+                ]);
                 $buffer = '';
-                $content = "no proxy connection\n";
+                $content = "no proxy connection for $uri";
                 $headers = [
                     'HTTP/1.1 200 OK',
                     'Server: ReactPHP/1',
-                    'Content-Type: text/html; charset=UTF-8',
+                    'Content-Type: text/plain; charset=utf-8',
                     'Content-Length: '.strlen($content),
                 ];
                 $connection->write(implode("\r\n", $headers)."\r\n\r\n".$content);
@@ -387,7 +390,7 @@ class ProxyManager implements \Wpjscc\Penetration\Log\LogManagerInterface
                 $headers = [
                     'HTTP/1.1 200 OK',
                     'Server: ReactPHP/1',
-                    'Content-Type: text/html; charset=UTF-8',
+                    'Content-Type: text/plain; charset=utf-8',
                     'Content-Length: '.strlen($content),
                 ];
                 $connection->write(implode("\r\n", $headers)."\r\n\r\n".$content);
@@ -405,30 +408,46 @@ class ProxyManager implements \Wpjscc\Penetration\Log\LogManagerInterface
                 'local_proxy' => ClientManager::$visitUriToInfo[$uri]['remote_proxy'],
                 'token' => implode(',', ClientManager::$visitUriToInfo[$uri]['tokens']),
                 'timeout' => 1,
-            ]))->connect($uri)->then(function ($remoteConnection) use ($connection, $request, &$buffer, $fn, $uri) {
+            ]))->connect($uri)->then(function ($proxyConnection) use ($connection, $request, &$buffer, $fn, $uri) {
                 static::getLogger()->debug('pipe remote success', [
                     'uri' => $uri,
                 ]);
                 $connection->removeListener('data', $fn);
-                $remoteConnection->pipe($connection);
-                $connection->pipe($remoteConnection);
+                $proxyConnection->pipe($connection);
+                $connection->pipe($proxyConnection);
 
                 if ($buffer) {
-                    $remoteConnection->write($buffer);
+                    $proxyConnection->write($buffer);
                     $buffer = '';
                 }
 
+                // $connection->write("HTTP/1.1 200 OK\r\nServer: ReactPHP/1\r\nContent-Type: text/plain; charset=utf-8\r\nContent-Length: 39\r\n\r\nno   111proxy connection for email.test");
             }, function ($e) use ($connection, $request, &$buffer) {
                 $buffer = '';
-                $content = $e->getMessage(). " no proxy connection-2\n";
+                $content = $e->getMessage(). " no proxy connection-2";
                 $headers = [
                     'HTTP/1.1 200 OK',
                     'Server: ReactPHP/1',
-                    'Content-Type: text/html; charset=UTF-8',
+                    'Content-Type: text/plain; charset=utf-8',
                     'Content-Length: '.strlen($content),
                 ];
                 $connection->write(implode("\r\n", $headers)."\r\n\r\n".$content);
                 $connection->end();
+                return $e;
+            })->otherwise(function ($e) use ($connection, $request, &$buffer) {
+                $buffer = '';
+                $content = $e->getMessage(). " no proxy connection-3";
+                $headers = [
+                    'HTTP/1.1 200 OK',
+                    'Server: ReactPHP/1',
+                    'Content-Type: text/plain; charset=utf-8',
+                    'Content-Length: '.strlen($content),
+                ];
+
+                $connection->write(implode("\r\n", $headers)."\r\n\r\n".$content);
+                $connection->end();
+                return $e;
+
             });
         }
     }
