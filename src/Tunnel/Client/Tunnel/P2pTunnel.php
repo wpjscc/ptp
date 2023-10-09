@@ -258,6 +258,9 @@ class P2pTunnel extends EventEmitter implements ConnectorInterface, \Wpjscc\Pene
         $remoteAddress = $parseBuffer->getRemoteAddress();
         // 收到服务端的广播地址
         if ($response->getStatusCode() === 413) {
+            if ($remoteAddress != $this->serverAddress) {
+                return;
+            }
             $addresses = array_values(array_filter([$response->getHeaderLine('Address')]));
 
             if (empty($addresses)) {
