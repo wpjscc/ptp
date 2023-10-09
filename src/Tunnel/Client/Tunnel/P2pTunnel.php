@@ -456,7 +456,7 @@ class P2pTunnel extends EventEmitter implements ConnectorInterface, \Wpjscc\Pene
 
                 // 一端能连接对方，但对方连接不到自己，这种情况下，能ping通，就可以连接上
                 // if (!in_array($address, array_keys(PeerManager::$peereds))) {
-                if (!PeerManager::hasPeered($this->currentAddress, $remoteAddress)) {
+                if (!PeerManager::hasPeered($localAddress, $remoteAddress)) {
                     // 结构
                     //                           NAT B 192.168.0.1
                     //                         
@@ -475,6 +475,7 @@ class P2pTunnel extends EventEmitter implements ConnectorInterface, \Wpjscc\Pene
                     // Client B ->  NAT B -> NAT A -> Client A (是不通的，除非Client A先发起连接，这样Client B就能连上Client A了)
                     // Client A ----send punch---> Client B (发送不过去，不在一个网段)
                     // 这里在B上处理  $address 是 192.168.0.101
+                    echo "$localAddress \n";
                     echo "pong success but not peered address $remoteAddress" . PHP_EOL;
                     echo "add peereds $remoteAddress" . PHP_EOL;
                     // PeerManager::$peereds[$address] = true;

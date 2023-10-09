@@ -36,6 +36,7 @@ class Http implements \Wpjscc\Penetration\Log\LogManagerInterface
             $userConnection->on('data', $fn = function ($chunk) use ($userConnection, &$buffer,  &$fn, &$first) {
                 $buffer .= $chunk;
                 $pos = strpos($buffer, "\r\n\r\n");
+                var_dump($chunk);
 
                 // CONNECT
                 if ($first && ($pos !== false) && (strpos($buffer, "CONNECT") === 0)) {
@@ -73,8 +74,9 @@ class Http implements \Wpjscc\Penetration\Log\LogManagerInterface
                     }
                     return;
                 }
-                $first = false;
                 if ($pos !== false) {
+                    $first = false;
+
                     $userConnection->removeListener('data', $fn);
                     $fn = null;
                     // try to parse headers as request message
