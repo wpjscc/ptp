@@ -164,6 +164,19 @@ class Tunnel implements \Wpjscc\Penetration\Log\LogManagerInterface
                 'remoteAddress' => $connection->getRemoteAddress(),
             ]);
 
+            $connection->on('error', function ($e) use ($connection, $protocol) {
+                static::getLogger()->error("client: {$protocol} is error ", [
+                    'remoteAddress' => $connection->getRemoteAddress(),
+                    'error' => $e->getMessage(),
+                ]);
+            });
+
+            $connection->on('close', function () use ($connection, $protocol) {
+                static::getLogger()->warning("client: {$protocol} is close ", [
+                    'remoteAddress' => $connection->getRemoteAddress(),
+                ]);
+            });
+
             $buffer = '';
             $first = true;
             $that = $this;

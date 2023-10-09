@@ -402,6 +402,14 @@ class ProxyManager implements \Wpjscc\Penetration\Log\LogManagerInterface
                 $buffer .= $chunk;
             });
 
+            static::getLogger()->debug('pipe remote', [
+                'uri' => $uri,
+                'host' => $host,
+                'port' => $port,
+                'proxy' => ClientManager::$visitUriToInfo[$uri]['remote_proxy'],
+                'tokens' => ClientManager::$visitUriToInfo[$uri]['tokens'],
+            ]);
+
             (new \Wpjscc\Penetration\Tunnel\Local\Tunnel\TcpTunnel([
                 'local_host' => $host,
                 'local_port' => $port,
