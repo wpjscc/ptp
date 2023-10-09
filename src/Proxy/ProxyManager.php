@@ -342,15 +342,7 @@ class ProxyManager implements \Wpjscc\Penetration\Log\LogManagerInterface
                     'uri' => $uri,
                 ]);
                 $buffer = '';
-                $content = "proxy connection for $uri is fail";
-                $headers = [
-                    'HTTP/1.1 200 OK',
-                    'Server: ReactPHP/1',
-                    'Content-Type: text/plain; charset=utf-8',
-                    'Content-Length: '.strlen($content),
-                ];
-                $connection->write(implode("\r\n", $headers)."\r\n\r\n".$content);
-                $connection->end();
+                static::endConnection($connection, "proxy connection for $uri is fail");
             }
             
         } else {
@@ -359,25 +351,16 @@ class ProxyManager implements \Wpjscc\Penetration\Log\LogManagerInterface
                 call_user_func($callback, $proxyConnection);
             }
 
+            // 验证token（在服务端）点对点通信 with server
             if (ProxyManager::$uriToInfo[$uri]['is_private']) {
                 $hadTokens = ProxyManager::$uriToInfo[$uri]['tokens'];
                 $tokens = array_values(array_filter(explode(',', $request->getHeaderLine('Proxy-Authorization'))));
                 if (empty(array_intersect($hadTokens, $tokens))) {
                     $buffer = '';
-                    $content = "Proxy Authorization is Failed\n";
-                    $headers = [
-                        'HTTP/1.1 200 OK',
-                        'Server: ReactPHP/1',
-                        'Content-Type: text/html; charset=UTF-8',
-                        'Content-Length: '.strlen($content),
-                    ];
-                    $connection->write(implode("\r\n", $headers)."\r\n\r\n".$content);
-                    $connection->end();
+                    static::endConnection($connection, "Proxy Authorization is Failed");
                     return;
                 }
             }
-           
-
             $proxyConnection->pipe($connection, $buffer, $request);
         }
     }
@@ -397,15 +380,7 @@ class ProxyManager implements \Wpjscc\Penetration\Log\LogManagerInterface
         if ($proxyConnection === false) {
             if (!isset(ClientManager::$visitUriToInfo[$uri]['tokens']) || empty(ClientManager::$visitUriToInfo[$uri]['tokens'])) {
                 $buffer = '';
-                $content = "local no $uri service, try pipe remote failed, no config for $uri";
-                $headers = [
-                    'HTTP/1.1 200 OK',
-                    'Server: ReactPHP/1',
-                    'Content-Type: text/plain; charset=utf-8',
-                    'Content-Length: '.strlen($content),
-                ];
-                $connection->write(implode("\r\n", $headers)."\r\n\r\n".$content);
-                $connection->end();
+                static::endConnection($connection, "local no $uri service, try pipe remote failed, no config for $uri");
                 return;
             }
 
@@ -447,39 +422,36 @@ class ProxyManager implements \Wpjscc\Penetration\Log\LogManagerInterface
                     $proxyConnection->write($buffer);
                     $buffer = '';
                 }
-            }, function ($e) use ($connection, $request, &$buffer) {
+            }, function ($e) use ($connection, &$buffer) {
                 static::getLogger()->error('pipe remote failed-1', [
                     'error' => $e->getMessage(),
                 ]);
                 $buffer = '';
-                $content = $e->getMessage(). " no proxy connection-2";
-                $headers = [
-                    'HTTP/1.1 200 OK',
-                    'Server: ReactPHP/1',
-                    'Content-Type: text/plain; charset=utf-8',
-                    'Content-Length: '.strlen($content),
-                ];
-                $connection->write(implode("\r\n", $headers)."\r\n\r\n".$content);
-                $connection->end();
+                static::endConnection($connection, $e->getMessage(). " no proxy connection-2");
                 return $e;
-            })->otherwise(function ($e) use ($connection, $request, &$buffer) {
+            })->otherwise(function ($e) use ($connection, &$buffer) {
                 static::getLogger()->error('pipe remote failed-2', [
                     'error' => $e->getMessage(),
                 ]);
                 $buffer = '';
-                $content = $e->getMessage(). " no proxy connection-3";
-                $headers = [
-                    'HTTP/1.1 200 OK',
-                    'Server: ReactPHP/1',
-                    'Content-Type: text/plain; charset=utf-8',
-                    'Content-Length: '.strlen($content),
-                ];
 
-                $connection->write(implode("\r\n", $headers)."\r\n\r\n".$content);
-                $connection->end();
+                static::endConnection($connection, $e->getMessage(). " no proxy connection-3");
                 return $e;
 
             });
         }
+    }
+
+    protected static function endConnection($connection, $content)
+    {
+        $connection->write([
+            'HTTP/1.1 200 OK',
+            'Server: ReactPHP/1',
+            'Content-Type: text/plain; charset=utf-8',
+            'Content-Length: '.strlen($content),
+            "\r\n",
+            $content
+        ]);
+        $connection->end();
     }
 }
