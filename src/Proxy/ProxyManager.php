@@ -331,7 +331,7 @@ class ProxyManager implements \Wpjscc\Penetration\Log\LogManagerInterface
                     'uri' => $uri,
                 ]);
                 $buffer = '';
-                $content = "no proxy connection for $uri";
+                $content = "proxy connection for $uri is fail";
                 $headers = [
                     'HTTP/1.1 200 OK',
                     'Server: ReactPHP/1',
@@ -421,6 +421,9 @@ class ProxyManager implements \Wpjscc\Penetration\Log\LogManagerInterface
                     $buffer = '';
                 }
             }, function ($e) use ($connection, $request, &$buffer) {
+                static::getLogger()->error('pipe remote failed-1', [
+                    'error' => $e->getMessage(),
+                ]);
                 $buffer = '';
                 $content = $e->getMessage(). " no proxy connection-2";
                 $headers = [
@@ -433,6 +436,9 @@ class ProxyManager implements \Wpjscc\Penetration\Log\LogManagerInterface
                 $connection->end();
                 return $e;
             })->otherwise(function ($e) use ($connection, $request, &$buffer) {
+                static::getLogger()->error('pipe remote failed-2', [
+                    'error' => $e->getMessage(),
+                ]);
                 $buffer = '';
                 $content = $e->getMessage(). " no proxy connection-3";
                 $headers = [
