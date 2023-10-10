@@ -14,9 +14,9 @@ class Tunnel implements \Wpjscc\Penetration\Log\LogManagerInterface
 
     private $config;
     public $protocol = 'tcp';
-    public $serverHost;
-    public $server80port;
-    public $server443port;
+    public $tunnelHost;
+    public $tunnel80Port;
+    public $tunnel443Port;
 
     public $timeout;
 
@@ -25,9 +25,9 @@ class Tunnel implements \Wpjscc\Penetration\Log\LogManagerInterface
 
         $this->config = &$config;
         $this->protocol = $config['tunnel_protocol'] ?? 'tcp';
-        $this->serverHost = $config['tunnel_host'];
-        $this->server80port = $config['tunnel_80_port'];
-        $this->server443port = $config['tunnel_443_port'] ?? '';
+        $this->tunnelHost = $config['tunnel_host'];
+        $this->tunnel80Port = $config['tunnel_80_port'];
+        $this->tunnel443Port = $config['tunnel_443_port'] ?? '';
         $this->timeout = $config['timeout'] ?? 6;
 
     }
@@ -45,34 +45,34 @@ class Tunnel implements \Wpjscc\Penetration\Log\LogManagerInterface
         ]);
 
         if ($protocol == 'ws') {
-            $tunnel = (new WebsocketTunnel())->connect("ws://".$this->serverHost.":".$this->server80port);
+            $tunnel = (new WebsocketTunnel())->connect("ws://".$this->tunnelHost.":".$this->tunnel80Port);
         }
         elseif ($protocol == 'wss') {
-            if (!$this->server443port) {
+            if (!$this->tunnel443Port) {
                 static::getLogger()->error('wss protocol must set tunnel_443_port', [
-                    'server443port' => $this->server443port,
+                    'tunnel443Port' => $this->tunnel443Port,
                 ]);
                 throw new \Exception('wss protocol must set tunnel_443_port');
             }
-            $tunnel = (new WebsocketTunnel())->connect("wss://".$this->serverHost.":".$this->server443port);
+            $tunnel = (new WebsocketTunnel())->connect("wss://".$this->tunnelHost.":".$this->tunnel443Port);
         }
         else if ($protocol == 'udp') {
-            $tunnel = (new UdpTunnel(false))->connect($this->serverHost.":".$this->server80port);
+            $tunnel = (new UdpTunnel(false))->connect($this->tunnelHost.":".$this->tunnel80Port);
         }
         elseif ($protocol == 'tls') {
-            if (!$this->server443port) {
+            if (!$this->tunnel443Port) {
                 static::getLogger()->error('tls protocol must set tunnel_443_port', [
-                    'server443port' => $this->server443port,
+                    'tunnel443Port' => $this->tunnel443Port,
                 ]);
                 throw new \Exception('tls protocol must set tunnel_443_port');
             }
-            $tunnel = (new TcpTunnel(array('timeout' => $this->timeout)))->connect("tls://".$this->serverHost.":".$this->server443port);
+            $tunnel = (new TcpTunnel(array('timeout' => $this->timeout)))->connect("tls://".$this->tunnelHost.":".$this->tunnel443Port);
         }
         elseif ($protocol == 'p2p') {
-            $tunnel = (new P2pTunnel($this->config))->connect("udp://" . $this->serverHost . ":" . $this->server80port);
+            $tunnel = (new P2pTunnel($this->config))->connect("udp://" . $this->tunnelHost . ":" . $this->tunnel80Port);
         }
         else {
-            $tunnel = (new TcpTunnel(array('timeout' => $this->timeout)))->connect("tcp://".$this->serverHost.":".$this->server80port);
+            $tunnel = (new TcpTunnel(array('timeout' => $this->timeout)))->connect("tcp://".$this->tunnelHost.":".$this->tunnel80Port);
         }
         return $tunnel;
     }

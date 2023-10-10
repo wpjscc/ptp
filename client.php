@@ -169,8 +169,8 @@ $tcpManager->run();
 
 // udp server
 $udpManager = UdpManager::create(
-    Config::getUdpIp($inis),
-    Config::getUdpPorts($inis)
+    Config::getUdpIp($config),
+    Config::getUdpPorts($config)
 );
 $udpManager->run();
 
@@ -194,16 +194,15 @@ function getParam($key, $default = null){
     return $default;
 }
 
-\React\EventLoop\Loop::addPeriodicTimer(2, function () use ($localServer80Port) {
+\React\EventLoop\Loop::addPeriodicTimer(2, function () use ($localServer80Port, $tcpManager, $udpManager) {
 
-    // echo PHP_EOL."current peer ip address: " .PeerManager::$currentAddress . PHP_EOL;
-    // echo "current peer local address: " .PeerManager::$localAddress . PHP_EOL;
-    // echo "current peers:" .implode(',', $peereds) . PHP_EOL;
     echo "====> local http and proxy server at 0.0.0.0:$localServer80Port ...".PHP_EOL;
     PeerManager::print();
-
-    // $addresses = array_keys(ConnectionManager::$connections);
-    // echo "current connections address:". implode(',', $addresses) . PHP_EOL;
+    // tcp ports
+    echo "======> tcp ports listen at -> {$tcpManager->getIp()}:". implode(', ', $tcpManager->getPorts()) . PHP_EOL;
+    // udp ports
+    echo "======> udp ports listen at -> {$udpManager->getIp()}:". implode(', ', $udpManager->getPorts()) . PHP_EOL;
+    
     echo "====> p2p uris: " . implode(', ', array_map(function ($uri) use ($localServer80Port) { 
         if (strpos($uri, ':') !== false) {
             return $uri;

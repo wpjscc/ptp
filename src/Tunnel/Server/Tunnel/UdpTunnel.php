@@ -14,7 +14,7 @@ use React\Stream\ThroughStream;
 use Wpjscc\Kcp\KCP;
 use Wpjscc\Bytebuffer\Buffer;
 
-
+// kcp 不支持
 class UdpTunnel extends EventEmitter implements ServerInterface,\Wpjscc\Penetration\Log\LogManagerInterface
 {
     use \Wpjscc\Penetration\Log\LogManagerTraitDefault;

@@ -386,9 +386,7 @@ class ClientManager implements \Wpjscc\Penetration\Log\LogManagerInterface
         $parseBuffer->on('response', function ($response, $parseBuffer) use ($connection, $config) {
             static::handleDynamicTunnelResponse($response, $connection, $config, $parseBuffer);
         });
-        $connection->on('data', $fn = function ($chunk) use ($parseBuffer) {
-            $parseBuffer->handleBuffer($chunk);
-        });
+        $connection->on('data', [$parseBuffer, 'handleBuffer']);
         $connection->resume();
     }
 
@@ -400,7 +398,7 @@ class ClientManager implements \Wpjscc\Penetration\Log\LogManagerInterface
             // 第二次过来请求了
         } elseif ($response->getStatusCode() === 201) {
             $connection->removeAllListeners('data');
-            $buffer = $parseBuffer->getBuffer();
+            $buffer = $parseBuffer->pullBuffer();
             ClientManager::handleLocalConnection($connection, $config, $buffer, $response);
         } else {
             static::getLogger()->error('error', [

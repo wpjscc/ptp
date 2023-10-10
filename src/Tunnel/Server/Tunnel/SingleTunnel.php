@@ -9,6 +9,7 @@ use Ramsey\Uuid\Uuid;
 use React\Stream\ThroughStream;
 use Wpjscc\Penetration\CompositeConnectionStream;
 use Wpjscc\Penetration\Helper;
+use Wpjscc\Penetration\Utils\ParseBuffer;
 
 class SingleTunnel extends EventEmitter implements ServerInterface, \Wpjscc\Penetration\Tunnel\SingleTunnelInterface,\Wpjscc\Penetration\Log\LogManagerInterface
 {
@@ -35,7 +36,9 @@ class SingleTunnel extends EventEmitter implements ServerInterface, \Wpjscc\Pene
     {
         $this->connection = $connection;
 
-        $this->connection->on('data', [$this, 'parseBuffer']);
+        $parseBuffer = new ParseBuffer;
+        $parseBuffer->on('response', [$this, 'handleResponse']);
+        $this->connection->on('data', [$parseBuffer, 'handleBuffer']);
         $this->connection->on('close', [$this, 'close']);
     }
 
@@ -65,75 +68,41 @@ class SingleTunnel extends EventEmitter implements ServerInterface, \Wpjscc\Pene
         }
     }
 
-    protected function parseBuffer($buffer)
+    protected function handleResponse($response)
     {
-
-        if ($buffer === '') {
-            return;
+        if ($response->getStatusCode() === 310) {
+            $this->createConnection($response);
+        }
+        // 收到数据
+        elseif ($response->getStatusCode() === 311) {
+            $this->handleData($response);
+        }
+        // 关闭连接
+        elseif ($response->getStatusCode() === 312) {
+            $this->handleClose($response);
+        }
+        // client ping
+        elseif ($response->getStatusCode() === 300) {
+            static::getLogger()->info('server ping', [
+                'code' => $response->getStatusCode(),
+            ]);
+            $this->connection->write("HTTP/1.1 301 OK\r\n\r\n");
+        } 
+        // client pong
+        elseif ($response->getStatusCode() === 301) {
+            static::getLogger()->debug("SingleTunnel::".__FUNCTION__." client pong", [
+                'class' => __CLASS__,
+                'response' => Helper::toString($response)
+            ]);
         }
         
-        $this->buffer .= $buffer;
+        else {
+            // ignore other response code
+            static::getLogger()->warning("single tunnel ignore response", [
+                'class' => __CLASS__,
+                'response' => Helper::toString($response)
+            ]);
 
-        $pos = strpos($this->buffer, "\r\n\r\n");
-        if ($pos !== false) {
-            $httpPos = strpos($this->buffer, "HTTP/1.1");
-            if ($httpPos === false) {
-                $httpPos = 0;
-            }
-            try {
-                $response = Psr7\parse_response(substr($this->buffer, $httpPos, $pos-$httpPos));
-            } catch (\Exception $e) {
-                // invalid response message, close connection
-                static::getLogger()->error($e->getMessage(), [
-                    'class' => __CLASS__,
-                    'file' => $e->getFile(),
-                    'line' => $e->getLine(),
-                    'buffer' => $this->buffer
-                ]);
-
-                $this->buffer = substr($this->buffer, $pos + 4);
-                
-
-                // error
-                // todo close connection
-                return;
-            }
-
-            $this->buffer = substr($this->buffer, $pos + 4);
-
-            // 创建通道成功
-
-            // 打开链接
-            if ($response->getStatusCode() === 310) {
-                $this->createConnection($response);
-            }
-            // 收到数据
-            elseif ($response->getStatusCode() === 311) {
-                $this->handleData($response);
-            }
-            // 关闭连接
-            elseif ($response->getStatusCode() === 312) {
-                $this->handleClose($response);
-            }
-            // client pong
-            elseif ($response->getStatusCode() === 301) {
-                static::getLogger()->debug("SingleTunnel::".__FUNCTION__." client pong", [
-                    'class' => __CLASS__,
-                    'response' => Helper::toString($response)
-                ]);
-            }
-            
-            else {
-                // ignore other response code
-                static::getLogger()->warning("single tunnel ignore response", [
-                    'class' => __CLASS__,
-                    'response' => Helper::toString($response)
-                ]);
-
-            }
-
-            // 继续解析
-            $this->parseBuffer(null);
         }
     }
 
@@ -215,20 +184,6 @@ class SingleTunnel extends EventEmitter implements ServerInterface, \Wpjscc\Pene
             'uuid' => $uuid,
             'length' => $length,
         ]);
-
-        // var_dump('single tunnel receive data', $data);
-        // $vuuid = $response->getHeaderLine('Vuuid');
-        // if ($vuuid) {
-        //     if (in_array($vuuid, $this->vuuids)) {
-        //         static::getLogger()->error('single tunnel receive data vuuid is exists', [
-        //             'uuid' => $uuid,
-        //             'vuuid' => $vuuid,
-        //         ]);
-        //         return;
-        //     } else {
-        //         $this->vuuids[] = $vuuid;
-        //     }
-        // }
 
         $this->connections[$uuid]->emit('data', array($data));
     }

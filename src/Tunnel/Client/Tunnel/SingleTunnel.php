@@ -3,12 +3,12 @@
 namespace Wpjscc\Penetration\Tunnel\Client\Tunnel;
 
 use Evenement\EventEmitter;
-use React\Socket\ConnectorInterface;
 use RingCentral\Psr7;
 use Ramsey\Uuid\Uuid;
 use React\Stream\ThroughStream;
 use Wpjscc\Penetration\CompositeConnectionStream;
 use Wpjscc\Penetration\Helper;
+use Wpjscc\Penetration\Utils\ParseBuffer;
 
 class SingleTunnel extends EventEmitter implements \Wpjscc\Penetration\Log\LogManagerInterface, \Wpjscc\Penetration\Tunnel\SingleTunnelInterface
 {
@@ -17,7 +17,6 @@ class SingleTunnel extends EventEmitter implements \Wpjscc\Penetration\Log\LogMa
     private $connections = array();
     private $connection;
 
-    private $buffer = '';
 
     public function __construct()
     {
@@ -26,85 +25,48 @@ class SingleTunnel extends EventEmitter implements \Wpjscc\Penetration\Log\LogMa
     public function overConnection($connection)
     {
         $this->connection = $connection;
-
-        $this->connection->on('data', [$this, 'parseBuffer']);
+        $parseBuffer = new ParseBuffer;
+        $parseBuffer->on('response', [$this, 'handleResponse']);
+        $this->connection->on('data', [$parseBuffer, 'handleBuffer']);
         $this->connection->on('close', [$this, 'close']);
     }
 
-
-
-
-    protected function parseBuffer($buffer)
+    protected function handleResponse($response)
     {
-
-        if ($buffer === '') {
-            return;
+        // 打开链接
+        if ($response->getStatusCode() === 310) {
+            $this->createConnection($response);
         }
-
-        $this->buffer .= $buffer;
-
-
-        static::getLogger()->info("SingleTunnel::".__FUNCTION__, [
-            'class' => __CLASS__,
-            'length' => strlen($buffer),
-        ]);
-
-        $pos = strpos($this->buffer, "\r\n\r\n");
-        if ($pos !== false) {
-            $httpPos = strpos($this->buffer, "HTTP/1.1");
-            if ($httpPos === false) {
-                $httpPos = 0;
-            }
-            try {
-                $response = Psr7\parse_response(substr($this->buffer, $httpPos, $pos - $httpPos));
-            } catch (\Exception $e) {
-                static::getLogger()->error($e->getMessage(), [
-                    'current_file' => __FILE__,
-                    'current_line' => __LINE__,
-                    'file' => $e->getFile(),
-                    'line' => $e->getLine(),
-                    'buffer' => substr($this->buffer, $httpPos, $pos - $httpPos)
-                ]);
-
-                // 忽视掉这个buffer
-                $this->buffer = substr($this->buffer, $pos + 4);
-                return;
-            }
-
-            $this->buffer = substr($this->buffer, $pos + 4);
-
-            // 打开链接
-            if ($response->getStatusCode() === 310) {
-                $this->createConnection($response);
-            }
-            // 收到数据
-            elseif ($response->getStatusCode() === 311) {
-                $this->handleData($response);
-            }
-            // 关闭连接
-            elseif ($response->getStatusCode() === 312) {
-                $this->handleClose($response);
-            }
-
-            // 服务端ping
-            elseif ($response->getStatusCode() === 300) {
-                static::getLogger()->info('server ping', [
-                    'code' => $response->getStatusCode(),
-                ]);
-                $this->connection->write("HTTP/1.1 301 OK\r\n\r\n");
-            } else {
-                // ignore other response code
-                static::getLogger()->warning('ignore other response code', [
-                    'code' => $response->getStatusCode(),
-                ]);
-            }
-
-            // 继续解析
-            if ($this->buffer) {
-                $this->parseBuffer(null);
-            }
+        // 收到数据
+        elseif ($response->getStatusCode() === 311) {
+            $this->handleData($response);
+        }
+        // 关闭连接
+        elseif ($response->getStatusCode() === 312) {
+            $this->handleClose($response);
+        }
+        // 服务端ping
+        elseif ($response->getStatusCode() === 300) {
+            static::getLogger()->debug('server ping', [
+                'code' => $response->getStatusCode(),
+            ]);
+            $this->connection->write("HTTP/1.1 301 OK\r\n\r\n");
+        } 
+        // server pong
+        elseif ($response->getStatusCode() === 301) {
+            static::getLogger()->debug("SingleTunnel::".__FUNCTION__." client pong", [
+                'class' => __CLASS__,
+                'response' => Helper::toString($response)
+            ]);
+        }
+        else {
+            // ignore other response code
+            static::getLogger()->warning('ignore other response code', [
+                'code' => $response->getStatusCode(),
+            ]);
         }
     }
+
 
     protected function createConnection($response)
     {
@@ -133,13 +95,11 @@ class SingleTunnel extends EventEmitter implements \Wpjscc\Penetration\Log\LogMa
                         'length' => strlen($chunk),
                     ]);
                     $data = base64_encode($chunk);
-                    // \React\EventLoop\Loop::addTimer(0.01 * $k, function () use ($uuid, $data) {
                         $vuuid = Uuid::uuid4()->toString();
 
                         for ($i=0; $i < 1; $i++) { 
                             $this->connection->write("HTTP/1.1 311 OK\r\nUuid: {$uuid}\r\nVuuid: {$vuuid}\r\nData: {$data}\r\n\r\n");
                         }
-                    // });
                 }
                 return;
             } else {
@@ -148,7 +108,6 @@ class SingleTunnel extends EventEmitter implements \Wpjscc\Penetration\Log\LogMa
                     'length' => $length,
                 ]);
             }
-            
             
             $data = base64_encode($data);
             $vuuid = Uuid::uuid4()->toString();
@@ -204,7 +163,6 @@ class SingleTunnel extends EventEmitter implements \Wpjscc\Penetration\Log\LogMa
             'uuid' => $uuid,
             'length' => strlen($data),
         ]);
-        // var_dump('single tunnel receive data', $data);
 
         $this->connections[$uuid]->emit('data', array($data));
     }

@@ -64,8 +64,6 @@ class UdpTunnel implements ConnectorInterface, \Wpjscc\Penetration\Log\LogManage
                     'file' => $error->getFile(),
                     'line' => $error->getLine(),
                 ]);
-                // $client->send("POST /close HTTP/1.1\r\n\r\n");
-                // $client->close();
                 $contection->close();
             });
 

@@ -36,11 +36,11 @@ class ParseBuffer extends EventEmitter implements \Wpjscc\Penetration\Log\LogMan
             try {
                 $response = Psr7\parse_response(substr($this->buffer, $httpPos, $pos - $httpPos));
             } catch (\Exception $e) {
-                // invalid response message, close connection
                 static::getLogger()->error($e->getMessage(), [
                     'class' => __CLASS__,
                     'file' => $e->getFile(),
                     'line' => $e->getLine(),
+                    'all_buffer' => $this->buffer,
                     'buffer' => substr($this->buffer, $httpPos, $pos - $httpPos)
                 ]);
 
@@ -52,6 +52,7 @@ class ParseBuffer extends EventEmitter implements \Wpjscc\Penetration\Log\LogMan
             $this->buffer = substr($this->buffer, $pos + 4);
 
             $this->emit('response', [$response, $this]);
+
             $this->parseBuffer();
         }
     }
@@ -80,6 +81,15 @@ class ParseBuffer extends EventEmitter implements \Wpjscc\Penetration\Log\LogMan
     public function getBuffer()
     {
         return $this->buffer;
+    }
+
+    public function pullBuffer()
+    {
+        $buffer = $this->buffer;
+
+        $this->buffer = '';
+
+        return $buffer;
     }
 
 

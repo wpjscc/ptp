@@ -7,6 +7,7 @@ use React\Socket\ServerInterface;
 use RingCentral\Psr7;
 use Wpjscc\Penetration\Helper;
 use Wpjscc\Penetration\P2p\ConnectionManager;
+use Wpjscc\Penetration\Utils\ParseBuffer;
 
 class P2pTunnel extends EventEmitter implements ServerInterface, \Wpjscc\Penetration\Tunnel\SingleTunnelInterface,\Wpjscc\Penetration\Log\LogManagerInterface
 {
@@ -34,13 +35,9 @@ class P2pTunnel extends EventEmitter implements ServerInterface, \Wpjscc\Penetra
         $this->protocol = $connection->protocol;
         $this->remoteAddress = $connection->getRemoteAddress();
         ConnectionManager::$connections[$this->protocol][$this->remoteAddress]['connection'] = $connection;
-        var_dump('overp2pConnection', $this->protocol, $this->remoteAddress);
-       
-        $this->connection->on('data', function($buffer){
-            var_dump('p2pTunnelData', $buffer);
-            $this->buffer .= $buffer;
-            $this->parseBuffer();
-        });
+        $parseBuffer = new ParseBuffer;
+        $parseBuffer->on('response', [$this, 'handleResponse']);
+        $this->connection->on('data', [$parseBuffer, 'handleBuffer']);
         $this->connection->on('close', [$this, 'close']);
     }
 
@@ -68,70 +65,34 @@ class P2pTunnel extends EventEmitter implements ServerInterface, \Wpjscc\Penetra
         unset(ConnectionManager::$connections[$this->connection->protocol][$this->connection->getRemoteAddress()]);
     }
 
-    protected function parseBuffer()
+    protected function handleResponse($response)
     {
-
-        $pos = strpos($this->buffer, "\r\n\r\n");
-        if ($pos !== false) {
-            $httpPos = strpos($this->buffer, "HTTP/1.1");
-            if ($httpPos === false) {
-                $httpPos = 0;
-            }
-            try {
-                $response = Psr7\parse_response(substr($this->buffer, $httpPos, $pos-$httpPos));
-            } catch (\Exception $e) {
-                // invalid response message, close connection
-                static::getLogger()->error($e->getMessage(), [
-                    'class' => __CLASS__,
-                    'file' => $e->getFile(),
-                    'line' => $e->getLine(),
-                    'buffer' => substr($this->buffer, $httpPos, $pos-$httpPos)
-                ]);
-
-                $this->buffer = substr($this->buffer, $pos + 4);
-                
-                return;
-            }
-
-            $this->buffer = substr($this->buffer, $pos + 4);
-
-            // 收到local_address
-            if ($response->getStatusCode() === 410) {
-                var_dump('p2pTunnel410', $response->getHeaderLine('Local-Address'));
-                ConnectionManager::$connections[$this->protocol][$this->remoteAddress]['local_address'] = $response->getHeaderLine('Local-Address');
-                var_dump('p2pTunnel410', ConnectionManager::$connections[$this->protocol][$this->remoteAddress]['local_address']);
-                ConnectionManager::$connections[$this->protocol][$this->remoteAddress]['ip_whitelist'] = $response->getHeaderLine('Ip-Whitelist');
-                ConnectionManager::$connections[$this->protocol][$this->remoteAddress]['ip_blacklist'] = $response->getHeaderLine('Ip-Blacklist');
-                ConnectionManager::$connections[$this->protocol][$this->remoteAddress]['is_need_local'] = $response->getHeaderLine('Is-Need-Local');
-                ConnectionManager::$connections[$this->protocol][$this->remoteAddress]['try_tcp'] = $response->getHeaderLine('Try-Tcp');
-                ConnectionManager::$connections[$this->protocol][$this->remoteAddress]['token'] = $response->getHeaderLine('token');
-                $this->connection->write("HTTP/1.1 411 OK\r\nAddress: {$this->remoteAddress}\r\n\r\n");
-            }
-            // 广播数据
-            elseif ($response->getStatusCode() === 413) {
-                // var_dump('p2pTunnel413', $response->getHeaderLine('Local-Address'));
-                // var_dump(ConnectionManager::$connections[$this->protocol][$this->remoteAddress]);
-                // exit();
-                if (!isset(ConnectionManager::$connections[$this->protocol][$this->remoteAddress]['local_address'])) {
-                    static::getLogger()->error("p2p tunnel ignore broadcast", [
-                        'class' => __CLASS__,
-                        'response' => Helper::toString($response)
-                    ]);
-                    return;
-                }
-                ConnectionManager::broadcastAddress($this->protocol, $this->remoteAddress);
-            }
-            else {
-                // ignore other response code
-                static::getLogger()->warning("p2p tunnel ignore response", [
+        if ($response->getStatusCode() === 410) {
+            ConnectionManager::$connections[$this->protocol][$this->remoteAddress]['local_address'] = $response->getHeaderLine('Local-Address');
+            ConnectionManager::$connections[$this->protocol][$this->remoteAddress]['ip_whitelist'] = $response->getHeaderLine('Ip-Whitelist');
+            ConnectionManager::$connections[$this->protocol][$this->remoteAddress]['ip_blacklist'] = $response->getHeaderLine('Ip-Blacklist');
+            ConnectionManager::$connections[$this->protocol][$this->remoteAddress]['is_need_local'] = $response->getHeaderLine('Is-Need-Local');
+            ConnectionManager::$connections[$this->protocol][$this->remoteAddress]['try_tcp'] = $response->getHeaderLine('Try-Tcp');
+            ConnectionManager::$connections[$this->protocol][$this->remoteAddress]['token'] = $response->getHeaderLine('token');
+            $this->connection->write("HTTP/1.1 411 OK\r\nAddress: {$this->remoteAddress}\r\n\r\n");
+        }
+        // 广播数据
+        elseif ($response->getStatusCode() === 413) {
+            if (!isset(ConnectionManager::$connections[$this->protocol][$this->remoteAddress]['local_address'])) {
+                static::getLogger()->error("p2p tunnel ignore broadcast", [
                     'class' => __CLASS__,
                     'response' => Helper::toString($response)
                 ]);
-
+                return;
             }
-
-            // 继续解析
-            $this->parseBuffer();
+            ConnectionManager::broadcastAddress($this->protocol, $this->remoteAddress);
+        }
+        else {
+            // ignore other response code
+            static::getLogger()->warning("p2p tunnel ignore response", [
+                'class' => __CLASS__,
+                'response' => Helper::toString($response)
+            ]);
         }
     }
 }

@@ -9,6 +9,7 @@ use React\Stream\ThroughStream;
 use Wpjscc\Kcp\KCP;
 use Wpjscc\Bytebuffer\Buffer;
 
+// 不支持kcp
 class UdpTunnel implements ConnectorInterface, \Wpjscc\Penetration\Log\LogManagerInterface
 {
     use \Wpjscc\Penetration\Log\LogManagerTraitDefault;
@@ -189,13 +190,6 @@ class UdpTunnel implements ConnectorInterface, \Wpjscc\Penetration\Log\LogManage
             });
             $kcp->setNodelay(true, 2, true);
             $kcp->setInterval(10);
-            // $kcp->setNodelay(2, 2, true);
-            // $kcp->setInterval(10);
-            // $kcp->setRxMinRto(10);
-            // $kcp->setMtu(1024 * 1024 * 2);
-            // $kcp->setInterval(1);
-            // $kcp->setRxMinRto(5);
-            // $kcp->setFastresend(1);
         }
         $contection->on('close', function () use ($client, $uri, $protocol, $timer) {
             if ($timer) {
