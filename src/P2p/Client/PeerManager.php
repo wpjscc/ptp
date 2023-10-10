@@ -119,7 +119,7 @@ class PeerManager implements \Wpjscc\Penetration\Log\LogManagerInterface
 
         foreach (static::$peereds as $address => $peereds) {
             echo "======> address: {$address} " . PHP_EOL;
-            echo "      peereds: " . implode(',', array_keys($peereds)) . PHP_EOL;
+            echo "        peereds: " . implode(',', array_keys($peereds)) . PHP_EOL;
         }
 
         if (empty(static::$peereds)) {
