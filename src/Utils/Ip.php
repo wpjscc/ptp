@@ -8,6 +8,15 @@ use Darsyn\IP\Exception;
 class Ip
 {
 
+    public static function getIpAndPort($address)
+    {
+        return strpos($address, '://') === false ? $address : explode('://', $address)[1];
+    }
+    public static function getIp($address)
+    {
+        return strpos($address, '://') === false ? explode(':', $address)[0] : explode(':', explode('://', $address)[1])[0] ;
+    }
+
     public static function isPrivateUse($ip)
     {
         $ip = IPv4::factory($ip);

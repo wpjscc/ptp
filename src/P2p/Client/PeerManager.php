@@ -5,6 +5,7 @@ namespace Wpjscc\Penetration\P2p\Client;
 
 use Wpjscc\Penetration\Proxy\ProxyManager;
 use Wpjscc\Penetration\Helper;
+use Wpjscc\Penetration\Utils\Ip;
 use RingCentral\Psr7;
 
 class PeerManager implements \Wpjscc\Penetration\Log\LogManagerInterface
@@ -14,6 +15,7 @@ class PeerManager implements \Wpjscc\Penetration\Log\LogManagerInterface
     static $uuid;
 
     protected static $peers = [];
+    public static $tcpPeers = [];
     protected static $peereds = [];
     // protected static $tcpPeereds = [];
     protected static $timers = [];
@@ -55,6 +57,40 @@ class PeerManager implements \Wpjscc\Penetration\Log\LogManagerInterface
     public static function getPeers($address)
     {
         return static::$peers[$address] ?? [];
+    }
+
+
+    public static function addTcpPeer($address, $peer)
+    {
+        $address = Ip::getIpAndPort($address);
+        $peer = Ip::getIpAndPort($peer);
+
+        return static::$tcpPeers = array_values(array_unique(array_merge(static::$tcpPeers, [
+            $address, $peer
+        ])));
+    }
+
+    public static function hasTcpPeer($address, $peer)
+    {
+        $address = Ip::getIpAndPort($address);
+        $peer = Ip::getIpAndPort($peer);
+
+        return !empty(array_intersect([$address, $peer], static::$tcpPeers));
+    }
+
+    public static function removeTcpPeer($address, $peer)
+    {
+        $address = Ip::getIpAndPort($address);
+        $peer = Ip::getIpAndPort($peer);
+
+        return static::$tcpPeers = array_values(array_diff(static::$tcpPeers, [
+            $address, $peer
+        ]));
+    }
+
+    public static function getTcpPeers($address)
+    {
+        return static::$tcpPeers;
     }
 
     public static function addTimer($address, $peer, $data)
@@ -123,6 +159,8 @@ class PeerManager implements \Wpjscc\Penetration\Log\LogManagerInterface
             echo "======> address: {$address} " . PHP_EOL;
             echo "        peereds: " . implode(',', array_keys($peereds)) . PHP_EOL;
         }
+        
+        echo "======> tcp peerings: ". implode(',', static::getTcpPeers('')) . PHP_EOL; 
 
         if (empty(static::$peereds)) {
             echo "======> no peer is connected" . PHP_EOL;
