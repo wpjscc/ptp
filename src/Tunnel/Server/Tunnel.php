@@ -2,11 +2,8 @@
 
 namespace Wpjscc\Penetration\Tunnel\Server;
 
-use React\Socket\SocketServer;
 use React\Socket\ConnectionInterface;
-use Wpjscc\Penetration\Client\ClientManager;
 use Wpjscc\Penetration\Proxy\ProxyManager;
-use Wpjscc\Penetration\Client\ClientConnection;
 use RingCentral\Psr7;
 use Wpjscc\Penetration\Tunnel\Server\Tunnel\TcpTunnel;
 use Wpjscc\Penetration\Tunnel\Server\Tunnel\UdpTunnel;
@@ -14,7 +11,6 @@ use Wpjscc\Penetration\Tunnel\Server\Tunnel\WebsocketTunnel;
 use Wpjscc\Penetration\DecorateSocket;
 use Wpjscc\Penetration\Helper;
 use Ramsey\Uuid\Uuid;
-use Wpjscc\Penetration\Tunnel\Server\Tunnel\P2pTunnel;
 use Wpjscc\Penetration\Utils\Ip;
 
 class Tunnel implements \Wpjscc\Penetration\Log\LogManagerInterface
@@ -135,30 +131,23 @@ class Tunnel implements \Wpjscc\Penetration\Log\LogManagerInterface
     {
         $socket->on('connection', function (ConnectionInterface $connection) use ($protocol, $socket) {
 
-            $ipWhiteList = $this->config['ip_whitelist'] ?? '';
-            $ipBlackList = $this->config['ip_blacklist'] ?? '';
             $address = $connection->getRemoteAddress();
-            if (!Ip::addressInIpWhitelist($address, $ipWhiteList) || Ip::addressInIpBlacklist($address, $ipBlackList)) {
+            if (
+                !Ip::addressInIpWhitelist($address, \Wpjscc\Penetration\Config::getKey('ip_whitelist', '')) 
+                || Ip::addressInIpBlacklist($address, \Wpjscc\Penetration\Config::getKey('ip_blacklist', ''))
+            ) {
                 static::getLogger()->error("client: {$protocol} ip is unauthorized ", [
                     'remoteAddress' => $connection->getRemoteAddress(),
                 ]);
-                $headers = [
+                $connection->write(implode("\r\n", [
                     'HTTP/1.1 401 Unauthorized',
                     'Server: ReactPHP/1',
-                    'Msg: ip is not in whitelist'
-                ];
-                $connection->write(implode("\r\n", $headers) . "\r\n\r\n");
+                    "\r\n",
+                    "ip is not in whitelist"
+                ]));
                 $connection->end();
                 return;
             }
-
-
-            // if ($protocol == 'udp') {
-            //     static::getLogger()->error("client: {$protocol} is connected ", [
-            //         'remoteAddress' => $connection->getRemoteAddress(),
-            //     ]);
-            //     (new P2pTunnel)->overConnection($connection);
-            // }
 
             static::getLogger()->notice("client: {$protocol} is connected ", [
                 'remoteAddress' => $connection->getRemoteAddress(),
@@ -181,7 +170,7 @@ class Tunnel implements \Wpjscc\Penetration\Log\LogManagerInterface
             $first = true;
             $that = $this;
             $connection->on('data', $fn = function ($chunk) use ($connection, &$buffer, &$fn, $that, $protocol, $socket, &$first) {
-                static::getLogger()->notice("client: {$protocol} is data ", [
+                static::getLogger()->debug("client: {$protocol} is data ", [
                     'remoteAddress' => $connection->getRemoteAddress(),
                     'length' => strlen($chunk),
                 ]);
@@ -189,20 +178,50 @@ class Tunnel implements \Wpjscc\Penetration\Log\LogManagerInterface
 
                 $pos = strpos($buffer, "\r\n\r\n");
                 if ($pos !== false) {
+                    // HTTP Proxy Request                                                |-----------------|
+                    //                           Server                                  |  tunnel pool    |
+                    //                             |------by domain find service-->----> |                 |
+                    //                             |  |----------<----<------------------|---------|-------|
+                    //               http/s Proxy  |  |                                            |
+                    //         +------>-->---------+--|-----------------+                          |
+                    //         |                      |                 |                          |
+                    //         |----------<----<------|                 |                          |
+                    //         |                                        |                          |
+                    //      Client A                                    Client B                   |
+                    //                                                                             |
+                    //                                                                             |
+                    //                                                                             |
+                    //                              Server                             |-----------|------|             |------------------|
+                    //                                |-------------->------->---------|                  |             |                  |
+                    //                                |                                |  tunnel pool     |------------>| local.test       |
+                    //                                |                                |------------------|             |                  |
+                    //                                |                                                                 | 192.168.1.1:3000 |--<---|
+                    //                                |                                                                 | www.domain.com   |      |
+                    //                                |                                                                 |------------------|      |
+                    //         +----------register----+-----register---------+-----register------------+                                          |
+                    //         |                                             |                         |                                          |
+                    //         |                                             |                         |                                          |
+                    //         |                                             |                         |                                          |
+                    //      Client A                                      Client B local.test          Client C 192.168.1.1:3000,www.domain.com   |
+                    //            |                                                                                                               |
+                    //            |                                                                                                               |          
+                    //            |                                          |-------|                                                            |  
+                    //            |                                          |       |                                                            |      
+                    //            |---by proxy can visit---------------------|Server |------------------------------------------------------------|
+                    //                                                       |-------|
+                    //
+                    //
+                    //
                     if ($first && (strpos($buffer, "CONNECT") === 0)) {
-                    var_dump($buffer);
-
                         $connection->removeListener('data', $fn);
                         $fn = null;
                         try {
-                            
                             $token = '';
                             $pattern = '/Proxy-Authorization: ([^\r\n]+)/i';
                             if (preg_match($pattern, $buffer, $matches1)) {
                                 $proxyAuthorizationValue = $matches1[1];
                                 $token = $proxyAuthorizationValue;
                             }
-
                             $pattern = "/CONNECT ([^\s]+) HTTP\/(\d+\.\d+)/";
                             if (preg_match($pattern, $buffer, $matches)) {
                                 $host = $matches[1];
@@ -228,6 +247,7 @@ class Tunnel implements \Wpjscc\Penetration\Log\LogManagerInterface
                         }
                         return;
                     }
+
                     $first = false;
                     $connection->removeListener('data', $fn);
                     $fn = null;
@@ -245,7 +265,16 @@ class Tunnel implements \Wpjscc\Penetration\Log\LogManagerInterface
                         return;
                     }
 
-                    // websocket协议
+                    // client upgrade tcp/tls to  ws/wss protocol
+                    //                             Server
+                    //                         
+                    //                                |
+                    //                                |
+                    //         +-------wss/ws--->-----+----------------------+
+                    //         |                                             |
+                    //         |                                             |
+                    //         |                                             |
+                    //      Client A                                      Client B
                     if ($protocol == 'tcp' || $protocol == 'tls') {
                         $upgradeHeader = $request->getHeader('Upgrade');
                         if ((1 === count($upgradeHeader) && 'websocket' === strtolower($upgradeHeader[0]))) {
@@ -264,17 +293,9 @@ class Tunnel implements \Wpjscc\Penetration\Log\LogManagerInterface
                     }
 
                     $buffer = '';
-                    $state = false;
-                    try {
-                        $state =  $that->validate($request);
-                    } catch (\Throwable $th) {
-                        static::getLogger()->error($th->getMessage(), [
-                            'class' => __CLASS__,
-                            'file' => $th->getFile(),
-                            'line' => $th->getLine(),
-                        ]);
-                    }
 
+                    // 验证 tunnel 和 dynamic tunnel
+                    $state =  $that->validate($request);
                     if (!$state) {
                         static::getLogger()->error("client: {$protocol} is unauthorized ", [
                             'request' => Helper::toString($request)
@@ -294,15 +315,24 @@ class Tunnel implements \Wpjscc\Penetration\Log\LogManagerInterface
                         'uuid' => $uuid,
                         'request' => Helper::toString($request)
                     ]);
+                    // 告诉客户端验证通过了
+                    //                           Server
+                    //                         
+                    //                                |
+                    //                tunnel          |
+                    //         +------<--<---200------+--------------------+
+                    //         |    or dynamic tunnel                      |
+                    //         |                                           |
+                    //         |                                           |
+                    //      Client                                                                   
 
-                    $headers = [
+                    $connection->write(implode("\r\n", [
                         'HTTP/1.1 200 OK',
                         'Server: ReactPHP/1',
                         'Uuid: '. $uuid,
                         'Uri: ' . $state['uri'],
-                    ];
-                    $connection->write(implode("\r\n", $headers) . "\r\n\r\n");
-
+                        "\r\n"
+                    ]));
 
                     $request = $request->withoutHeader('Uri');
                     $request = $request->withHeader('Uri', $state['uri']);
