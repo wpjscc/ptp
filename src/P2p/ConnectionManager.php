@@ -2,9 +2,8 @@
 
 namespace Wpjscc\Penetration\P2p;
 
-use Darsyn\IP\Version\IPv4;
-use Darsyn\IP\Exception;
 use Wpjscc\Penetration\Utils\Ip;
+use Wpjscc\Penetration\Utils\PingPong;
 
 class ConnectionManager
 {
@@ -44,7 +43,7 @@ class ConnectionManager
                     continue;
                 }
             }
-            $connection = $connections[$peerAddress]['connection'];
+
             if (!Ip::addressInIpWhitelist($address, $peerIpWhitelist) || Ip::addressInIpBlacklist($address, $peerIpBlacklist) || !Ip::addressInIpWhitelist($peerAddress, $ipWhitelist) || Ip::addressInIpBlacklist($peerAddress, $ipBlacklist)) {
 
             } else {
@@ -54,23 +53,30 @@ class ConnectionManager
                     if (!isset(ConnectionManager::$connections[$protocol][$address]) || !isset(ConnectionManager::$connections[$protocol][$peerAddress])) {
                         return false;
                     }
+                    $peerConnection = ConnectionManager::$connections[$protocol][$peerAddress]['connection'];
+                    $connection = ConnectionManager::$connections[$protocol][$address]['connection'];
+                    PingPong::allPingPong([
+                        $peerConnection,
+                        $connection,
+                    ], 1.8)->then(function () use ($peerConnection, $connection, $address, $peerAddress, $protocol) {
 
-                    $tryTcp = ConnectionManager::$connections[$protocol][$address]['try_tcp'] ?: '0';
-                    ConnectionManager::$connections[$protocol][$peerAddress]['connection']->write("HTTP/1.1 413 OK\r\n\Try-tcp: {$tryTcp}\r\nAddress: {$address}\r\n\r\n");
-                    $peerTryTcp = ConnectionManager::$connections[$protocol][$peerAddress]['try_tcp'] ?: '0';
-                    ConnectionManager::$connections[$protocol][$address]['connection']->write("HTTP/1.1 413 OK\r\nTry-tcp: {$peerTryTcp}\r\nAddress: {$peerAddress}\r\n\r\n");
+                        $tryTcp = ConnectionManager::$connections[$protocol][$address]['try_tcp'] ?: '0';
+                        $peerConnection->write("HTTP/1.1 413 OK\r\n\Try-tcp: {$tryTcp}\r\nAddress: {$address}\r\n\r\n");
+                        $peerTryTcp = ConnectionManager::$connections[$protocol][$peerAddress]['try_tcp'] ?: '0';
+                        $connection->write("HTTP/1.1 413 OK\r\nTry-tcp: {$peerTryTcp}\r\nAddress: {$peerAddress}\r\n\r\n");
 
-                    echo "broadcastAddress public address: {$address} ====> {$peerAddress}\n";
-                    echo "broadcastAddress public address: {$peerAddress} ====> {$address}\n";
+                        echo "broadcastAddress public address: {$address} ====> {$peerAddress}\n";
+                        echo "broadcastAddress public address: {$peerAddress} ====> {$address}\n";
+
+                    }, function ($e) {
+                        var_dump($e->getMessage(),1111111111111111);
+
+                        echo $e->getMessage() . PHP_EOL;
+                    });
+                    
                     return true;
                 };
                 array_push(self::$queues, $f);
-                // \React\EventLoop\Loop::addTimer(2 * $i, function () use ($connections, $connection, $address, $peerAddress) {
-                //     $connection->write("HTTP/1.1 413 OK\r\nAddress: {$address}\r\n\r\n");
-                //     $connections[$address]['connection']->write("HTTP/1.1 413 OK\r\nAddress: {$peerAddress}\r\n\r\n");
-                // });
-    
-                // $i++;
             }
 
 
@@ -89,20 +95,27 @@ class ConnectionManager
                         $peerLocalAddress = ConnectionManager::$connections[$protocol][$peerAddress]['local_address'];
                         $peerTryTcp = ConnectionManager::$connections[$protocol][$peerAddress]['try_tcp'] ?: '0';
                         
-                        ConnectionManager::$connections[$protocol][$peerAddress]['connection']->write("HTTP/1.1 413 OK\r\nTry-tcp: {$tryTcp}\r\nAddress: {$localAddress}\r\n\r\n");
-                        ConnectionManager::$connections[$protocol][$address]['connection']->write("HTTP/1.1 413 OK\r\nTry-tcp: {$peerTryTcp}\r\nAddress: {$peerLocalAddress}\r\n\r\n");
+                        $peerConnection = ConnectionManager::$connections[$protocol][$peerAddress]['connection'];
+                        $connection = ConnectionManager::$connections[$protocol][$address]['connection'];
 
-                        echo "broadcastAddress local address: [{$address} {$localAddress}] ====> [{$peerAddress} {$peerLocalAddress}]\n";
-                        echo "broadcastAddress local address: [{$peerAddress} {$peerLocalAddress}] ====> [{$address} {$localAddress}]\n";
+                        PingPong::allPingPong([
+                            $peerConnection,
+                            $connection,
+                        ], 1)->then(function () use ($peerConnection, $connection, $address, $peerAddress, $localAddress, $peerLocalAddress, $tryTcp, $peerTryTcp) {
 
+                            $peerConnection->write("HTTP/1.1 413 OK\r\nTry-tcp: {$tryTcp}\r\nAddress: {$localAddress}\r\n\r\n");
+                            $connection->write("HTTP/1.1 413 OK\r\nTry-tcp: {$peerTryTcp}\r\nAddress: {$peerLocalAddress}\r\n\r\n");
+
+                            echo "broadcastAddress local address: [{$address} {$localAddress}] ====> [{$peerAddress} {$peerLocalAddress}]\n";
+                            echo "broadcastAddress local address: [{$peerAddress} {$peerLocalAddress}] ====> [{$address} {$localAddress}]\n";
+
+                        }, function ($e) {
+                            var_dump($e->getMessage(),99999999999999);
+                            echo $e->getMessage() . PHP_EOL;
+                        });
                         return true;
                     };
                     array_push(self::$queues, $f);
-                    // \React\EventLoop\Loop::addTimer(2 * $i, function () use ($connections, $connection, $address, $peerAddress) {
-                    //     $connection->write("HTTP/1.1 413 OK\r\nAddress: {$connections[$address]['local_address']}\r\n\r\n");
-                    //     $connections[$address]['connection']->write("HTTP/1.1 413 OK\r\nAddress: {$connections[$peerAddress]['local_address']}\r\n\r\n");
-                    // });
-                    // $i++;
                 }
 
             }

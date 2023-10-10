@@ -65,7 +65,7 @@ $tunnel->run();
 $startTime = time();
 
 
-ConnectionManager::consumeQueues();
+ConnectionManager::consumeQueues(1);
 
 \React\EventLoop\Loop::get()->addPeriodicTimer(5, function () use ($tcpManager, $udpManager, $httpPort, $server80Port, $server443Port) {
     $tcpManager->checkPorts(Config::getTcpPorts(Config::getConfig(getParam('--ini-path', './server.ini'))));

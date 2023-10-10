@@ -175,16 +175,16 @@ class PeerManager implements \Wpjscc\Penetration\Log\LogManagerInterface
                 ProxyManager::$remoteTunnelConnections[$_uri] = new \SplObjectStorage;
             }
 
-            if (ProxyManager::$remoteTunnelConnections[$_uri]->count()>= \Wpjscc\Penetration\Config::getKey('common.max_tunnel_number', 5)) {
-                static::getLogger()->error('remote tunnel connection count is more than 5', [
-                    'uri' => $_uri,
-                    'uuid' => $uuid,
-                    'request' => Helper::toString($request)
-                ]);
-                $connection->write("HTTP/1.1 205 Not Support Created\r\n\r\n");
-                $connection->end();
-                return;
-            }
+            // if (ProxyManager::$remoteTunnelConnections[$_uri]->count()>= \Wpjscc\Penetration\Config::getKey('common.max_tunnel_number', 5)) {
+            //     static::getLogger()->error('remote tunnel connection count is more than 5', [
+            //         'uri' => $_uri,
+            //         'uuid' => $uuid,
+            //         'request' => Helper::toString($request)
+            //     ]);
+            //     $connection->write("HTTP/1.1 205 Not Support Created\r\n\r\n");
+            //     $connection->end();
+            //     return;
+            // }
 
             ProxyManager::$remoteTunnelConnections[$_uri]->attach($connection, [
                 'Single-Tunnel' => $request->getHeaderLine('Single-Tunnel'),
