@@ -112,29 +112,6 @@ class PeerManager implements \Wpjscc\Penetration\Log\LogManagerInterface
         return false;
     }
 
-    // public static function addTcpPeered($address, $peer)
-    // {
-    //     if (!isset(static::$tcpPeereds[$address])) {
-    //         static::$tcpPeereds[$address] = [];
-    //     }
-
-    //     if (!isset(static::$tcpPeereds[$address][$peer])) {
-    //         static::$tcpPeereds[$address][$peer] = true;
-    //     }
-    // }
-
-    // public static function hasTcpPeered($address, $peer)
-    // {
-    //     return isset(static::$tcpPeereds[$address][$peer]);
-    // }
-
-    // public static function removeTcpPeered($address, $peer)
-    // {
-    //     if (isset(static::$tcpPeereds[$address][$peer])) {
-    //         unset(static::$tcpPeereds[$address][$peer]);
-    //     }
-    // }
-
     public static function print()
     {
 
@@ -148,10 +125,6 @@ class PeerManager implements \Wpjscc\Penetration\Log\LogManagerInterface
         if (empty(static::$peereds)) {
             echo "====> no peer is connected" . PHP_EOL;
         }
-
-        // foreach (static::$tcpPeereds as $address => $peereds) {
-        //     echo "      tcp-peereds: " . implode(',', array_keys($peereds)) . PHP_EOL;
-        // }
 
     }
 

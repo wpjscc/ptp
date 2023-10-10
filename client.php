@@ -16,6 +16,7 @@ use Wpjscc\Penetration\Server\Http;
 use Wpjscc\Penetration\P2p\Client\PeerManager;
 use Wpjscc\Penetration\P2p\ConnectionManager;
 use Wpjscc\Penetration\Server\TcpManager;
+use Wpjscc\Penetration\Server\UdpManager;
 use Wpjscc\Penetration\Proxy\ProxyManager;
 
 // function compressor($data) {
@@ -166,14 +167,21 @@ $tcpManager = TcpManager::create(
 );
 $tcpManager->run();
 
+// udp server
+$udpManager = UdpManager::create(
+    Config::getUdpIp($inis),
+    Config::getUdpPorts($inis)
+);
+$udpManager->run();
+
 unset($config['tcp']);
+unset($config['udp']);
 ClientManager::createLocalTunnelConnection($config);
 
 
-
-
-\React\EventLoop\Loop::get()->addPeriodicTimer(5, function () use ($tcpManager) {
+\React\EventLoop\Loop::get()->addPeriodicTimer(5, function () use ($tcpManager, $udpManager) {
     $tcpManager->checkPorts(Config::getTcpPorts(Config::getConfig(getParam('--ini-path', './client.ini'))));
+    $udpManager->checkPorts(Config::getUdpPorts(Config::getConfig(getParam('--ini-path', './server.ini'))));
 });
 
 
