@@ -56,12 +56,12 @@ class PingPong
         };
 
         $timer = \React\EventLoop\Loop::addPeriodicTimer(10, function () use ($ping, $pong, $connection, $address) {
-            echo ("start ping " . $address . "\n");
+            echo ("======> start ping " . $address . "\n");
             $ping($connection);
             $pong($connection)->then(function () use ($address) {
-                echo ("$address pong success\n\n");
+                echo ("======> $address pong success\n\n");
             }, function ($e) use ($connection, $address) {
-                echo ("$address pong fail ");
+                echo ("======> $address pong fail ");
                 echo $e->getMessage() . PHP_EOL;
                 $connection->close();
             });

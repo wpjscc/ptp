@@ -145,12 +145,12 @@ $config = Config::getConfig(getParam('--ini-path', './client.ini'));
 LogManager::$logLevels = [
     // LogLevel::ALERT,
     // LogLevel::CRITICAL,
-    LogLevel::DEBUG,
+    // LogLevel::DEBUG,
     // LogLevel::EMERGENCY,
-    LogLevel::ERROR,
+    // LogLevel::ERROR,
     // LogLevel::INFO,
-    LogLevel::WARNING,
-    LogLevel::NOTICE,
+    // LogLevel::WARNING,
+    // LogLevel::NOTICE,
 
 ];
 LogManager::setLogger(new \Wpjscc\Penetration\Log\EchoLog());
@@ -196,17 +196,19 @@ function getParam($key, $default = null){
 
 \React\EventLoop\Loop::addPeriodicTimer(2, function () use ($localServer80Port, $tcpManager, $udpManager) {
 
-    echo "====> local http and proxy server at 0.0.0.0:$localServer80Port ...".PHP_EOL;
+    echo "======> local http and proxy server at 0.0.0.0:$localServer80Port ...".PHP_EOL;
     PeerManager::print();
     // tcp ports
     echo "======> tcp ports listen at -> {$tcpManager->getIp()}:". implode(', ', $tcpManager->getPorts()) . PHP_EOL;
     // udp ports
     echo "======> udp ports listen at -> {$udpManager->getIp()}:". implode(', ', $udpManager->getPorts()) . PHP_EOL;
-    
-    echo "====> p2p uris: " . implode(', ', array_map(function ($uri) use ($localServer80Port) { 
+
+    echo "======> p2p uris: " . implode(', ', array_map(function ($uri) use ($localServer80Port) { 
         if (strpos($uri, ':') !== false) {
             return $uri;
         }
         return $uri . ':' . $localServer80Port;
-    },array_keys(ProxyManager::$remoteTunnelConnections))) . PHP_EOL.PHP_EOL;
+    },array_keys(ProxyManager::$remoteTunnelConnections))) .PHP_EOL;
+    
+    echo "======> visit uris: " . implode(', ', array_keys(ClientManager::$visitUriToInfo)) . PHP_EOL.PHP_EOL;
 });

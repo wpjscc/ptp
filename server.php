@@ -20,12 +20,12 @@ use Wpjscc\Penetration\P2p\ConnectionManager;
 LogManager::$logLevels = [
     // LogLevel::ALERT,
     // LogLevel::CRITICAL,
-    LogLevel::DEBUG,
+    // LogLevel::DEBUG,
     // LogLevel::EMERGENCY,
-    LogLevel::ERROR,
+    // LogLevel::ERROR,
     // LogLevel::INFO,
-    LogLevel::WARNING,
-    LogLevel::NOTICE,
+    // LogLevel::WARNING,
+    // LogLevel::NOTICE,
 
 ];
 LogManager::setLogger(new \Wpjscc\Penetration\Log\EchoLog());

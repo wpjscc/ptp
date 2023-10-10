@@ -115,15 +115,15 @@ class PeerManager implements \Wpjscc\Penetration\Log\LogManagerInterface
     public static function print()
     {
 
-        echo "====> current p2p connection address: " . implode(', ', static::getConnectionAddresses()) . PHP_EOL;
+        echo "======> current p2p connection address: " . implode(', ', static::getConnectionAddresses()) . PHP_EOL;
 
         foreach (static::$peereds as $address => $peereds) {
-            echo "====> address: {$address} " . PHP_EOL;
+            echo "======> address: {$address} " . PHP_EOL;
             echo "      peereds: " . implode(',', array_keys($peereds)) . PHP_EOL;
         }
 
         if (empty(static::$peereds)) {
-            echo "====> no peer is connected" . PHP_EOL;
+            echo "======> no peer is connected" . PHP_EOL;
         }
 
     }
