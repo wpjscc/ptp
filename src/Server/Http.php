@@ -2,8 +2,6 @@
 
 namespace Wpjscc\Penetration\Server;
 
-use React\Socket\SocketServer;
-use React\Socket\ConnectionInterface;
 use Wpjscc\Penetration\Proxy\ProxyManager;
 use RingCentral\Psr7;
 use Wpjscc\Penetration\Tunnel\Server\Tunnel\TcpTunnel;
@@ -38,6 +36,55 @@ class Http implements \Wpjscc\Penetration\Log\LogManagerInterface
                 $pos = strpos($buffer, "\r\n\r\n");
 
                 // CONNECT
+                // Support Server And Client
+                // 部署在服务端 和 Wpjscc\Penetration\Tunnel\Server\Tunnel 功能一样 |----------------------------------------------------------<-----------------------|
+                // HTTP Proxy Request                                           |    |-----------------|                                                           |
+                //                           Http Server <----------------------|    |  tunnel pool    |                                                           |
+                //                             |------by domain find service-->----> |                 |                                                           |
+                //                             |  |----------<----<------------------|---------|-------|                                                           |
+                //               http/s Proxy  |  |                                            |                                                                   |
+                //         +------>-->---------+--|-----------------+                          |                                                                   |
+                //         |                      |                 |                          |                                                                   |
+                //         |----------<----<------|                 |                          |                                                                   |
+                //         |                                        |                          |                                                                   |
+                //      Client A                                    Client B                   |                                                                   |
+                //                                                                             |                                                                   |
+                //                                                                             |                                                                   |
+                //                                                                             |                                                                   |
+                //                              Server                             |-----------|------|             |------------------|                           |
+                //                                |-------------->------->---------|                  |             |                  |                           |
+                //                                |                                |  tunnel pool     |------------>| local.test       |                           |
+                //                                |                                |------------------|             |                  |                           |
+                //                                |                                                                 | 192.168.1.1:3000 |--<---|                    |
+                //                                |                                                                 | www.domain.com   |      |                    |
+                //                                |                                                                 |------------------|      |                    |
+                //         +----------register----+-----register---------+-----register------------+                                          |                    |
+                //         |                                             |                         |                                          |                    |
+                //         |                                             |                         |                                          |                    |
+                //         |                                             |                         |                                          |                    |
+                //      Client A                                      Client B local.test          Client C 192.168.1.1:3000,www.domain.com   |                    |
+                //            |                                                                                                               |                    |
+                //            |                                                                                                               |                    |          
+                //            |                                          |-------|                                                            |                    |  
+                //            |                                          |       |                                                            |                    |      
+                //            |---by proxy can visit---------------------|Server |------------------------------------------------------------|                    |
+                //                                                       |-------|                                                                                 |
+                //                                                                                                                                                 |
+                //                                                                                                                                                 |
+                //                                                                                                                                                 |
+                // 部署在客户端                                                                                                                                      |
+                //                              Local Http Server                                                                                                  |
+                //                                |                                   |------------------------|                                                   |
+                //                                |                                   |  local p2p tunnel pool |                                                   |
+                //                                |--------------->-------------------|                        |------not exits------------->-----------------------|
+                //                                |                                   |------------------------|
+                //                                |                                   
+                //                                +-----------<---------+
+                //                                                      |
+                //                                                      |
+                //                                                      |
+                //                                                      |
+                //                                             Local User Visit
                 if ($first && ($pos !== false) && (strpos($buffer, "CONNECT") === 0)) {
                     $userConnection->removeListener('data', $fn);
                     $fn = null;

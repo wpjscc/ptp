@@ -179,7 +179,7 @@ class Tunnel implements \Wpjscc\Penetration\Log\LogManagerInterface
                 $pos = strpos($buffer, "\r\n\r\n");
                 if ($pos !== false) {
                     // HTTP Proxy Request                                                |-----------------|
-                    //                           Server                                  |  tunnel pool    |
+                    //                           tunnel Server                           |  tunnel pool    |
                     //                             |------by domain find service-->----> |                 |
                     //                             |  |----------<----<------------------|---------|-------|
                     //               http/s Proxy  |  |                                            |
