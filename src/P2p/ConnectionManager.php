@@ -69,7 +69,6 @@ class ConnectionManager
                         echo "broadcastAddress public address: {$peerAddress} ====> {$address}\n";
 
                     }, function ($e) {
-                        var_dump($e->getMessage(),1111111111111111);
 
                         echo $e->getMessage() . PHP_EOL;
                     });
@@ -110,7 +109,6 @@ class ConnectionManager
                             echo "broadcastAddress local address: [{$peerAddress} {$peerLocalAddress}] ====> [{$address} {$localAddress}]\n";
 
                         }, function ($e) {
-                            var_dump($e->getMessage(),99999999999999);
                             echo $e->getMessage() . PHP_EOL;
                         });
                         return true;
