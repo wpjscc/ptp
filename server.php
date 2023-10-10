@@ -18,14 +18,14 @@ use Wpjscc\Penetration\P2p\ConnectionManager;
 \Wpjscc\Penetration\Environment::$type = 'server';
 
 LogManager::$logLevels = [
-    // LogLevel::ALERT,
-    // LogLevel::CRITICAL,
-    // LogLevel::DEBUG,
-    // LogLevel::EMERGENCY,
-    // LogLevel::ERROR,
-    // LogLevel::INFO,
-    // LogLevel::WARNING,
-    // LogLevel::NOTICE,
+    LogLevel::ALERT,
+    LogLevel::CRITICAL,
+    LogLevel::DEBUG,
+    LogLevel::EMERGENCY,
+    LogLevel::ERROR,
+    LogLevel::INFO,
+    LogLevel::WARNING,
+    LogLevel::NOTICE,
 
 ];
 LogManager::setLogger(new \Wpjscc\Penetration\Log\EchoLog());

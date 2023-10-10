@@ -8,6 +8,12 @@ use Darsyn\IP\Exception;
 class Ip
 {
 
+    public static function isPrivateUse($ip)
+    {
+        $ip = IPv4::factory($ip);
+        return $ip->isPrivateUse();
+    }
+
     public static function addressInIpWhitelist($adress, $ipWhiitelist)
     {
         return static::addressInIplist($adress, $ipWhiitelist);

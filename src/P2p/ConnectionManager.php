@@ -11,17 +11,28 @@ class ConnectionManager
 
     protected static $queues = [];
 
-    public static function broadcastAddress($protocol, $address)
+    public static function broadcastAddress($protocol, $address, $code = 413, $peer = '')
     {
     
         $ipLocalAddress = self::$connections[$protocol][$address]['local_address'] ?: null;
         $ipWhitelist = self::$connections[$protocol][$address]['ip_whitelist'] ?: null;
         $ipBlacklist = self::$connections[$protocol][$address]['ip_blacklist'] ?: null;
         $isNeedLocal = self::$connections[$protocol][$address]['is_need_local'] ?: null;
+        $uuid = self::$connections[$protocol][$address]['uuid'] ?: null;
         $tryTcp = self::$connections[$protocol][$address]['try_tcp'] ?: '';
         $token = self::$connections[$protocol][$address]['token'] ?: null;
 
-        $connections = self::$connections[$protocol] ?? [];
+        $connections = [];
+        if ($peer) {
+            $peerConnection = self::$connections[$protocol][$peer] ?? [];
+            if ($peerConnection) {
+                $connections[$peer] = $peerConnection;
+            }
+        } else {
+            $connections = self::$connections[$protocol] ?? [];
+        }
+
+
         $i = 0;
         foreach ($connections as $peerAddress => $value1) {
 
@@ -34,7 +45,14 @@ class ConnectionManager
             $peerIpWhitelist = $connections[$peerAddress]['ip_whitelist'] ?: null;
             $peerIpBlacklist = $connections[$peerAddress]['ip_blacklist'] ?: null;
             $peerIsNeedLocal = $connections[$peerAddress]['is_need_local'] ?: null;
+            $peerUuid = $connections[$peerAddress]['uuid'] ?: null;
             $peerToken = $connections[$peerAddress]['token'] ?: null;
+
+            // 同一进程内的不推送
+            if ($peerUuid === $uuid) {
+                echo "broadcastAddress same uuid: {$address}-{$uuid} ====> {$peerAddress}-{$peerUuid}\n";
+                continue;
+            }
 
             if ($token || $peerToken) {
                 $tokens = explode(',', $token);
@@ -49,7 +67,7 @@ class ConnectionManager
             } else {
                 var_dump('broadcastAddress public address', $protocol);
 
-                $f = function () use ($protocol, $address, $peerAddress) {
+                $f = function () use ($protocol, $address, $peerAddress, $code) {
                     if (!isset(ConnectionManager::$connections[$protocol][$address]) || !isset(ConnectionManager::$connections[$protocol][$peerAddress])) {
                         return false;
                     }
@@ -58,12 +76,14 @@ class ConnectionManager
                     PingPong::allPingPong([
                         $peerConnection,
                         $connection,
-                    ], 1.8)->then(function () use ($peerConnection, $connection, $address, $peerAddress, $protocol) {
-
+                    ], 1.8)->then(function () use ($peerConnection, $connection, $address, $peerAddress, $protocol, $code) {
+                        if (!isset(ConnectionManager::$connections[$protocol][$address]) || !isset(ConnectionManager::$connections[$protocol][$peerAddress])) {
+                            return false;
+                        }
                         $tryTcp = ConnectionManager::$connections[$protocol][$address]['try_tcp'] ?: '0';
-                        $peerConnection->write("HTTP/1.1 413 OK\r\n\Try-tcp: {$tryTcp}\r\nAddress: {$address}\r\n\r\n");
+                        $peerConnection->write("HTTP/1.1 {$code} OK\r\n\Try-tcp: {$tryTcp}\r\nAddress: {$address}\r\n\r\n");
                         $peerTryTcp = ConnectionManager::$connections[$protocol][$peerAddress]['try_tcp'] ?: '0';
-                        $connection->write("HTTP/1.1 413 OK\r\nTry-tcp: {$peerTryTcp}\r\nAddress: {$peerAddress}\r\n\r\n");
+                        $connection->write("HTTP/1.1 {$code} OK\r\nTry-tcp: {$peerTryTcp}\r\nAddress: {$peerAddress}\r\n\r\n");
 
                         echo "broadcastAddress public address: {$address} ====> {$peerAddress}\n";
                         echo "broadcastAddress public address: {$peerAddress} ====> {$address}\n";
@@ -85,7 +105,7 @@ class ConnectionManager
                 var_dump('broadcastAddress local address', $protocol);
             
                 if ($isNeedLocal && $peerIsNeedLocal) {
-                    $f = function () use ($protocol, $address, $peerAddress) {
+                    $f = function () use ($protocol, $address, $peerAddress, $code) {
                         if (!isset(ConnectionManager::$connections[$protocol][$address]) || !isset(ConnectionManager::$connections[$protocol][$peerAddress])) {
                             return false;
                         }
@@ -100,10 +120,12 @@ class ConnectionManager
                         PingPong::allPingPong([
                             $peerConnection,
                             $connection,
-                        ], 1)->then(function () use ($peerConnection, $connection, $address, $peerAddress, $localAddress, $peerLocalAddress, $tryTcp, $peerTryTcp) {
-
-                            $peerConnection->write("HTTP/1.1 413 OK\r\nTry-tcp: {$tryTcp}\r\nAddress: {$localAddress}\r\n\r\n");
-                            $connection->write("HTTP/1.1 413 OK\r\nTry-tcp: {$peerTryTcp}\r\nAddress: {$peerLocalAddress}\r\n\r\n");
+                        ], 1)->then(function () use ($peerConnection, $connection, $protocol,$address, $peerAddress, $localAddress, $peerLocalAddress, $tryTcp, $peerTryTcp, $code) {
+                            if (!isset(ConnectionManager::$connections[$protocol][$address]) || !isset(ConnectionManager::$connections[$protocol][$peerAddress])) {
+                                return false;
+                            }
+                            $peerConnection->write("HTTP/1.1 {$code} OK\r\nTry-tcp: {$tryTcp}\r\nAddress: {$localAddress}\r\nRemote-Peer-Address: $address\r\n\r\n");
+                            $connection->write("HTTP/1.1 {$code} OK\r\nTry-tcp: {$peerTryTcp}\r\nAddress: {$peerLocalAddress}\r\nRemote-Peer-Address: $peerAddress\r\n\r\n");
 
                             echo "broadcastAddress local address: [{$address} {$localAddress}] ====> [{$peerAddress} {$peerLocalAddress}]\n";
                             echo "broadcastAddress local address: [{$peerAddress} {$peerLocalAddress}] ====> [{$address} {$localAddress}]\n";
@@ -119,6 +141,12 @@ class ConnectionManager
             }
 
         }
+    }
+
+
+    public static function broadcastAddressAndPeer($protocol, $address, $peer)
+    {
+        static::broadcastAddress($protocol, $address, 418, $peer);
     }
     // 消费queues
     public static function consumeQueues($timer = 1)

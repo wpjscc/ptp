@@ -6,12 +6,12 @@ namespace Wpjscc\Penetration\P2p\Client;
 use Wpjscc\Penetration\Proxy\ProxyManager;
 use Wpjscc\Penetration\Helper;
 use RingCentral\Psr7;
-use Wpjscc\Penetration\Client\ClientManager;
-use Wpjscc\Penetration\Tunnel\Client\Tunnel\SingleTunnel;
 
 class PeerManager implements \Wpjscc\Penetration\Log\LogManagerInterface
 {
     use \Wpjscc\Penetration\Log\LogManagerTraitDefault;
+
+    static $uuid;
 
     protected static $peers = [];
     protected static $peereds = [];
@@ -20,6 +20,8 @@ class PeerManager implements \Wpjscc\Penetration\Log\LogManagerInterface
 
     protected static $connections = [];
     protected static $localAddrToRemoteAddr = [];
+
+    protected static $peerAddrToRemoteAddr = [];
 
 
     public static function addPeer($address, $peer)
@@ -328,29 +330,48 @@ class PeerManager implements \Wpjscc\Penetration\Log\LogManagerInterface
     }
 
 
-    public static function addLocalAddrToRemoteAddr($localAddr, $remoteAddr)
+    public static function addLocalAddrToRemoteAddr($localAddr, $remoteAddr, $isPeer = false)
     {
-        static::$localAddrToRemoteAddr[$localAddr] = $remoteAddr;
+        if ($isPeer) {
+            static::$peerAddrToRemoteAddr[$localAddr] = $remoteAddr;
+        } else {
+            static::$localAddrToRemoteAddr[$localAddr] = $remoteAddr;
+        }
     }
 
-    public static function getLocalAddrToRemoteAddr($localAddr)
+    public static function getRemoteAddrByLocalAddr($localAddr, $isPeer = false)
     {
+        if ($isPeer) {
+            return static::$peerAddrToRemoteAddr[$localAddr] ?? null;
+        }
         return static::$localAddrToRemoteAddr[$localAddr] ?? null;
     }
 
-    public static function removeLocalAddrToRemoteAddr($localAddr)
+    public static function removeLocalAddrToRemoteAddr($localAddr, $isPeer = false)
     {
-        unset(static::$localAddrToRemoteAddr[$localAddr]);
+        if ($isPeer) {
+            unset(static::$peerAddrToRemoteAddr[$localAddr]);
+        } else {
+            unset(static::$localAddrToRemoteAddr[$localAddr]);
+        }
     }
 
-    public static function removeLocalAddrToRemoteAddrByRemoteAddr($remoteAddr)
+    public static function removeLocalAddrToRemoteAddrByRemoteAddr($remoteAddr, $isPeer = false)
     {
-        unset(static::$localAddrToRemoteAddr[array_search($remoteAddr, static::$localAddrToRemoteAddr)]);
+        if ($isPeer) {
+            unset(static::$peerAddrToRemoteAddr[array_search($remoteAddr, static::$peerAddrToRemoteAddr)]);
+        } else {
+            unset(static::$localAddrToRemoteAddr[array_search($remoteAddr, static::$localAddrToRemoteAddr)]);
+        }
     }
 
-    public static function getAddrs()
+    public static function getAddrs($isPeer = false)
     {
-        return array_unique(array_values(array_merge(array_keys(static::$localAddrToRemoteAddr), array_values(static::$localAddrToRemoteAddr))));
+        if ($isPeer) {
+            return array_unique(array_values(array_merge(array_keys(static::$peerAddrToRemoteAddr), array_values(static::$peerAddrToRemoteAddr))));
+        } else {
+            return array_unique(array_values(array_merge(array_keys(static::$localAddrToRemoteAddr), array_values(static::$localAddrToRemoteAddr))));
+        }
     }
 
     public static function getTcpPeeredAddrs()

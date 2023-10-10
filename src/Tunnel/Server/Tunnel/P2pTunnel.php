@@ -72,6 +72,7 @@ class P2pTunnel extends EventEmitter implements ServerInterface, \Wpjscc\Penetra
             ConnectionManager::$connections[$this->protocol][$this->remoteAddress]['ip_whitelist'] = $response->getHeaderLine('Ip-Whitelist');
             ConnectionManager::$connections[$this->protocol][$this->remoteAddress]['ip_blacklist'] = $response->getHeaderLine('Ip-Blacklist');
             ConnectionManager::$connections[$this->protocol][$this->remoteAddress]['is_need_local'] = $response->getHeaderLine('Is-Need-Local');
+            ConnectionManager::$connections[$this->protocol][$this->remoteAddress]['uuid'] = $response->getHeaderLine('Uuid');
             ConnectionManager::$connections[$this->protocol][$this->remoteAddress]['try_tcp'] = $response->getHeaderLine('Try-Tcp');
             ConnectionManager::$connections[$this->protocol][$this->remoteAddress]['token'] = $response->getHeaderLine('token');
             $this->connection->write("HTTP/1.1 411 OK\r\nAddress: {$this->remoteAddress}\r\n\r\n");
@@ -86,6 +87,34 @@ class P2pTunnel extends EventEmitter implements ServerInterface, \Wpjscc\Penetra
                 return;
             }
             ConnectionManager::broadcastAddress($this->protocol, $this->remoteAddress);
+        }
+        elseif ($response->getStatusCode() === 414) {
+            if (!isset(ConnectionManager::$connections[$this->protocol][$this->remoteAddress]['local_address'])) {
+                static::getLogger()->error("p2p tunnel ignore broadcast", [
+                    'class' => __CLASS__,
+                    'response' => Helper::toString($response)
+                ]);
+                return;
+            }
+            if ($response->getHeaderLine('Address') != $this->remoteAddress) {
+                static::getLogger()->error("p2p tunnel ignore broadcast", [
+                    'class' => __CLASS__,
+                    'response' => Helper::toString($response)
+                ]);
+                return;
+            }
+
+            $peer = $response->getHeaderLine('Peer');
+            // 如果peer 不存在，忽视
+            if (!isset(ConnectionManager::$connections[$this->protocol][$peer]['local_address'])) {
+                static::getLogger()->error("p2p tunnel ignore broadcast", [
+                    'class' => __CLASS__,
+                    'response' => Helper::toString($response)
+                ]);
+                return;
+            }
+
+            ConnectionManager::broadcastAddressAndPeer($this->protocol, $this->remoteAddress, $peer);
         }
         else {
             // ignore other response code
