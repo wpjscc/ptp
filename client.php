@@ -156,9 +156,12 @@ LogManager::$logLevels = [
 LogManager::setLogger(new \Wpjscc\Penetration\Log\EchoLog());
 
 // 本地代理服务
-$localServer80Port = $config['common']['local_server_80_port'] ?? 9080;
-$httpServer = new Http($localServer80Port);
-$httpServer->run();
+$localServer80Port = $config['common']['local_server_80_port'] ?? '';
+
+if ($httpServer) {
+    $httpServer = new Http($localServer80Port);
+    $httpServer->run();
+}
 
 
 $tcpManager = TcpManager::create(

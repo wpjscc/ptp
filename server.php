@@ -33,13 +33,17 @@ LogManager::setLogger(new \Wpjscc\Penetration\Log\EchoLog());
 
 $inis = Config::getConfig(getParam('--ini-path', './server.ini'));
 
-$server80Port = $inis['common']['tunnel_80_port'] ?? '';
+$inis['common']['tunnel_protocol'] = $inis['common']['tunnel_protocol'] ?? 'tcp';
+$server80Port = $inis['common']['tunnel_80_port'] ?? '80';
 $server443Port = $inis['common']['tunnel_443_port'] ?? '';
 
 // http server
-$httpPort = $inis['common']['http_port'] ?? 8080;
-$httpServer = new Http($httpPort);
-$httpServer->run();
+$httpPort = $inis['common']['http_port'] ?? '';
+if ($httpPort) {
+    $httpServer = new Http($httpPort);
+    $httpServer->run();
+}
+
 
 // tcp server
 

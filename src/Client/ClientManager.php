@@ -29,8 +29,7 @@ class ClientManager implements \Wpjscc\Penetration\Log\LogManagerInterface
         $common['timeout']  = $common['timeout'] ?? 6;
         $common['single_tunnel']  = $common['single_tunnel'] ?? 0;
         $common['pool_count']  = $common['pool_count'] ?? 1;
-        $common['server_tls']  = $common['server_tls'] ?? false;
-        $common['protocol']  = $common['protocol'] ?? '';
+        $common['protocol']  = $common['protocol'] ?? 'tcp';
         $common['tunnel_protocol']  = $common['tunnel_protocol'] ?? 'tcp';
         if (empty($common['local_protocol'])) {
             $common['local_protocol'] = 'tcp';
