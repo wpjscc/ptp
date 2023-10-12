@@ -34,7 +34,7 @@ if (getParam('-vvv')) {
 LogManager::setLogger(new \Wpjscc\Penetration\Log\EchoLog());
 
 
-$inis = Config::getConfig(getParam('--ini-path', './server.ini'));
+$inis = Config::getConfig(getParam('--ini-path', './ptps.ini'));
 
 $inis['common']['tunnel_protocol'] = $inis['common']['tunnel_protocol'] ?? 'tcp';
 $server80Port = $inis['common']['tunnel_80_port'] ?? '80';
@@ -75,8 +75,8 @@ $startTime = time();
 ConnectionManager::consumeQueues(1);
 
 \React\EventLoop\Loop::get()->addPeriodicTimer(5, function () use ($tcpManager, $udpManager, $httpPort, $server80Port, $server443Port) {
-    $tcpManager->checkPorts(Config::getTcpPorts(Config::getConfig(getParam('--ini-path', './server.ini'))));
-    $udpManager->checkPorts(Config::getUdpPorts(Config::getConfig(getParam('--ini-path', './server.ini'))));
+    $tcpManager->checkPorts(Config::getTcpPorts(Config::getConfig(getParam('--ini-path', './ptps.ini'))));
+    $udpManager->checkPorts(Config::getUdpPorts(Config::getConfig(getParam('--ini-path', './ptps.ini'))));
     $uris = array_keys(ProxyManager::$remoteTunnelConnections);
     // server port
     echo "======> tunnel server [80] port listen at -> ". $server80Port . PHP_EOL;

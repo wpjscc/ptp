@@ -140,7 +140,7 @@ function decompressed($data) {
 
 
 \Wpjscc\Penetration\Environment::$type = 'client';
-$config = Config::getConfig(getParam('--ini-path', './client.ini'));
+$config = Config::getConfig(getParam('--ini-path', './ptpc.ini'));
 
 if (getParam('-vvv')) {
     LogManager::$logLevels = [
@@ -186,8 +186,8 @@ ClientManager::createLocalTunnelConnection($config);
 
 
 \React\EventLoop\Loop::get()->addPeriodicTimer(5, function () use ($tcpManager, $udpManager) {
-    $tcpManager->checkPorts(Config::getTcpPorts(Config::getConfig(getParam('--ini-path', './client.ini'))));
-    $udpManager->checkPorts(Config::getUdpPorts(Config::getConfig(getParam('--ini-path', './client.ini'))));
+    $tcpManager->checkPorts(Config::getTcpPorts(Config::getConfig(getParam('--ini-path', './ptpc.ini'))));
+    $udpManager->checkPorts(Config::getUdpPorts(Config::getConfig(getParam('--ini-path', './ptpc.ini'))));
 });
 
 
