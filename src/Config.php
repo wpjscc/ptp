@@ -13,9 +13,12 @@ class Config
     public static function getConfig($iniPath)
     {
         if (strpos($iniPath, '/') !== 0) {
-            $iniPath = ltrim($iniPath, './');
+            if (strpos($iniPath, './') === 0) {
+                $iniPath = ltrim($iniPath, './');
+            }
             $iniPath = getcwd() . '/' . $iniPath;
         }
+        var_dump($iniPath);
 
         if (!$iniPath || !file_exists($iniPath)) {
             throw new \Exception('--iniPath is required');

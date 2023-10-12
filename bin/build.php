@@ -11,21 +11,20 @@ if ($version === false) {
 }
 
 // use first argument as output file or use "phar-composer-{version}.phar"
-$name = isset($argv[1]) ? $argv[1] : ('ptp-' . $version);
-$phar = $name . '.phar';
+$phar = isset($argv[1]) ? $argv[1] : ('ptp-' . $version).'.phar';
+$linuxBin = isset($argv[1]) ? $argv[1] : ('ptp-linux-' . $version);
+$macBin = isset($argv[1]) ? $argv[1] : ('ptp-mac-' . $version);
 
-$linuxBin = $name . '-linux';
-$macBin = $name . '-mac';
 
 passthru('
 rm -rf build && mkdir build &&
-cp -r client.php server.php index.php src/ composer.json build/ && rm-r  bin/ptp*
-composer install -d build/ --no-dev &&
+cp -r client.php server.php index.php src/ composer.json build/ && rm -rf bin/ptp*
+composer install -d build/ --no-dev -vvv &&
 
 vendor/bin/phar-composer build build/ bin/' . escapeshellarg($phar) . ' &&
 cat bin/linux-micro.sfx bin/'.escapeshellarg($phar).' > bin/'.escapeshellarg($linuxBin).' &&
 cat bin/mac-micro.sfx bin/'.escapeshellarg($phar).' > bin/'.escapeshellarg($macBin).' &&
-echo -n "Reported Linux version is: /bin'  . escapeshellarg($linuxBin).'" &&
-echo -n "Reported Mac version is: /bin'  . escapeshellarg($macBin) .'"'
+echo -n "Reported Linux version is: /bin/'  . escapeshellarg($linuxBin).'\n" &&
+echo -n "Reported Mac version is: /bin/'  . escapeshellarg($macBin) .'\n"'
 , $code);
 exit($code);

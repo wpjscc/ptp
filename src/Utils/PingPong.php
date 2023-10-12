@@ -25,7 +25,7 @@ class PingPong
                 $connection->removeListener('data', $fn);
                 $fn = null;
                 \React\EventLoop\Loop::cancelTimer($timer);
-                $deferred->resolve();
+                $deferred->resolve(null);
             }
         });
 
