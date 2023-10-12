@@ -1,4 +1,5 @@
 # Composer ignores
+/build/
 /vendor
 composer.phar
 composer.lock
