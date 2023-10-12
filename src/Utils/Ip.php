@@ -52,7 +52,7 @@ class Ip
                 $range = explode('/', $range);
                 $rangeIp = IPv4::factory($range[0]);
                 $rangeCidr = $range[1] ?? 32;
-                if ($currentAddress->inRange($rangeIp, $rangeCidr)) {
+                if ($currentAddress->inRange($rangeIp, (int) $rangeCidr)) {
                     $isInIpRange = true;
                     break;
                 }

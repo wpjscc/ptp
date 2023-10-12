@@ -1,5 +1,6 @@
 <?php
 
+var_dump(getParam('-c'));
 if (getParam('-c')) {
     require 'client.php';
 } else {
