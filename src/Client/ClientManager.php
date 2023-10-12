@@ -132,6 +132,8 @@ class ClientManager implements \Wpjscc\Penetration\Log\LogManagerInterface
                     'Domain: ' . $config['domain'],
                     'Single-Tunnel: ' . ($config['single_tunnel'] ?? 0),
                     'Is-Private: ' . ($config['is_private'] ?? 0),
+                    'Http-User: '. ($config['http_user'] ?? ''),
+                    'Http-Pwd: '. ($config['http_pwd'] ?? ''),
                     "\r\n"
                 ]);
                 static::getLogger()->debug('send create tunnel request', [

@@ -42,7 +42,7 @@ class P2pTunnel extends EventEmitter implements ConnectorInterface, \Wpjscc\Pene
             PeerManager::$uuid = Uuid::uuid4()->toString();
         }
 
-        // 发送给对端的
+        // 发送给对端的信息，不包含token和user pwd
         $header = [
             'Host: ' . $config['tunnel_host'],
             'User-Agent: ReactPHP',
@@ -156,7 +156,7 @@ class P2pTunnel extends EventEmitter implements ConnectorInterface, \Wpjscc\Pene
 
                 $udpTunnel->on('connection', $fn = function ($connection, $address, $server) use ($udpTunnel, $deferred, &$fn) {
                     if ($address == $this->serverAddress) {
-
+                        // 发送给服务端的
                         $connection->write(implode("\r\n", [
                             'GET /client HTTP/1.1',
                             'Host: ' . $this->config['tunnel_host'],
@@ -168,6 +168,8 @@ class P2pTunnel extends EventEmitter implements ConnectorInterface, \Wpjscc\Pene
                             'Single-Tunnel: ' . ($this->config['single_tunnel'] ?? 0),
                             'Is-Private: ' . ($this->config['is_private'] ?? 1),
                             'Is-P2p: 1',
+                            'Http-User: '. ($this->config['http_user'] ?? ''),
+                            'Http-Pwd: '. ($this->config['http_pwd'] ?? ''),
                             "\r\n"
                         ]));
 

@@ -7,9 +7,11 @@ use React\Socket\Connector;
 class TcpTunnel implements \React\Socket\ConnectorInterface
 {
     protected $config;
-    public function __construct($config)
+    protected $proxyHeader;
+    public function __construct($config, $proxyHeader = [])
     {
         $this->config = $config;
+        $this->proxyHeader = $proxyHeader;
     }
 
     public function connect($protocol = null)
@@ -25,15 +27,18 @@ class TcpTunnel implements \React\Socket\ConnectorInterface
         $proxy = null;
 
         if ($config['local_proxy'] ?? '') {
-            $proxy = new \Clue\React\HttpProxy\ProxyConnector($config['local_proxy'], new Connector(['tls' => [
-                    'verify_peer' => false,
-                    'verify_peer_name' => false,
-                ]
-            ]), [
-                'Proxy-Authorization' => $this->config['token'] ?? ''
-            ]);
+            $proxy = new \Clue\React\HttpProxy\ProxyConnector(
+                $config['local_proxy'],
+                new Connector([
+                    'tls' => [
+                        'verify_peer' => false,
+                        'verify_peer_name' => false,
+                    ]
+                ]),
+                $this->proxyHeader
+            );
         }
-        
+
         return (new Connector(
             array_merge(
                 array(

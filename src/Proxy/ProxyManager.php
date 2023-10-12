@@ -351,8 +351,9 @@ class ProxyManager implements \Wpjscc\Penetration\Log\LogManagerInterface
                 call_user_func($callback, $proxyConnection);
             }
 
+            // 在服务端验证
             // 验证token（在服务端）点对点通信 with server
-            if (ProxyManager::$uriToInfo[$uri]['is_private']) {
+            if (ProxyManager::$uriToInfo[$uri]['is_private'] ?? false) {
                 $hadTokens = ProxyManager::$uriToInfo[$uri]['tokens'];
                 $tokens = array_values(array_filter(explode(',', $request->getHeaderLine('Proxy-Authorization'))));
                 if (empty(array_intersect($hadTokens, $tokens))) {
@@ -361,6 +362,54 @@ class ProxyManager implements \Wpjscc\Penetration\Log\LogManagerInterface
                     return;
                 }
             }
+
+            // 在服务端验证
+            if ((ProxyManager::$uriToInfo[$uri]['http_user'] ?? '') && (ProxyManager::$uriToInfo[$uri]['http_pwd'] ?? '')) {
+                static::getLogger()->debug('Authenticate', [
+                    'uri' => $uri,
+                    'host' => $host,
+                    'port' => $port,
+                    'request' => Helper::toString($request)
+                ]);
+                $auth = $request->getHeaderLine('Authorization');
+                if (!$auth) {
+                    $connection->end(implode("\r\n",[
+                        "HTTP/1.1 401 Invalid credentials",
+                        "WWW-Authenticate: Basic",
+                        "\r\n"
+                    ]));
+                    return;
+                }
+
+                $auth = explode(' ', $auth);
+                if (count($auth) != 2 || $auth[0] != 'Basic') {
+                    $connection->end(implode("\r\n", [
+                        "HTTP/1.1 401 Invalid credentials",
+                        "WWW-Authenticate: Basic",
+                        "\r\n"
+                    ]));
+                    return;
+                }
+
+                $auth = base64_decode($auth[1]);
+                $auth = explode(':', $auth);
+                if (count($auth) != 2 || $auth[0] != ProxyManager::$uriToInfo[$uri]['http_user'] || $auth[1] != ProxyManager::$uriToInfo[$uri]['http_pwd']) {
+                    $connection->end(implode("\r\n",[
+                        "HTTP/1.1 401 Invalid credentials",
+                        "WWW-Authenticate: Basic",
+                        "\r\n"
+                    ]));
+                    return;
+                }
+                
+            }
+            static::getLogger()->debug('Authenticate success', [
+                'uri' => $uri,
+                'host' => $host,
+                'port' => $port,
+                'proxy' => ProxyManager::$uriToInfo[$uri]['remote_proxy'],
+                'tokens' => ProxyManager::$uriToInfo[$uri]['tokens'],
+            ]);
             $proxyConnection->pipe($connection, $buffer, $request);
         }
     }
@@ -378,7 +427,7 @@ class ProxyManager implements \Wpjscc\Penetration\Log\LogManagerInterface
 
         $proxyConnection = ProxyManager::getProxyConnection($uri);
         if ($proxyConnection === false) {
-            if (!isset(ClientManager::$visitUriToInfo[$uri]['tokens']) || empty(ClientManager::$visitUriToInfo[$uri]['tokens'])) {
+            if (!isset(ClientManager::$visitUriToInfo[$uri])) {
                 $buffer = '';
                 static::endConnection($connection, "local no $uri service, try pipe remote failed, no config for $uri");
                 return;
@@ -400,8 +449,10 @@ class ProxyManager implements \Wpjscc\Penetration\Log\LogManagerInterface
                 'local_host' => $host,
                 'local_port' => $port,
                 'local_proxy' => ClientManager::$visitUriToInfo[$uri]['remote_proxy'],
-                'token' => implode(',', ClientManager::$visitUriToInfo[$uri]['tokens']),
                 'timeout' => 1,
+            ], [
+                'Proxy-Authorization' => implode(',', ClientManager::$visitUriToInfo[$uri]['tokens']),
+                'Authorization' => $request->getHeaderLine('Authorization'),
             ]))->connect($uri)->then(function ($proxyConnection) use ($connection, $request, &$buffer, $fn, $uri) {
                 static::getLogger()->debug('pipe remote success', [
                     'uri' => $uri,
@@ -413,17 +464,24 @@ class ProxyManager implements \Wpjscc\Penetration\Log\LogManagerInterface
                 // $connection->pipe($proxyConnection);
 
                 $proxyConnection->on('data', function ($chunk) use ($connection) {
+                    var_dump($chunk);
                     $connection->write($chunk);
                 });
                 $connection->on('data', function ($chunk) use ($proxyConnection) {
                     $proxyConnection->write($chunk);
                 });
 
-                $proxyConnection->on('close', function () use ($connection) {
-                    $connection->close();
+                $proxyConnection->on('close', function () use ($connection, $uri) {
+                    static::getLogger()->debug('pipe remote close1', [
+                        'uri' => $uri,
+                    ]);
+                    $connection->end();
                 });
 
-                $connection->on('close', function () use ($proxyConnection) {
+                $connection->on('close', function () use ($proxyConnection, $uri) {
+                    static::getLogger()->debug('pipe remote close', [
+                        'uri' => $uri,
+                    ]);
                     $proxyConnection->close();
                 });
 
@@ -453,6 +511,10 @@ class ProxyManager implements \Wpjscc\Penetration\Log\LogManagerInterface
 
     protected static function endConnection($connection, $content)
     {
+        static::getLogger()->debug('end connection', [
+            'content' => $content,
+        ]);
+
         $connection->write(implode("\r\n",[
             'HTTP/1.1 200 OK',
             'Server: ReactPHP/1',

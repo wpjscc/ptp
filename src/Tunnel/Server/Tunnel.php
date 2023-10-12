@@ -216,18 +216,25 @@ class Tunnel implements \Wpjscc\Penetration\Log\LogManagerInterface
                         $connection->removeListener('data', $fn);
                         $fn = null;
                         try {
+                            static::getLogger()->debug("CONNECTION DATA", [
+                                'request' => $buffer,
+                            ]);
                             $token = '';
                             $pattern = '/Proxy-Authorization: ([^\r\n]+)/i';
                             if (preg_match($pattern, $buffer, $matches1)) {
-                                $proxyAuthorizationValue = $matches1[1];
-                                $token = $proxyAuthorizationValue;
+                                $token = $matches1[1];
+                            }
+                            $auth = '';
+                            $authPattern = '/Authorization: (\S+) (\S+)/i';
+                            if (preg_match($authPattern, $buffer, $matches2)) {
+                                $auth = $matches2[1] . ' ' . $matches2[2];
                             }
                             $pattern = "/CONNECT ([^\s]+) HTTP\/(\d+\.\d+)/";
                             if (preg_match($pattern, $buffer, $matches)) {
                                 $host = $matches[1];
                                 $version = $matches[2];
                                 $connection->write("HTTP/{$version} 200 Connection Established\r\n\r\n");
-                                $request = Psr7\parse_request("GET /connect HTTP/1.1\r\nHost: $host\r\nProxy-Authorization: {$token}\r\n\r\n");
+                                $request = Psr7\parse_request("GET /connect HTTP/1.1\r\nHost: $host\r\nProxy-Authorization: {$token}\r\nAuthorization: {$auth}\r\n\r\n");
                                 ProxyManager::pipe($connection, $request);
                                 $buffer = '';
                             } else {
@@ -348,6 +355,8 @@ class Tunnel implements \Wpjscc\Penetration\Log\LogManagerInterface
     {
         $domain = $request->getHeaderLine('Domain');
         $isPrivate = $request->getHeaderLine('Is-Private');
+        $httpUser = $request->getHeaderLine('Http-User');
+        $httpPwd = $request->getHeaderLine('Http-Pwd');
         $tokens = array_values(array_filter(explode(',', $request->getHeaderLine('Authorization'))));
 
         $uris = explode(',', $domain);
@@ -361,6 +370,8 @@ class Tunnel implements \Wpjscc\Penetration\Log\LogManagerInterface
             } else {
                 ProxyManager::$uriToInfo[$uri]['tokens'] = $tokens;
                 ProxyManager::$uriToInfo[$uri]['is_private'] = $isPrivate ? true : false;
+                ProxyManager::$uriToInfo[$uri]['http_user'] = $httpUser;
+                ProxyManager::$uriToInfo[$uri]['http_pwd'] = $httpPwd;
             }
         }
 

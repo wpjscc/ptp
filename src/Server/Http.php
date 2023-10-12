@@ -2,8 +2,10 @@
 
 namespace Wpjscc\Penetration\Server;
 
+use GuzzleHttp\Psr7\Header;
 use Wpjscc\Penetration\Proxy\ProxyManager;
 use RingCentral\Psr7;
+use Wpjscc\Penetration\Helper;
 use Wpjscc\Penetration\Tunnel\Server\Tunnel\TcpTunnel;
 
 class Http implements \Wpjscc\Penetration\Log\LogManagerInterface
