@@ -142,17 +142,20 @@ function decompressed($data) {
 \Wpjscc\Penetration\Environment::$type = 'client';
 $config = Config::getConfig(getParam('--ini-path', './client.ini'));
 
-LogManager::$logLevels = [
-    LogLevel::ALERT,
-    LogLevel::CRITICAL,
-    LogLevel::DEBUG,
-    LogLevel::EMERGENCY,
-    LogLevel::ERROR,
-    LogLevel::INFO,
-    LogLevel::WARNING,
-    LogLevel::NOTICE,
+if (getParam('-vvv')) {
+    LogManager::$logLevels = [
+        LogLevel::ALERT,
+        LogLevel::CRITICAL,
+        LogLevel::DEBUG,
+        LogLevel::EMERGENCY,
+        LogLevel::ERROR,
+        LogLevel::INFO,
+        LogLevel::WARNING,
+        LogLevel::NOTICE,
+    
+    ];
+}
 
-];
 LogManager::setLogger(new \Wpjscc\Penetration\Log\EchoLog());
 
 // 本地代理服务
