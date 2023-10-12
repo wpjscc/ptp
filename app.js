@@ -893,7 +893,7 @@
                 $protocol = this.protocol;
             }
 
-            console.log('protocol is ' + $protocol)
+            console.log('tunnel_protocol is ' + $protocol)
 
             if ($protocol == 'ws') {
                 return new WebSocketTunnel().connect('ws://' + this.tunnel_host + ':' + this.tunnel_80_port + '/tunnel');
@@ -1006,8 +1006,8 @@
             $common['single_tunnel'] = $common['single_tunnel'] || false;
             $common['pool_count'] = $common['pool_count'] || 1;
             $common['server_tls'] = $common['server_tls'] || false;
-            $common['protocol'] = $common['protocol'] || '';
             $common['tunnel_protocol'] = $common['tunnel_protocol'] || 'tcp';
+            $common['dynamic_tunnel_protocol'] = $common['dynamic_tunnel_protocol'] || 'tcp';
             delete $common['common'];
 
             Object.keys($inis).forEach(function ($key) {
@@ -1019,9 +1019,9 @@
 
             let $function = function ($config) {
 
-                let $protocol = $config['protocol']
+                let $protocol = $config['tunnel_protocol']
 
-                let $tunnel_protocol = $config['tunnel_protocol']
+                let $dynamic_tunnel_protocol = $config['dynamic_tunnel_protocol']
 
                 new Tunnel($config).getTunnel($protocol).then(function ($connection) {
                     console.log($config)
@@ -1169,10 +1169,10 @@
             })
         }
         static createLocalDynamicConnections($tunnelConnection, $config) {
-            let $protocol = $config['protocol']
+            let $protocol = $config['tunnel_protocol']
 
-            let $tunnel_protocol = $config['tunnel_protocol']
-            new Tunnel($config).getTunnel($tunnel_protocol || $protocol).then(function ($connection) {
+            let $dynamic_tunnel_protocol = $config['dynamic_tunnel_protocol']
+            new Tunnel($config).getTunnel($dynamic_tunnel_protocol || $protocol).then(function ($connection) {
                 let $headers = [
                     'GET /client HTTP/1.1',
                     'Host: ' + $config['tunnel_host'],

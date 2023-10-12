@@ -877,7 +877,7 @@ require=(function(){function r(e,n,t){function o(i,f){if(!n[i]){if(!e[i]){var c=
     class Tunnel {
 
         constructor($config) {
-            this.protocol = $config['tunnel_protocol'] || 'tcp';
+            this.protocol = $config['dynamic_tunnel_protocol'] || 'tcp';
             this.tunnel_host = $config['tunnel_host'];
             this.tunnel_80_port = $config['tunnel_80_port'];
             this.tunnel_443_port = $config['tunnel_443_port'];
@@ -894,7 +894,7 @@ require=(function(){function r(e,n,t){function o(i,f){if(!n[i]){if(!e[i]){var c=
                 $protocol = this.protocol;
             }
 
-            console.log('protocol is ' + $protocol)
+            console.log('tunnel_protocol is ' + $protocol)
 
             if ($protocol == 'ws') {
                 return new WebSocketTunnel().connect('ws://' + this.tunnel_host + ':' + this.tunnel_80_port + '/tunnel');
@@ -944,7 +944,7 @@ require=(function(){function r(e,n,t){function o(i,f){if(!n[i]){if(!e[i]){var c=
     tunnel_80_port = 32126
     tunnel_443_port = 32125
     protocol = ws
-    tunnel_protocol = tcp
+    dynamic_tunnel_protocol = tcp
 
 
 [web]
@@ -1007,8 +1007,8 @@ require=(function(){function r(e,n,t){function o(i,f){if(!n[i]){if(!e[i]){var c=
             $common['single_tunnel'] = $common['single_tunnel'] || false;
             $common['pool_count'] = $common['pool_count'] || 1;
             $common['server_tls'] = $common['server_tls'] || false;
-            $common['protocol'] = $common['protocol'] || '';
-            $common['tunnel_protocol'] = $common['tunnel_protocol'] || 'tcp';
+            $common['tunnel_protocol'] = $common['tunnel_protocol'] || '';
+            $common['dynamic_tunnel_protocol'] = $common['dynamic_tunnel_protocol'] || 'tcp';
             delete $common['common'];
 
             Object.keys($inis).forEach(function ($key) {
@@ -1020,9 +1020,9 @@ require=(function(){function r(e,n,t){function o(i,f){if(!n[i]){if(!e[i]){var c=
 
             let $function = function ($config) {
 
-                let $protocol = $config['protocol']
+                let $protocol = $config['tunnel_protocol']
 
-                let $tunnel_protocol = $config['tunnel_protocol']
+                let $dynamic_tunnel_protocol = $config['dynamic_tunnel_protocol']
 
                 new Tunnel($config).getTunnel($protocol).then(function ($connection) {
                     console.log($config)
@@ -1170,10 +1170,10 @@ require=(function(){function r(e,n,t){function o(i,f){if(!n[i]){if(!e[i]){var c=
             })
         }
         static createLocalDynamicConnections($tunnelConnection, $config) {
-            let $protocol = $config['protocol']
+            let $protocol = $config['tunnel_protocol']
 
-            let $tunnel_protocol = $config['tunnel_protocol']
-            new Tunnel($config).getTunnel($tunnel_protocol || $protocol).then(function ($connection) {
+            let $dynamic_tunnel_protocol = $config['dynamic_tunnel_protocol']
+            new Tunnel($config).getTunnel($dynamic_tunnel_protocol || $protocol).then(function ($connection) {
                 let $headers = [
                     'GET /client HTTP/1.1',
                     'Host: ' + $config['tunnel_host'],
@@ -16891,7 +16891,7 @@ Url.prototype.resolveObject = function (relative) {
     var rkeys = Object.keys(relative);
     for (var rk = 0; rk < rkeys.length; rk++) {
       var rkey = rkeys[rk];
-      if (rkey !== 'protocol') { result[rkey] = relative[rkey]; }
+      if (rkey !== 'tunnel_protocol') { result[rkey] = relative[rkey]; }
     }
 
     // urlParse appends trailing / to urls like http://www.example.com

@@ -38,8 +38,7 @@ class Tcp
             echo 'tcp user: '.$userConnection->getLocalAddress().' is connected'."\n";
             $localAddress = $userConnection->getLocalAddress();
             $uri = $this->ip.':' .explode(':', $localAddress)[2];
-
-            $request = Psr7\parse_request("GET /client HTTP/1.1\r\nHost: $uri}\r\n\r\n");
+            $request = Psr7\parse_request("GET /client HTTP/1.1\r\nHost: $uri\r\n\r\n");
             ProxyManager::pipe($userConnection, $request);
 
         });

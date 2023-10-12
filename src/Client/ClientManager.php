@@ -29,8 +29,8 @@ class ClientManager implements \Wpjscc\Penetration\Log\LogManagerInterface
         $common['timeout']  = $common['timeout'] ?? 6;
         $common['single_tunnel']  = $common['single_tunnel'] ?? 0;
         $common['pool_count']  = $common['pool_count'] ?? 1;
-        $common['protocol']  = $common['protocol'] ?? 'tcp';
         $common['tunnel_protocol']  = $common['tunnel_protocol'] ?? 'tcp';
+        $common['dynamic_tunnel_protocol']  = $common['dynamic_tunnel_protocol'] ?? 'tcp';
         if (empty($common['local_protocol'])) {
             $common['local_protocol'] = 'tcp';
             // 当本地服务服务时 http 时 ，需要主动打开
@@ -46,7 +46,7 @@ class ClientManager implements \Wpjscc\Penetration\Log\LogManagerInterface
 
         // 运行tunnel
         foreach (static::$configs as $config) {
-            if ($config['protocol'] == 'p2p') {
+            if ($config['tunnel_protocol'] == 'p2p') {
                 continue;
             }
             $number = $config['pool_count'];
@@ -95,7 +95,7 @@ class ClientManager implements \Wpjscc\Penetration\Log\LogManagerInterface
         //      Client A <--------------tcp/udp--------------> Client B
         // 打通后可通过tcp 或者 udp 访问对端
         foreach (static::$configs as $config1) {
-            if ($config1['protocol'] != 'p2p') {
+            if ($config1['tunnel_protocol'] != 'p2p') {
                 continue;
             }
             $number = $config1['pool_count'];
@@ -111,11 +111,11 @@ class ClientManager implements \Wpjscc\Penetration\Log\LogManagerInterface
     public static function runTunnel($config)
     {
         $function = function ($config) use (&$function) {
-            $protocol = $config['protocol'];
-            $tunneProtocol = $config['tunnel_protocol'];
+            $protocol = $config['tunnel_protocol'];
+            $tunneProtocol = $config['dynamic_tunnel_protocol'];
             static::getLogger()->debug('start create tunnel connection');
 
-            static::getTunnel($config, $protocol ?: $tunneProtocol)->then(function ($connection) use ($function, &$config, $protocol) {
+            static::getTunnel($config, $protocol)->then(function ($connection) use ($function, &$config, $protocol) {
                 static::getLogger()->debug('Connection established:', [
                     'local_address' => $connection->getLocalAddress(),
                     'remote_address' => $connection->getRemoteAddress(),
@@ -199,8 +199,8 @@ class ClientManager implements \Wpjscc\Penetration\Log\LogManagerInterface
             }
             static::$visitUriToInfo[$visitUri]['tokens'] = array_unique(static::$visitUriToInfo[$visitUri]['tokens']);
 
-            $protocol = $config['protocol'] ?? '';
-            $tunnelProtocol = $config['tunnel_protocol'] ?? '';
+            $protocol = $config['tunnel_protocol'] ?? '';
+            $tunnelProtocol = $config['dynamic_tunnel_protocol'] ?? '';
 
             if (in_array($protocol, ['tls', 'wss']) || in_array($tunnelProtocol, ['tls', 'wss'])) {
                 static::$visitUriToInfo[$visitUri]['remote_proxy'] = 'https://'.$config['tunnel_host'].':'.$config['tunnel_443_port'];
@@ -214,8 +214,8 @@ class ClientManager implements \Wpjscc\Penetration\Log\LogManagerInterface
 
     public static function runP2p($config)
     {
-        $protocol = $config['protocol'];
-        $tunneProtocol = $config['tunnel_protocol'];
+        $protocol = $config['tunnel_protocol'];
+        $tunneProtocol = $config['dynamic_tunnel_protocol'];
         $tunnel = static::getTunnel($config, $protocol ?: $tunneProtocol);
         $tunnel->on('connection', function ($connection, $response, $address) use (&$config) {
             // 相当于服务端
@@ -363,8 +363,9 @@ class ClientManager implements \Wpjscc\Penetration\Log\LogManagerInterface
         static::getLogger()->notice(__FUNCTION__, [
             'uuid' => $config['uuid'],
         ]);
+        $tunneProtocol = $config['dynamic_tunnel_protocol'];
 
-        static::getTunnel($config)->then(function ($connection) use ($tunnelConnection, $config) {
+        static::getTunnel($config, $tunneProtocol)->then(function ($connection) use ($tunnelConnection, $config) {
             $connection->write(implode("\r\n", [
                 'GET /client HTTP/1.1',
                 'Host: ' . $config['tunnel_host'],
