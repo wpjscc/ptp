@@ -158,7 +158,7 @@ LogManager::setLogger(new \Wpjscc\Penetration\Log\EchoLog());
 // 本地代理服务
 $localServer80Port = $config['common']['local_server_80_port'] ?? '';
 
-if ($httpServer) {
+if ($localServer80Port) {
     $httpServer = new Http($localServer80Port);
     $httpServer->run();
 }
@@ -187,15 +187,6 @@ ClientManager::createLocalTunnelConnection($config);
     $udpManager->checkPorts(Config::getUdpPorts(Config::getConfig(getParam('--ini-path', './server.ini'))));
 });
 
-
-function getParam($key, $default = null){
-    foreach ($GLOBALS['argv'] as $arg) {
-        if (strpos($arg, $key) !==false){
-            return explode('=', $arg)[1];
-        }
-    }
-    return $default;
-}
 
 \React\EventLoop\Loop::addPeriodicTimer(2, function () use ($localServer80Port, $tcpManager, $udpManager) {
 

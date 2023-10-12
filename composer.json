@@ -10,8 +10,7 @@
         "ramsey/uuid": "^4.2",
         "psr/log": "^1.1",
         "clue/zlib-react": "^1.2",
-        "darsyn/ip": "^4.1",
-        "wpjscc/kcp-php": "dev-stable"
+        "darsyn/ip": "^4.1"
     },
     "repositories": {
         "wpjscc/kcp-php": {
@@ -23,5 +22,8 @@
         "psr-4": {
             "Wpjscc\\Penetration\\": "src/"
         }
+    },
+    "require-dev": {
+        "clue/phar-composer": "^1.4"
     }
 }

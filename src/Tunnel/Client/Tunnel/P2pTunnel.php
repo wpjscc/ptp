@@ -710,7 +710,8 @@ class P2pTunnel extends EventEmitter implements ConnectorInterface, \Wpjscc\Pene
             }
            
 
-            $virtualConnection->on('close', function () use ($connection, $address) {
+            $virtualConnection->on('close', function () use ($connection,$localAddress,$address) {
+                PeerManager::removeConnection($localAddress, $address);
                 $connection->close();
             });
 

@@ -12,8 +12,13 @@ class Config
 
     public static function getConfig($iniPath)
     {
+        if (strpos($iniPath, '/') !== 0) {
+            $iniPath = ltrim($iniPath, './');
+            $iniPath = getcwd() . '/' . $iniPath;
+        }
+
         if (!$iniPath || !file_exists($iniPath)) {
-            throw new \Exception('iniPath is required');
+            throw new \Exception('--iniPath is required');
         }
         
         $inis = (new Ini)->parse(file_get_contents($iniPath));
@@ -60,6 +65,9 @@ class Config
     public static function getTcpPorts($inis)
     {
         $ports = static::getValueByKey($inis, 'tcp.ports');
+        if (!$ports) {
+            return [];
+        }
         $ports = array_filter(array_unique(explode(',', $ports)));
         return $ports;
     }
@@ -67,6 +75,9 @@ class Config
     public static function getUdpPorts($inis)
     {
         $ports = static::getValueByKey($inis, 'udp.ports');
+        if (!$ports) {
+            return [];
+        }
         $ports = array_filter(array_unique(explode(',', $ports)));
         return $ports;
     }
