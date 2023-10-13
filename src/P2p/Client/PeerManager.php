@@ -190,11 +190,12 @@ class PeerManager implements \Wpjscc\Penetration\Log\LogManagerInterface
             $connection->end();
             return;
         }
-        static::getLogger()->debug('add peer', [
+        static::getLogger()->notice('add peer', [
             'uri' => $uri,
             'protocol' => $connection->protocol ?? '',
         ]);
         foreach ($uris as $key1 => $uri) {
+            // 域名
             if (strpos($uri, ':') === false) {
                 if ($connection->protocol == 'p2p-udp') {
                     $uri = 'p2p-udp-' . $uri;
@@ -202,6 +203,15 @@ class PeerManager implements \Wpjscc\Penetration\Log\LogManagerInterface
                     $uri = 'p2p-tcp-' . $uri;
                 }
                 array_push($uris, $uri);
+            }
+            // ip 
+            else {
+                if ($connection->protocol == 'p2p-udp') {
+                    $uri = 'udp://' . $uri;
+                } else if ($connection->protocol == 'p2p-tcp') {
+                    $uri = 'tcp://' . $uri;
+                }
+                array_push($uris, $uri);     
             }
         }
         foreach ($uris as $key => $_uri) {
@@ -241,6 +251,7 @@ class PeerManager implements \Wpjscc\Penetration\Log\LogManagerInterface
                 ]);
                 if (ProxyManager::$remoteTunnelConnections[$_uri]->count() == 0) {
                     unset(ProxyManager::$remoteTunnelConnections[$_uri]);
+                    // p2p 并没有
                     unset(ProxyManager::$uriToInfo[$_uri]);
                 }
             });
@@ -275,6 +286,15 @@ class PeerManager implements \Wpjscc\Penetration\Log\LogManagerInterface
                     $_uri = 'p2p-tcp-' . $_uri;
                 }
                 array_push($uris, $_uri);
+            } 
+            // ip 
+            else {
+                if ($connection->protocol == 'p2p-udp') {
+                    $uri = 'udp://' . $uri;
+                } else if ($connection->protocol == 'p2p-tcp') {
+                    $uri = 'tcp://' . $uri;
+                }
+                array_push($uris, $uri);     
             }
         }
 
@@ -308,8 +328,7 @@ class PeerManager implements \Wpjscc\Penetration\Log\LogManagerInterface
         }
 
         if (!$isExist) {
-            echo ("no dynamic connection by single tunnel" . $singleConnection->getRemoteAddress() . "\n");
-            static::getLogger()->debug('no dynamic connection by p2p single tunnel', [
+            static::getLogger()->warning('no dynamic connection by p2p single tunnel', [
                 'uri' => $request->getHeaderLine('Uri'),
                 'uuid' => $uuid,
                 'remote_address' => $connection->getRemoteAddress(),

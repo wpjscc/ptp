@@ -76,15 +76,27 @@ class Ip
                 $uri = $uri.':'.$port;
             }
 
+            if ($protocol =='udp') {
+                $uri = 'udp://'. $uri;
+            }
+
         } catch (Exception\InvalidIpAddressException $e) {
             echo 'The IP address supplied is invalid!'."\n";
         }
 
-        if ($protocol =='udp') {
-            $uri = 'udp://'. $uri;
-        }
         
         return $uri;
+    }
+
+    public static function isIp($host) 
+    {
+        try {
+            IPv4::factory($host);
+            return true;
+        } catch (Exception\InvalidIpAddressException $e) {
+            return false;
+        }
+
     }
 
     

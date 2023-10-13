@@ -17,6 +17,9 @@ class TcpTunnel extends EventEmitter implements ServerInterface,\Wpjscc\Penetrat
     {
         $this->server = new \React\Socket\SocketServer($uri, $context, $loop);
         $this->server->on('connection', function ($connection) {
+            $localAddress = $connection->getLocalAddress();
+            $protocol = strpos($localAddress, 'tls') === 0 ? 'tls' : 'tcp';
+            $connection->protocol = $protocol;
             $this->emit('connection', array($connection));
         });
     }

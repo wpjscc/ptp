@@ -124,6 +124,7 @@ class ClientManager implements \Wpjscc\Penetration\Log\LogManagerInterface
                     'GET /client HTTP/1.1',
                     'Host: ' . $config['tunnel_host'],
                     'User-Agent: ReactPHP',
+                    'X-Is-Ptp: 1',
                     'Tunnel: 1',
                     'Authorization: ' . ($config['token'] ?? ''),
                     'Local-Host: ' . $config['local_host'] . (($config['local_port']??'') ? (':'. $config['local_port']) : ''),
@@ -369,6 +370,7 @@ class ClientManager implements \Wpjscc\Penetration\Log\LogManagerInterface
             $connection->write(implode("\r\n", [
                 'GET /client HTTP/1.1',
                 'Host: ' . $config['tunnel_host'],
+                'X-Is-Ptp: 1',
                 'User-Agent: ReactPHP',
                 'Authorization: ' . ($config['token'] ?? ''),
                 'Domain: ' . $config['domain'],

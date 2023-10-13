@@ -66,6 +66,7 @@ $udpManager->run();
 
 $tunnel = new Tunnel(
     $inis['common'],
+    $inis['cert'] ?? []
 );
 $tunnel->run();
 

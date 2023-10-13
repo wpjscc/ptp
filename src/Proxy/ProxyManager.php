@@ -162,6 +162,22 @@ class ProxyManager implements \Wpjscc\Penetration\Log\LogManagerInterface
 
         // 是通道
         if ($request->hasHeader('Tunnel')) {
+            // foreach ($uris as $key1 => $uri) {
+            //     // 域名
+            //     if (strpos($uri, ':') === false) {
+                   
+            //     }
+            //     // ip  
+            //     else {
+            //         // 没有指定协议的
+            //         if (strpos('://', $uri) === false) {
+            //             array_push($uris, 'tcp://' . $uri);   
+            //             array_push($uris, 'udp://' . $uri);   
+            //         }
+
+            //     }
+            // }
+            
             // 支持多domain
             foreach ($uris as $key => $_uri) {
                 static::getLogger()->notice('add tunnel connection', [
@@ -323,7 +339,7 @@ class ProxyManager implements \Wpjscc\Penetration\Log\LogManagerInterface
 
     }
 
-    public static function pipe($connection, $request, $buffer = '', $callback = null)
+    public static function pipe($connection, $request, $buffer = '')
     {
         $host = $request->getUri()->getHost();
         $port = $request->getUri()->getPort();
@@ -333,7 +349,41 @@ class ProxyManager implements \Wpjscc\Penetration\Log\LogManagerInterface
 
         echo "pipe uri is $uri\n";
 
-        $proxyConnection = ProxyManager::getProxyConnection($uri);
+        $proxyConnection = false;
+
+        // 本地访问的是ip, 去看下是否有p2p-tcp 通道
+        if (\Wpjscc\Penetration\Environment::$type == 'client') {
+            if (Ip::isIp($host)){
+                // 本地的要么是tcp要么是udp
+                if ($connection->protocol == 'tcp') {
+                    // 这里的uri是 ip:port
+                    if (strpos('://', $uri) === false) {
+                        // 去看下是否有p2p-tcp通道
+                        static::getLogger()->notice('try get p2p-tcp connection', [
+                            'uri' => $uri,
+                        ]);
+                        $proxyConnection = ProxyManager::getProxyConnection('tcp://'. $uri);
+                        if ($proxyConnection) {
+                            $uri = 'tcp://'. $uri;
+                        }
+                    }
+                } else {
+                    // 说明是udp
+                    // 这里的uri 是 udp://ip:port
+                    // 不做处理
+                }
+            }
+        }
+
+        if ($proxyConnection === false) {
+            $proxyConnection = ProxyManager::getProxyConnection($uri);
+        } else {
+            static::getLogger()->notice('get p2p-tcp connection success', [
+                'uri' => $uri,
+            ]);
+        }
+  
+
         if ($proxyConnection === false) {
             if (\Wpjscc\Penetration\Environment::$type == 'client') {
                 static::pipeRemote($connection, $request, $buffer);
@@ -347,9 +397,6 @@ class ProxyManager implements \Wpjscc\Penetration\Log\LogManagerInterface
             
         } else {
             echo 'user: '.$uri.' is arive'."\n";
-            if ($callback) {
-                call_user_func($callback, $proxyConnection);
-            }
 
             // 在服务端验证
             // 验证token（在服务端）点对点通信 with server
@@ -407,8 +454,8 @@ class ProxyManager implements \Wpjscc\Penetration\Log\LogManagerInterface
                 'uri' => $uri,
                 'host' => $host,
                 'port' => $port,
-                'proxy' => ProxyManager::$uriToInfo[$uri]['remote_proxy'],
-                'tokens' => ProxyManager::$uriToInfo[$uri]['tokens'],
+                'proxy' => ProxyManager::$uriToInfo[$uri]['remote_proxy'] ?? '',
+                'tokens' => ProxyManager::$uriToInfo[$uri]['tokens'] ?? [],
             ]);
             $proxyConnection->pipe($connection, $buffer, $request);
         }
@@ -511,7 +558,7 @@ class ProxyManager implements \Wpjscc\Penetration\Log\LogManagerInterface
 
     protected static function endConnection($connection, $content)
     {
-        static::getLogger()->debug('end connection', [
+        static::getLogger()->warning('end connection', [
             'content' => $content,
         ]);
 

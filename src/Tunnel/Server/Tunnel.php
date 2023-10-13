@@ -23,11 +23,15 @@ class Tunnel implements \Wpjscc\Penetration\Log\LogManagerInterface
     public $host = 'localhost';
     public $server80port;
     public $server443port;
+    public $cert = [];
     public $certPemPath = '';
     public $certKeyPath = '';
+    public $httpPortOverTunnelPort = '';
 
-    public function __construct($config)
+    public function __construct($config, $cert = [])
     {
+        $this->cert = $cert;
+
         $this->config = $config;
         $host = $config['tunnel_host'] ?? '';
         if ($host) {
@@ -36,8 +40,9 @@ class Tunnel implements \Wpjscc\Penetration\Log\LogManagerInterface
         $this->protocol = $config['tunnel_protocol'] ?? 'tcp';
         $this->server80port = $config['tunnel_80_port'];
         $this->server443port = $config['tunnel_443_port'] ?? '';
-        $this->certPemPath = $config['cert_pem_path'] ?? '';
-        $this->certKeyPath = $config['cert_key_path'] ?? '';
+        // $this->certPemPath = $config['cert_pem_path'] ?? '';
+        // $this->certKeyPath = $config['cert_key_path'] ?? '';
+        $this->httpPortOverTunnelPort = $config['http_port_over_tunnel_port'] ?? true;
     }
 
     public function getTunnel($protocol = null, $socket = null)
@@ -49,11 +54,13 @@ class Tunnel implements \Wpjscc\Penetration\Log\LogManagerInterface
 
         $context = [];
 
-        if ($this->certPemPath) {
+        if ($this->cert) {
             $context = [
                 'tls' => array(
-                    'local_cert' => $this->certPemPath,
-                    'local_pk' => $this->certKeyPath,
+                    // 'local_cert' => $this->certPemPath,
+                    // 'local_pk' => $this->certKeyPath,
+                    'SNI_enabled' => true,
+                    'SNI_server_certs' => $this->cert
                 )
             ];
         }
@@ -62,8 +69,8 @@ class Tunnel implements \Wpjscc\Penetration\Log\LogManagerInterface
             $socket = new WebsocketTunnel($this->host, $this->server80port, '0.0.0.0', null, $context, $socket);
         } 
         else if ($protocol == 'wss') {
-            if (!$this->certPemPath) {
-                throw new \Exception('wss protocol must set cert_pem_path and cert_key_path');
+            if (!$this->cert) {
+                throw new \Exception('wss protocol must set cert');
             }
 
             if (!$this->server443port) {
@@ -81,8 +88,8 @@ class Tunnel implements \Wpjscc\Penetration\Log\LogManagerInterface
         }
 
         else if ($protocol == 'tls') {
-            if (!$this->certPemPath) {
-                throw new \Exception('tls protocol must set cert_pem_path and cert_key_path');
+            if (!$this->cert) {
+                throw new \Exception('tls protocol must set cert');
             }
 
             if (!$this->server443port) {
@@ -299,22 +306,34 @@ class Tunnel implements \Wpjscc\Penetration\Log\LogManagerInterface
                         }
                     }
 
-                    $buffer = '';
 
                     // 验证 tunnel 和 dynamic tunnel
                     $state =  $that->validate($request);
                     if (!$state) {
+                        if ($state === 0) {
+                            // 转发 http request
+                            if ($protocol == 'tcp' || $protocol == 'tls') {
+                                if ($this->httpPortOverTunnelPort) {
+                                    ProxyManager::pipe($connection, $request, $buffer);
+                                    return;
+                                }
+                            }
+                        }
+
                         static::getLogger()->error("client: {$protocol} is unauthorized ", [
                             'request' => Helper::toString($request)
                         ]);
-                        $headers = [
+
+                        $connection->write(implode("\r\n", [
                             'HTTP/1.1 401 Unauthorized',
                             'Server: ReactPHP/1',
-                        ];
-                        $connection->write(implode("\r\n", $headers) . "\r\n\r\n");
+                            "\r\n"
+                        ]));
                         $connection->end();
                         return;
                     }
+                    $buffer = '';
+
 
                     $uuid = Uuid::uuid4()->toString();
 
@@ -353,6 +372,10 @@ class Tunnel implements \Wpjscc\Penetration\Log\LogManagerInterface
 
     public function validate($request)
     {
+        if (!$request->getHeaderLine('X-Is-Ptp')) {
+            return 0;
+        }
+
         $domain = $request->getHeaderLine('Domain');
         $isPrivate = $request->getHeaderLine('Is-Private');
         $httpUser = $request->getHeaderLine('Http-User');

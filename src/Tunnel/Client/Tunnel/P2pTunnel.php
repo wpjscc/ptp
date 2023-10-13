@@ -160,6 +160,7 @@ class P2pTunnel extends EventEmitter implements ConnectorInterface, \Wpjscc\Pene
                         $connection->write(implode("\r\n", [
                             'GET /client HTTP/1.1',
                             'Host: ' . $this->config['tunnel_host'],
+                            'X-Is-Ptp: 1',
                             'User-Agent: ReactPHP',
                             'Tunnel: 1',
                             'Authorization: ' . ($this->config['token'] ?? ''),
@@ -700,7 +701,7 @@ class P2pTunnel extends EventEmitter implements ConnectorInterface, \Wpjscc\Pene
             });
 
             $virtualConnection = new CompositeConnectionStream($read, $write, new Connection(
-                $this->server->getLocalAddress(),
+                $localAddress,
                 $address
             ), $connection->protocol == 'p2p-tcp' ? 'p2p-tcp' : 'p2p-udp');
 
@@ -728,10 +729,12 @@ class P2pTunnel extends EventEmitter implements ConnectorInterface, \Wpjscc\Pene
 
 
             if ($address != $this->serverAddress) {
-                static::getLogger()->debug("P2pTunnel::" . __FUNCTION__, [
+                static::getLogger()->notice("P2pTunnel::打孔成功", [
                     'class' => __CLASS__,
-                    'address' => $address,
-                    'server_ip_and_port' => $this->serverAddress,
+                    'local_address' => $localAddress,
+                    'remote_adress' => $address,
+                    'protocol' => $connection->protocol,
+                    'response' => Helper::toString($response)
                 ]);
                 $this->emit('connection', [$virtualConnection, $response, $address]);
                 // 底层连接已经ping pong了，这里不需要再ping pong了
