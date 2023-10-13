@@ -471,10 +471,15 @@ class ClientManager implements \Wpjscc\Penetration\Log\LogManagerInterface
                     $connection->close();
                     return '';
                 }
-
-                if ($config['local_replace_host'] ?? false) {
+                
+                if ($config['local_remove_xff'] ?? false) {
                     $buffer = preg_replace('/^X-Forwarded.*\R?/m', '', $buffer);
                     $buffer = preg_replace('/^X-Real-Ip.*\R?/m', '', $buffer);
+                }
+
+                if ($config['local_replace_host'] ?? false) {
+                    // $buffer = preg_replace('/^X-Forwarded.*\R?/m', '', $buffer);
+                    // $buffer = preg_replace('/^X-Real-Ip.*\R?/m', '', $buffer);
                     $buffer = str_replace('Host: ' . $config['uri'], 'Host: ' . $config['local_host'] . ':' . $config['local_port'], $buffer);
                 }
 
@@ -540,9 +545,13 @@ class ClientManager implements \Wpjscc\Penetration\Log\LogManagerInterface
             });
 
             if ($buffer) {
-                if ($config['local_replace_host'] ?? false) {
+                if ($config['local_remove_xff'] ?? false) {
                     $buffer = preg_replace('/^X-Forwarded.*\R?/m', '', $buffer);
                     $buffer = preg_replace('/^X-Real-Ip.*\R?/m', '', $buffer);
+                }
+                if ($config['local_replace_host'] ?? false) {
+                    // $buffer = preg_replace('/^X-Forwarded.*\R?/m', '', $buffer);
+                    // $buffer = preg_replace('/^X-Real-Ip.*\R?/m', '', $buffer);
                     $buffer = str_replace('Host: ' . $config['uri'], 'Host: ' . $config['local_host'] . ':' . $config['local_port'], $buffer);
                 }
                 if ($localProcol == 'unix') {
@@ -554,12 +563,12 @@ class ClientManager implements \Wpjscc\Penetration\Log\LogManagerInterface
                 $buffer = '';
             }
         }, function ($e) use ($connection, &$buffer, $config, $response) {
-            $buffer = '';
             static::getLogger()->error($e->getMessage(), [
                 'class' => __CLASS__,
                 'file' => $e->getFile(),
                 'line' => $e->getLine(),
                 'tunnel_uuid' => $config['uuid'],
+                'buffer' => $buffer,
                 'dynamic_tunnel_uuid' => $response->getHeaderLine('Uuid'),
             ]);
             $content = $e->getMessage();
@@ -571,6 +580,7 @@ class ClientManager implements \Wpjscc\Penetration\Log\LogManagerInterface
             ];
             $header = implode("\r\n", $headers) . "\r\n\r\n";
             $connection->write($header . $content);
+            $buffer = '';
         });
     }
 }

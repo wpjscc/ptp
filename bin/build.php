@@ -22,8 +22,8 @@ cp -r client.php server.php index.php src/ composer.json build/ && rm -rf bin/pt
 composer install -d build/ --no-dev -vvv &&
 
 vendor/bin/phar-composer build build/ bin/' . escapeshellarg($phar) . ' &&
-cat bin/linux-micro.sfx bin/'.escapeshellarg($phar).' > bin/'.escapeshellarg($linuxBin).' &&
-cat bin/mac-micro.sfx bin/'.escapeshellarg($phar).' > bin/'.escapeshellarg($macBin).' &&
+cat bin/linux-micro.sfx bin/myiniheader.bin bin/'.escapeshellarg($phar).' > bin/'.escapeshellarg($linuxBin).' &&
+cat bin/mac-micro.sfx bin/myiniheader.bin bin/'.escapeshellarg($phar).' > bin/'.escapeshellarg($macBin).' &&
 echo -n "Reported Linux version is: /bin/'  . escapeshellarg($linuxBin).'\n" &&
 echo -n "Reported Mac version is: /bin/'  . escapeshellarg($macBin) .'\n"'
 , $code);
