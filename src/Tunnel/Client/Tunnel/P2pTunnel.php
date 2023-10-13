@@ -414,7 +414,11 @@ class P2pTunnel extends EventEmitter implements ConnectorInterface, \Wpjscc\Pene
         else if ($response->getStatusCode() === 416) {
             $virtualConnection = $this->getVirtualConnection($response, $localAddress, $remoteAddress);
             $data = $response->getHeaderLine('Data');
-            $data = base64_decode($data);
+            if ($this->config['is_encrypt'] ?? false) {
+                $data = Helper::decrypt($data, $this->config['encrypt_key'] ?? '', $this->config['encrypt_key'] ?? '');
+            } else {
+                $data = base64_decode($data);
+            }
             if (!$virtualConnection) {
                 static::getLogger()->error("P2pTunnel::" . __FUNCTION__ . " 416", [
                     'class' => __CLASS__,
@@ -696,7 +700,11 @@ class P2pTunnel extends EventEmitter implements ConnectorInterface, \Wpjscc\Pene
             $write = new ThroughStream;
 
             $write->on('data', function ($data) use ($connection) {
-                $data = base64_encode($data);
+                if($this->config['is_encrypt'] ?? false){
+                    $data = Helper::encrypt($data, $this->config['encrypt_key'] ?? '', $this->config['encrypt_key'] ?? '');
+                } else {
+                    $data = base64_encode($data);
+                }
                 $connection->write("HTTP/1.1 416 OK\r\nData: {$data}\r\n\r\n");
             });
 

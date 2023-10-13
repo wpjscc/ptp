@@ -34,10 +34,7 @@ class HandleResponse extends EventEmitter implements \Wpjscc\Penetration\Log\Log
 
         $this->parseBuffer = new \Wpjscc\Penetration\Utils\ParseBuffer();
         $this->parseBuffer->on('response', [$this, 'response']);
-        $connection->on('data', function ($data) {
-            // var_dump('handleResponseData321321321321321', $data);
-            $this->parseBuffer->handleBuffer($data);
-        });
+        $connection->on('data', [$this->parseBuffer, 'handleBuffer']);
 
         $connection->on('close', function () {
             static::getLogger()->debug(__CLASS__ . 'connection close');

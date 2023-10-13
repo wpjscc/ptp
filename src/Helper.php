@@ -99,6 +99,24 @@ final Class Helper
         return base64_decode($data);
     }
 
+    public static function encrypt($data, $key, $iv) 
+    {
+        $cipher = "AES-256-CBC";
+        $options = OPENSSL_RAW_DATA;
+        $encryptedData = openssl_encrypt($data, $cipher, $key, $options, substr($iv, 0, 16));
+        $encryptedData = base64_encode($encryptedData);
+        return $encryptedData;
+    }
+
+    public static function decrypt($encryptedData, $key, $iv) 
+    {
+        $cipher = "AES-256-CBC";
+        $options = OPENSSL_RAW_DATA;
+        $encryptedData = base64_decode($encryptedData);
+        $decryptedData = openssl_decrypt($encryptedData, $cipher, $key, $options, substr($iv, 0, 16));
+        return $decryptedData;
+    }
+
     public static function info()
     {
 
