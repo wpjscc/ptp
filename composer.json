@@ -12,7 +12,8 @@
         "clue/zlib-react": "^1.2",
         "darsyn/ip": "^4.1",
         "react/async": "^4 || ^3 || ^2",
-        "react/promise-timer": "^1.10"
+        "react/promise-timer": "^1.10",
+        "clue/socks-react": "^1.4"
     },
     "repositories": {
         "wpjscc/kcp-php": {

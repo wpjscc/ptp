@@ -76,6 +76,9 @@ class UdpManager
         foreach ($removePorts as $port) {
             $this->removePort($port);
         }
+
+        return [$addPorts, $removePorts];
+
     }
     public function getIp()
     {

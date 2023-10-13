@@ -495,7 +495,7 @@ class ProxyManager implements \Wpjscc\Penetration\Log\LogManagerInterface
             (new \Wpjscc\Penetration\Tunnel\Local\Tunnel\TcpTunnel([
                 'local_host' => $host,
                 'local_port' => $port,
-                'local_proxy' => ClientManager::$visitUriToInfo[$uri]['remote_proxy'],
+                'local_http_proxy' => ClientManager::$visitUriToInfo[$uri]['remote_proxy'],
                 'timeout' => 1,
             ], [
                 'Proxy-Authorization' => implode(',', ClientManager::$visitUriToInfo[$uri]['tokens']),

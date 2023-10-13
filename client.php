@@ -186,8 +186,9 @@ ClientManager::createLocalTunnelConnection($config);
 
 
 \React\EventLoop\Loop::get()->addPeriodicTimer(5, function () use ($tcpManager, $udpManager) {
-    $tcpManager->checkPorts(Config::getTcpPorts(Config::getConfig(getParam('--ini-path', './ptpc.ini'))));
-    $udpManager->checkPorts(Config::getUdpPorts(Config::getConfig(getParam('--ini-path', './ptpc.ini'))));
+    $inis = Config::getConfig(getParam('--ini-path', './ptpc.ini'));
+    list($tcpAddPorts, $tcpRemovePorts) = $tcpManager->checkPorts(Config::getTcpPorts($inis));
+    list($udpAddPorts, $udpRemovePorts) = $udpManager->checkPorts(Config::getUdpPorts($inis));
 });
 
 

@@ -18,6 +18,7 @@ class ClientManager implements \Wpjscc\Penetration\Log\LogManagerInterface
     public static $localTunnelConnections = [];
     public static $localDynamicConnections = [];
 
+    static $common = [];
     static $configs = [];
     // static $uriToInfo = [];
     static $visitUriToInfo = [];
@@ -36,6 +37,7 @@ class ClientManager implements \Wpjscc\Penetration\Log\LogManagerInterface
             // 当本地服务服务时 http 时 ，需要主动打开
             //$common['local_replace_host'] = '1';
         }
+        static::$common = $common;
         unset($inis['common']);
 
         foreach ($inis as $config) {
@@ -185,7 +187,7 @@ class ClientManager implements \Wpjscc\Penetration\Log\LogManagerInterface
     }
 
 
-    public static function setVisitUriInfo($config)
+    public static function setVisitUriInfo($config, $isDelete  = false)
     {
         $visitDomain = $config['visit_domain'] ?? '';
         $token = $config['token'] ?? '';
@@ -200,8 +202,8 @@ class ClientManager implements \Wpjscc\Penetration\Log\LogManagerInterface
             }
             static::$visitUriToInfo[$visitUri]['tokens'] = array_unique(static::$visitUriToInfo[$visitUri]['tokens']);
 
-            $protocol = $config['tunnel_protocol'] ?? '';
-            $tunnelProtocol = $config['dynamic_tunnel_protocol'] ?? '';
+            $protocol = static::$common['tunnel_protocol'] ?? '';
+            $tunnelProtocol = static::$common['dynamic_tunnel_protocol'] ?? '';
 
             if (in_array($protocol, ['tls', 'wss']) || in_array($tunnelProtocol, ['tls', 'wss'])) {
                 static::$visitUriToInfo[$visitUri]['remote_proxy'] = 'https://'.$config['tunnel_host'].':'.$config['tunnel_443_port'];

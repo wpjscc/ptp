@@ -26,9 +26,9 @@ class TcpTunnel implements \React\Socket\ConnectorInterface
         $config  = $this->config;
         $proxy = null;
 
-        if ($config['local_proxy'] ?? '') {
+        if ($config['local_http_proxy'] ?? '') {
             $proxy = new \Clue\React\HttpProxy\ProxyConnector(
-                $config['local_proxy'],
+                $config['local_http_proxy'],
                 new Connector([
                     'tls' => [
                         'verify_peer' => false,
@@ -36,6 +36,12 @@ class TcpTunnel implements \React\Socket\ConnectorInterface
                     ]
                 ]),
                 $this->proxyHeader
+            );
+        }
+
+        if (!$proxy && ($config['local_socks_proxy'] ?? '')) {
+            $proxy = new \Clue\React\Socks\Client(
+                $config['local_socks_proxy'],
             );
         }
 
