@@ -475,7 +475,7 @@ class P2pTunnel extends EventEmitter implements ConnectorInterface, \Wpjscc\Pene
                     if (!PeerManager::hasTcpPeer($bindAddress, $peer)) {
                         $this->currentTcpNumber++;
                         PeerManager::addTcpPeer($bindAddress, $peer);
-                        $remotePeerAddress = $response->getHeaderLine('Peer-Remote-Address');
+                        $remotePeerAddress = $response->getHeaderLine('Remote-Peer-Address');
                         static::punchTcpPeer($peer, 0 , $this->currentTcpNumber, $bindAddress, $remotePeerAddress);
                     }
                 } else {
@@ -539,7 +539,7 @@ class P2pTunnel extends EventEmitter implements ConnectorInterface, \Wpjscc\Pene
                 if (Ip::isPrivateUse($ip)) {
                     $address = PeerManager::getRemoteAddrByLocalAddr($peer, true)?: $address;
                 }
-                $this->server->send("HTTP/1.1 414 OK\r\nAddress:{$this->currentAddress}\r\nPeer: {$address}\r\nReal-Peer: {$realAddress}\r\nRemote-Address: $remotePeerAddress\r\n\r\n", $this->serverAddress);
+                $this->server->send("HTTP/1.1 414 OK\r\nAddress:{$this->currentAddress}\r\nPeer: {$remotePeerAddress}\r\nReal-Peer: {$realAddress}\r\n\r\n", $this->serverAddress);
             });
             static::getLogger()->error("P2pTunnel::" . __FUNCTION__ . " currentNumber", [
                 'class' => __CLASS__,
@@ -558,10 +558,7 @@ class P2pTunnel extends EventEmitter implements ConnectorInterface, \Wpjscc\Pene
                 $ip = Ip::getIp($peer);
                 $address = Ip::getIpAndPort($peer);
                 $realAddress = $address;
-                if (Ip::isPrivateUse($ip)) {
-                    $address = PeerManager::getRemoteAddrByLocalAddr($peer, true)?: $address;
-                }
-                $this->server->send("HTTP/1.1 414 OK\r\nAddress:{$this->currentAddress}\r\nPeer: {$address}\r\nReal-Peer: {$realAddress}\r\nRemote-Address: $remotePeerAddress\r\n\r\n", $this->serverAddress);
+                $this->server->send("HTTP/1.1 414 OK\r\nAddress:{$this->currentAddress}\r\nPeer: {$remotePeerAddress}\r\nReal-Peer: {$realAddress}\r\n\r\n", $this->serverAddress);
             });
             static::getLogger()->warning("P2pTunnel::" . __FUNCTION__ . " timeout", [
                 'class' => __CLASS__,
