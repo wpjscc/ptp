@@ -6,6 +6,7 @@ use Evenement\EventEmitter;
 use React\Socket\ServerInterface;
 use RingCentral\Psr7;
 use Wpjscc\Penetration\Helper;
+use Wpjscc\Penetration\Utils\Ip;
 use Wpjscc\Penetration\P2p\ConnectionManager;
 use Wpjscc\Penetration\Utils\ParseBuffer;
 
@@ -97,7 +98,7 @@ class P2pTunnel extends EventEmitter implements ServerInterface, \Wpjscc\Penetra
                 return;
             }
             if ($response->getHeaderLine('Address') != $this->remoteAddress) {
-                static::getLogger()->error("p2p tunnel ignore broadcast", [
+                static::getLogger()->error("p2p tunnel ignore broadcast no address", [
                     'class' => __CLASS__,
                     'response' => Helper::toString($response)
                 ]);
@@ -107,14 +108,56 @@ class P2pTunnel extends EventEmitter implements ServerInterface, \Wpjscc\Penetra
             $peer = $response->getHeaderLine('Peer');
             // 如果peer 不存在，忽视
             if (!isset(ConnectionManager::$connections[$this->protocol][$peer]['local_address'])) {
-                static::getLogger()->error("p2p tunnel ignore broadcast", [
+                static::getLogger()->error("p2p tunnel ignore broadcast no peer", [
+                    'class' => __CLASS__,
+                    'response' => Helper::toString($response)
+                ]);
+                return;
+            }
+            $realPeer = $response->getHeaderLine('Real-Peer');
+            if (!$response->getHeaderLine('Real-Peer')) {
+                static::getLogger()->error("p2p tunnel ignore broadcast no Real-Peer", [
                     'class' => __CLASS__,
                     'response' => Helper::toString($response)
                 ]);
                 return;
             }
 
-            ConnectionManager::broadcastAddressAndPeer($this->protocol, $this->remoteAddress, $peer);
+            if (Ip::isPrivateUse($realPeer)) {
+                ConnectionManager::$connections[$this->protocol][$this->remoteAddress]['peers'][$peer]['local'][$realPeer] = $realPeer;
+                // 双方都发过来确认消息，告诉双方可以tcp打孔了
+                static::getLogger()->notice("p2p tunnel broadcast local", [
+                    'class' => __CLASS__,
+                    'response' => Helper::toString($response),
+                    'peers' => [
+                        'a' => ConnectionManager::$connections[$this->protocol][$this->remoteAddress]['peers'] ?? [],
+                        'b' => ConnectionManager::$connections[$this->protocol][$peer]['peers'][$this->remoteAddress] ?? []
+                    ]
+                ]);
+                if (isset(ConnectionManager::$connections[$this->protocol][$peer]['peers'][$this->remoteAddress]['local'])) {
+                    static::getLogger()->error("p2p tunnel broadcast local", [
+                        'class' => __CLASS__,
+                        'response' => Helper::toString($response)
+                    ]);
+                    ConnectionManager::broadcastAddressAndPeer($this->protocol, $this->remoteAddress, $peer);
+                }
+            } else {
+                ConnectionManager::$connections[$this->protocol][$this->remoteAddress]['peers'][$peer]['public'][$realPeer] = $realPeer;
+                // 双方都发过来确认消息，告诉双方可以tcp打孔了
+                static::getLogger()->notice("p2p tunnel broadcast public", [
+                    'class' => __CLASS__,
+                    'response' => Helper::toString($response)
+                ]);
+                if (isset(ConnectionManager::$connections[$this->protocol][$peer]['peers'][$this->remoteAddress]['public'])) {
+                    static::getLogger()->error("p2p tunnel broadcast public", [
+                        'class' => __CLASS__,
+                        'response' => Helper::toString($response)
+                    ]);
+                    ConnectionManager::broadcastAddressAndPeer($this->protocol, $this->remoteAddress, $peer);
+                }
+            }
+
+            
         }
         else {
             // ignore other response code

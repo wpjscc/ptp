@@ -19,6 +19,7 @@ class Ip
 
     public static function isPrivateUse($ip)
     {
+        $ip = static::getIp($ip);
         $ip = IPv4::factory($ip);
         return $ip->isPrivateUse();
     }

@@ -375,6 +375,9 @@ class Tunnel implements \Wpjscc\Penetration\Log\LogManagerInterface
         if (!$request->getHeaderLine('X-Is-Ptp')) {
             return 0;
         }
+        if (!Helper::validateSecretKey($request->getHeaderLine('Secret-Key'))) {
+            return false;
+        }
 
         $domain = $request->getHeaderLine('Domain');
         $isPrivate = $request->getHeaderLine('Is-Private');

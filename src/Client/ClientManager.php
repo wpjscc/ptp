@@ -128,6 +128,7 @@ class ClientManager implements \Wpjscc\Penetration\Log\LogManagerInterface
                     'User-Agent: ReactPHP',
                     'X-Is-Ptp: 1',
                     'Tunnel: 1',
+                    'Secret-Key: '. ($config['secret_key'] ?? ''),
                     'Authorization: ' . ($config['token'] ?? ''),
                     'Local-Host: ' . $config['local_host'] . (($config['local_port']??'') ? (':'. $config['local_port']) : ''),
                     'Local-Protocol: ' . $config['local_protocol'],

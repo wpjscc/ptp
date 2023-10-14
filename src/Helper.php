@@ -130,4 +130,19 @@ final Class Helper
         $t =  (float) sprintf('%.0f', (floatval($microSec) + floatval($sec)) * 1000);
         return $t;
     }
+
+    public static function validateSecretKey($secretKey)
+    {
+        $secretKeys = explode(',', Config::getKey('common.secret_key') ?: '');
+
+        if (empty($secretKeys)) {
+            return true;
+        }
+
+        if (in_array($secretKey, $secretKeys)) {
+            return true;
+        }
+
+        return false;
+    }
 }

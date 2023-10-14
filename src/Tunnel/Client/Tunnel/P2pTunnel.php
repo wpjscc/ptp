@@ -163,6 +163,7 @@ class P2pTunnel extends EventEmitter implements ConnectorInterface, \Wpjscc\Pene
                             'X-Is-Ptp: 1',
                             'User-Agent: ReactPHP',
                             'Tunnel: 1',
+                            'Secret-Key: '. ($this->config['secret_key'] ?? ''),
                             'Authorization: ' . ($this->config['token'] ?? ''),
                             'Local-Host: ' . $this->config['local_host'] . (($this->config['local_port'] ?? '') ? (':' . $this->config['local_port']) : ''),
                             'Domain: ' . $this->config['domain'],
@@ -456,17 +457,26 @@ class P2pTunnel extends EventEmitter implements ConnectorInterface, \Wpjscc\Pene
             if ($remoteAddress === $this->serverAddress) {
                 // 没被连上才可以连, 一个 tcp client 只能连一个 对端,(大概率是nat对tcp限制了)
                 $peer = $response->getHeaderLine('Address');
-                if (!PeerManager::localAddressIsPeerd('tcp://'. $this->localAddress) && !in_array('tcp://'.$peer, PeerManager::getTcpPeeredAddrs())) {
+                $bindAddress = $this->localAddress;
+                // $currentAddress = $response->getHeaderLine('Current-Address');
+                // if (Ip::isPrivateUse($currentAddress)) {
+                //     $bindAddress = $currentAddress;
+                // }
+
+                if (!PeerManager::localAddressIsPeerd('tcp://'. $bindAddress) && !in_array('tcp://'.$peer, PeerManager::getTcpPeeredAddrs())) {
                     static::getLogger()->debug("P2pTunnel::" . __FUNCTION__ . " tcp peering", [
                         'class' => __CLASS__,
                         'peer' => $peer,
                         'current_address' => $this->currentAddress,
                         'local_address' => $this->localAddress,
+                        'biind_to' => $bindAddress,
                     ]);
-                    if (!PeerManager::hasTcpPeer($this->localAddress, $peer)) {
+                    
+                    if (!PeerManager::hasTcpPeer($bindAddress, $peer)) {
                         $this->currentTcpNumber++;
-                        PeerManager::addTcpPeer($this->localAddress, $peer);
-                        static::punchTcpPeer($peer, 0 , $this->currentTcpNumber);
+                        PeerManager::addTcpPeer($bindAddress, $peer);
+                        $remotePeerAddress = $response->getHeaderLine('Peer-Remote-Address');
+                        static::punchTcpPeer($peer, 0 , $this->currentTcpNumber, $bindAddress, $remotePeerAddress);
                     }
                 } else {
                     static::getLogger()->debug("P2pTunnel::" . __FUNCTION__ . " tcp peered", [
@@ -518,21 +528,23 @@ class P2pTunnel extends EventEmitter implements ConnectorInterface, \Wpjscc\Pene
     // tcp client 同时连接对方
     // tcp client Client A-------->>>>>>>>>>>>>>---<<<<<<<<<<<<-----------Client B tcp client
 
-    protected function punchTcpPeer($peer, $times = 0, $currentNumber = 0)
+    protected function punchTcpPeer($peer, $times = 0, $currentNumber = 0, $bindAddress, $remotePeerAddress)
     {
         if ($currentNumber != $this->currentTcpNumber) {
-            PeerManager::removeTcpPeer($this->localAddress, $peer);
-            \React\EventLoop\Loop::addTimer(10, function () use ($peer) {
+            PeerManager::removeTcpPeer($bindAddress, $peer);
+            \React\EventLoop\Loop::addTimer(10, function () use ($peer, $remotePeerAddress) {
                 $ip = Ip::getIp($peer);
                 $address = Ip::getIpAndPort($peer);
+                $realAddress = $address;
                 if (Ip::isPrivateUse($ip)) {
-                    $address = PeerManager::getRemoteAddrByLocalAddr($peer, true);
+                    $address = PeerManager::getRemoteAddrByLocalAddr($peer, true)?: $address;
                 }
-                $this->server->send("HTTP/1.1 414 OK\r\nAddress:{$this->currentAddress}\r\nPeer: {$address}\r\n\r\n", $this->serverAddress);
+                $this->server->send("HTTP/1.1 414 OK\r\nAddress:{$this->currentAddress}\r\nPeer: {$address}\r\nReal-Peer: {$realAddress}\r\nRemote-Address: $remotePeerAddress\r\n\r\n", $this->serverAddress);
             });
             static::getLogger()->error("P2pTunnel::" . __FUNCTION__ . " currentNumber", [
                 'class' => __CLASS__,
-                "bindto" => $this->localAddress,
+                "bindto" => $bindAddress,
+                "local_address" => $this->localAddress,
                 'peer' => $peer,
                 'currentNumber' => $currentNumber,
                 '$this->currentTcpNumber' => $this->currentTcpNumber,
@@ -541,14 +553,15 @@ class P2pTunnel extends EventEmitter implements ConnectorInterface, \Wpjscc\Pene
         }
 
         if ($times >= 10) {
-            PeerManager::removeTcpPeer($this->localAddress, $peer);
-            \React\EventLoop\Loop::addTimer(10, function () use ($peer) {
+            PeerManager::removeTcpPeer($bindAddress, $peer);
+            \React\EventLoop\Loop::addTimer(10, function () use ($peer, $remotePeerAddress) {
                 $ip = Ip::getIp($peer);
                 $address = Ip::getIpAndPort($peer);
+                $realAddress = $address;
                 if (Ip::isPrivateUse($ip)) {
-                    $address = PeerManager::getRemoteAddrByLocalAddr($address, true);
+                    $address = PeerManager::getRemoteAddrByLocalAddr($peer, true)?: $address;
                 }
-                $this->server->send("HTTP/1.1 414 OK\r\nAddress:{$this->currentAddress}\r\nPeer: {$address}\r\n\r\n", $this->serverAddress);
+                $this->server->send("HTTP/1.1 414 OK\r\nAddress:{$this->currentAddress}\r\nPeer: {$address}\r\nReal-Peer: {$realAddress}\r\nRemote-Address: $remotePeerAddress\r\n\r\n", $this->serverAddress);
             });
             static::getLogger()->warning("P2pTunnel::" . __FUNCTION__ . " timeout", [
                 'class' => __CLASS__,
@@ -559,14 +572,15 @@ class P2pTunnel extends EventEmitter implements ConnectorInterface, \Wpjscc\Pene
         }
         $times++;
         $remoteAddress = strpos($peer, '://') == false ? 'tcp://' . $peer : $peer;
+        
         $localAddress = strpos($this->localAddress, '://') == false ? 'tcp://'.$this->localAddress : $this->localAddress;
 
          (new \React\Socket\Connector([
             'timeout' => 1,
             "tcp" => [
-                "bindto" => $this->localAddress
+                "bindto" => $bindAddress
             ]
-        ]))->connect($peer)->then(function ($connection) use ($peer) {
+        ]))->connect($peer)->then(function ($connection) use ($peer, $bindAddress, $remotePeerAddress) {
 
             $localAddress = $connection->getLocalAddress();
             $remoteAddress = $connection->getRemoteAddress();
@@ -580,7 +594,7 @@ class P2pTunnel extends EventEmitter implements ConnectorInterface, \Wpjscc\Pene
 
             $data = base64_encode(json_encode($data));
 
-            $connection->write("HTTP/1.1 417 OK\r\nData: $data\r\n" . $this->header);
+            $connection->write("HTTP/1.1 417 OK\r\nData: $data\r\nRemote-Address: {$this->currentAddress}\r\n" . $this->header);
 
             static::getLogger()->debug("P2pTunnel::punchTcpPeer->" . " connected", [
                 'class' => __CLASS__,
@@ -617,8 +631,8 @@ class P2pTunnel extends EventEmitter implements ConnectorInterface, \Wpjscc\Pene
             ]);
 
 
-            PingPong::pingPong($connection, $peer, $this->header);
-            $connection->on('close', function () use ($connection, $localAddress, $remoteAddress, $peer) {
+            PingPong::pingPong($connection, $peer, "Remote-Address: {$this->currentAddress}\r\n".$this->header);
+            $connection->on('close', function () use ($connection, $localAddress, $remoteAddress, $peer, $bindAddress) {
                 echo 'close ' . $connection->getRemoteAddress() . PHP_EOL;
                 PeerManager::removePeered($localAddress, $remoteAddress);
                 PeerManager::removeConnection($localAddress, $remoteAddress);
@@ -628,24 +642,24 @@ class P2pTunnel extends EventEmitter implements ConnectorInterface, \Wpjscc\Pene
                 PeerManager::removeLocalAddrToRemoteAddr($ipAndPort, true);
 
                 // 移除配对的peer
-                PeerManager::removeTcpPeer($this->localAddress, $peer);
+                PeerManager::removeTcpPeer($bindAddress, $peer);
 
             });
-        }, function ($e) use ($localAddress, $remoteAddress, $times, $currentNumber) {
+        }, function ($e) use ($localAddress, $remoteAddress, $times, $currentNumber, $bindAddress, $remotePeerAddress) {
             static::getLogger()->error($e->getMessage(), [
                 'class' => __CLASS__,
-                "bindto" => $this->localAddress,
+                "bindto" => $bindAddress,
+                "local_address" => $this->localAddress,
                 'currentNumber' => $currentNumber,
-                'local_address' => $localAddress,
                 'peer' => $remoteAddress,
                 'times' => $times,
                 'file' => $e->getFile(),
                 'line' => $e->getLine(),
             ]);
             
-            if (!PeerManager::hasPeered($localAddress,$remoteAddress)) {
-                \React\EventLoop\Loop::addTimer(0.001, function () use ($remoteAddress, $times, $currentNumber) {
-                    self::punchTcpPeer($remoteAddress, $times, $currentNumber);
+            if (!PeerManager::hasPeered($bindAddress,$remoteAddress)) {
+                \React\EventLoop\Loop::addTimer(0.1, function () use ($remoteAddress, $times, $currentNumber, $bindAddress, $remotePeerAddress) {
+                    self::punchTcpPeer($remoteAddress, $times, $currentNumber, $bindAddress, $remotePeerAddress);
                 });
             } else {
                 static::getLogger()->debug("P2pTunnel::" . __FUNCTION__ . " hasTcpPeered", [
@@ -656,7 +670,7 @@ class P2pTunnel extends EventEmitter implements ConnectorInterface, \Wpjscc\Pene
             }
 
             return $e;
-        })->otherwise(function ($e) use ($localAddress,$remoteAddress, $times, $currentNumber) {
+        })->otherwise(function ($e) use ($localAddress,$remoteAddress, $times, $currentNumber, $bindAddress, $remotePeerAddress) {
             static::getLogger()->error($e->getMessage().'-222', [
                 'class' => __CLASS__,
                 "bindto" => $this->localAddress,
@@ -667,9 +681,9 @@ class P2pTunnel extends EventEmitter implements ConnectorInterface, \Wpjscc\Pene
                 'file' => $e->getFile(),
                 'line' => $e->getLine(),
             ]);
-            if (!PeerManager::hasPeered($localAddress, $remoteAddress)) {
-                \React\EventLoop\Loop::addTimer(0.001, function () use ($remoteAddress, $times, $currentNumber) {
-                    self::punchTcpPeer($remoteAddress, $times, $currentNumber);
+            if (!PeerManager::hasPeered($bindAddress, $remoteAddress)) {
+                \React\EventLoop\Loop::addTimer(0.1, function () use ($remoteAddress, $times, $currentNumber, $bindAddress, $remotePeerAddress) {
+                    self::punchTcpPeer($remoteAddress, $times, $currentNumber, $bindAddress, $remotePeerAddress);
                 });
             }
             return $e;
@@ -731,7 +745,7 @@ class P2pTunnel extends EventEmitter implements ConnectorInterface, \Wpjscc\Pene
                 'desc' => $this->config['desc'] ?? '',
             ];
             $data = base64_encode(json_encode($data));
-            $connection->write("HTTP/1.1 417 OK\r\nData: $data\r\n" . $this->header);
+            $connection->write("HTTP/1.1 417 OK\r\nData: $data\r\nRemote-Address: {$this->currentAddress}\r\n" . $this->header);
 
             PeerManager::addVirtualConnection($localAddress, $address, $virtualConnection);
 
@@ -752,10 +766,31 @@ class P2pTunnel extends EventEmitter implements ConnectorInterface, \Wpjscc\Pene
             // 告诉服务端 可以开始tcp打孔了
             if (strpos($localAddress, 'tcp://') === false &&($this->config['try_tcp'] ?? false )) {
                 $ip = explode(':', $address)[0];
-                if (Ip::isPrivateUse($ip)) {
-                    $address = PeerManager::getRemoteAddrByLocalAddr($address, true);
+                $realAddress = $address;
+
+                // 运行在本地服务器
+                if (Ip::isPrivateUse($this->currentAddress)) {
+                        
+                } else {
+                    if (Ip::isPrivateUse($ip)) {
+                        $address = PeerManager::getRemoteAddrByLocalAddr($address, true);
+                        if (!$address) {
+                            // 说明是在nat后面的,对方pong过来的活着417过来的
+                            $address = $response->getHeaderLine('Remote-Address');
+                            static::getLogger()->error("P2pTunnel::Remote-Address", [
+                                'class' => __CLASS__,
+                                'address' => $address,
+                                'current_address' => $this->currentAddress,
+                                'local_address' => $this->localAddress,
+                                'response' => Helper::toString($response)
+                            ]);
+                        }
+                        
+                    }
                 }
-                $this->server->send("HTTP/1.1 414 OK\r\nAddress:{$this->currentAddress}\r\nPeer: {$address}\r\n\r\n", $this->serverAddress);
+                
+              
+                $this->server->send("HTTP/1.1 414 OK\r\nAddress:{$this->currentAddress}\r\nPeer: {$address}\r\nReal-Peer: {$realAddress}\r\n\r\n", $this->serverAddress);
             }
         }
         return PeerManager::getVirtualConnection($localAddress, $address);

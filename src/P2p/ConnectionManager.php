@@ -80,10 +80,26 @@ class ConnectionManager
                         if (!isset(ConnectionManager::$connections[$protocol][$address]) || !isset(ConnectionManager::$connections[$protocol][$peerAddress])) {
                             return false;
                         }
+                        $pubchAddress = $address;
+                        $peerPunchAddress = $peerAddress;
+                        if ($code == 418) {
+                            if (!isset(ConnectionManager::$connections[$protocol][$address]['peers'][$peerAddress]['public']) || !isset(ConnectionManager::$connections[$protocol][$peerAddress]['peers'][$address]['public'])) {
+                                return false;
+                            }
+                            if (empty(ConnectionManager::$connections[$protocol][$address]['peers'][$peerAddress]['public']) || empty(ConnectionManager::$connections[$protocol][$peerAddress]['peers'][$address]['public'])) {
+                                return false;
+                            }
+
+                            $peerPunchAddress = array_key_first(ConnectionManager::$connections[$protocol][$address]['peers'][$peerAddress]['public']);
+                            unset(ConnectionManager::$connections[$protocol][$address]['peers'][$peerAddress]['public'][$peerPunchAddress]);
+                            $pubchAddress = array_key_first(ConnectionManager::$connections[$protocol][$peerAddress]['peers'][$address]['public']);
+                            unset(ConnectionManager::$connections[$protocol][$peerAddress]['peers'][$address]['public'][$pubchAddress]);
+
+                        } 
                         $tryTcp = ConnectionManager::$connections[$protocol][$address]['try_tcp'] ?: '0';
-                        $peerConnection->write("HTTP/1.1 {$code} OK\r\n\Try-tcp: {$tryTcp}\r\nAddress: {$address}\r\n\r\n");
+                        $peerConnection->write("HTTP/1.1 {$code} OK\r\n\Try-tcp: {$tryTcp}\r\nAddress: {$pubchAddress}\r\nRemote-Peer-Address: $address\r\n\r\n");
                         $peerTryTcp = ConnectionManager::$connections[$protocol][$peerAddress]['try_tcp'] ?: '0';
-                        $connection->write("HTTP/1.1 {$code} OK\r\nTry-tcp: {$peerTryTcp}\r\nAddress: {$peerAddress}\r\n\r\n");
+                        $connection->write("HTTP/1.1 {$code} OK\r\nTry-tcp: {$peerTryTcp}\r\nAddress: {$peerPunchAddress}\r\nRemote-Peer-Address: $peerAddress\r\n\r\n");
 
                         echo "broadcastAddress public address: {$address} ====> {$peerAddress}\n";
                         echo "broadcastAddress public address: {$peerAddress} ====> {$address}\n";
@@ -124,11 +140,29 @@ class ConnectionManager
                             if (!isset(ConnectionManager::$connections[$protocol][$address]) || !isset(ConnectionManager::$connections[$protocol][$peerAddress])) {
                                 return false;
                             }
-                            $peerConnection->write("HTTP/1.1 {$code} OK\r\nTry-tcp: {$tryTcp}\r\nAddress: {$localAddress}\r\nRemote-Peer-Address: $address\r\n\r\n");
-                            $connection->write("HTTP/1.1 {$code} OK\r\nTry-tcp: {$peerTryTcp}\r\nAddress: {$peerLocalAddress}\r\nRemote-Peer-Address: $peerAddress\r\n\r\n");
 
-                            echo "broadcastAddress local address: [{$address} {$localAddress}] ====> [{$peerAddress} {$peerLocalAddress}]\n";
-                            echo "broadcastAddress local address: [{$peerAddress} {$peerLocalAddress}] ====> [{$address} {$localAddress}]\n";
+                            $pubchLocalAddress = $localAddress;
+                            $punchPeerLocalAddress = $peerLocalAddress;
+                            if ($code == 418) {
+                                if (!isset(ConnectionManager::$connections[$protocol][$address]['peers'][$peerAddress]['local']) || !isset(ConnectionManager::$connections[$protocol][$peerAddress]['peers'][$address]['local'])) {
+                                    return false;
+                                }
+                                if (empty(ConnectionManager::$connections[$protocol][$address]['peers'][$peerAddress]['local']) || empty(ConnectionManager::$connections[$protocol][$peerAddress]['peers'][$address]['local'])) {
+                                    return false;
+                                }
+    
+                                $punchPeerLocalAddress = array_key_first(ConnectionManager::$connections[$protocol][$address]['peers'][$peerAddress]['local']);
+                                unset(ConnectionManager::$connections[$protocol][$address]['peers'][$peerAddress]['local'][$punchPeerLocalAddress]);
+    
+                                $pubchLocalAddress = array_key_first(ConnectionManager::$connections[$protocol][$peerAddress]['peers'][$address]['local']);
+                                unset(ConnectionManager::$connections[$protocol][$peerAddress]['peers'][$address]['local'][$pubchLocalAddress]);
+                            } 
+
+                            $peerConnection->write("HTTP/1.1 {$code} OK\r\nTry-tcp: {$tryTcp}\r\nAddress: {$pubchLocalAddress}\r\nCurrent-Address: $punchPeerLocalAddress\r\nRemote-Peer-Address: $address\r\n\r\n");
+                            $connection->write("HTTP/1.1 {$code} OK\r\nTry-tcp: {$peerTryTcp}\r\nAddress: {$punchPeerLocalAddress}\r\nCurrent-Address: $pubchLocalAddress\r\nRemote-Peer-Address: $peerAddress\r\n\r\n");
+
+                            echo "broadcastAddress local address: [{$address} {$pubchLocalAddress}] ====> [{$peerAddress} {$punchPeerLocalAddress}]\n";
+                            echo "broadcastAddress local address: [{$peerAddress} {$punchPeerLocalAddress}] ====> [{$address} {$pubchLocalAddress}]\n";
 
                         }, function ($e) {
                             echo $e->getMessage() . PHP_EOL;

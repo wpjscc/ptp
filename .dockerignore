@@ -5,4 +5,5 @@ docker
 *.ini
 node_modules
 /build
+/bin
 
