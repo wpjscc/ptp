@@ -1,16 +1,16 @@
 <?php
 
 
-namespace Wpjscc\Penetration\P2p\Client;
+namespace Wpjscc\PTP\P2p\Client;
 
-use Wpjscc\Penetration\Proxy\ProxyManager;
-use Wpjscc\Penetration\Helper;
-use Wpjscc\Penetration\Utils\Ip;
+use Wpjscc\PTP\Proxy\ProxyManager;
+use Wpjscc\PTP\Helper;
+use Wpjscc\PTP\Utils\Ip;
 use RingCentral\Psr7;
 
-class PeerManager implements \Wpjscc\Penetration\Log\LogManagerInterface
+class PeerManager implements \Wpjscc\PTP\Log\LogManagerInterface
 {
-    use \Wpjscc\Penetration\Log\LogManagerTraitDefault;
+    use \Wpjscc\PTP\Log\LogManagerTraitDefault;
 
     static $uuid;
 
@@ -225,7 +225,7 @@ class PeerManager implements \Wpjscc\Penetration\Log\LogManagerInterface
                 ProxyManager::$remoteTunnelConnections[$_uri] = new \SplObjectStorage;
             }
 
-            // if (ProxyManager::$remoteTunnelConnections[$_uri]->count()>= \Wpjscc\Penetration\Config::getKey('common.max_tunnel_number', 5)) {
+            // if (ProxyManager::$remoteTunnelConnections[$_uri]->count()>= \Wpjscc\PTP\Config::getKey('common.max_tunnel_number', 5)) {
             //     static::getLogger()->error('remote tunnel connection count is more than 5', [
             //         'uri' => $_uri,
             //         'uuid' => $uuid,

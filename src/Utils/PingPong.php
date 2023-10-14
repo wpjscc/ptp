@@ -1,6 +1,6 @@
 <?php
 
-namespace Wpjscc\Penetration\Utils;
+namespace Wpjscc\PTP\Utils;
 
 use React\Promise\Timer\TimeoutException;
 use React\Promise\Deferred;

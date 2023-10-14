@@ -1,18 +1,18 @@
 <?php
 
-namespace Wpjscc\Penetration\Tunnel\Client\Tunnel;
+namespace Wpjscc\PTP\Tunnel\Client\Tunnel;
 
 use React\Socket\ConnectorInterface;
-use Wpjscc\Penetration\CompositeConnectionStream;
-use Wpjscc\Penetration\Helper;
+use Wpjscc\PTP\CompositeConnectionStream;
+use Wpjscc\PTP\Helper;
 use React\Stream\ThroughStream;
 use Wpjscc\Kcp\KCP;
 use Wpjscc\Bytebuffer\Buffer;
 
 // 不支持kcp
-class UdpTunnel implements ConnectorInterface, \Wpjscc\Penetration\Log\LogManagerInterface
+class UdpTunnel implements ConnectorInterface, \Wpjscc\PTP\Log\LogManagerInterface
 {
-    use \Wpjscc\Penetration\Log\LogManagerTraitDefault;
+    use \Wpjscc\PTP\Log\LogManagerTraitDefault;
 
     protected $isKcp;
 

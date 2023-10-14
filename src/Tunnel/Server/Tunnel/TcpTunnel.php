@@ -1,6 +1,6 @@
 <?php
 
-namespace Wpjscc\Penetration\Tunnel\Server\Tunnel;
+namespace Wpjscc\PTP\Tunnel\Server\Tunnel;
 
 
 use Evenement\EventEmitter;
@@ -8,9 +8,9 @@ use React\Socket\ServerInterface;
 use React\EventLoop\LoopInterface;
 
 
-class TcpTunnel extends EventEmitter implements ServerInterface,\Wpjscc\Penetration\Log\LogManagerInterface
+class TcpTunnel extends EventEmitter implements ServerInterface,\Wpjscc\PTP\Log\LogManagerInterface
 {
-    use \Wpjscc\Penetration\Log\LogManagerTraitDefault;
+    use \Wpjscc\PTP\Log\LogManagerTraitDefault;
     private $server;
 
     public function __construct($uri, array $context = array(), LoopInterface $loop = null)

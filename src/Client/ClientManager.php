@@ -1,18 +1,18 @@
 <?php
 
-namespace Wpjscc\Penetration\Client;
+namespace Wpjscc\PTP\Client;
 
-use Wpjscc\Penetration\Tunnel\Client\Tunnel;
-use Wpjscc\Penetration\Tunnel\Client\Tunnel\SingleTunnel;
-use Wpjscc\Penetration\Helper;
-use Wpjscc\Penetration\Utils\ParseBuffer;
-use Wpjscc\Penetration\P2p\Client\HandleResponse;
-use Wpjscc\Penetration\P2p\Client\PeerManager;
-use Wpjscc\Penetration\Utils\PingPong;
+use Wpjscc\PTP\Tunnel\Client\Tunnel;
+use Wpjscc\PTP\Tunnel\Client\Tunnel\SingleTunnel;
+use Wpjscc\PTP\Helper;
+use Wpjscc\PTP\Utils\ParseBuffer;
+use Wpjscc\PTP\P2p\Client\HandleResponse;
+use Wpjscc\PTP\P2p\Client\PeerManager;
+use Wpjscc\PTP\Utils\PingPong;
 
-class ClientManager implements \Wpjscc\Penetration\Log\LogManagerInterface
+class ClientManager implements \Wpjscc\PTP\Log\LogManagerInterface
 {
-    use \Wpjscc\Penetration\Log\LogManagerTraitDefault;
+    use \Wpjscc\PTP\Log\LogManagerTraitDefault;
 
     // 客户端相关
     public static $localTunnelConnections = [];
@@ -450,7 +450,7 @@ class ClientManager implements \Wpjscc\Penetration\Log\LogManagerInterface
             'dynamic_tunnel_uuid' => $response->getHeaderLine('Uuid'),
         ]);
         $localProcol = $config['local_protocol'] ?? 'tcp';
-        (new \Wpjscc\Penetration\Tunnel\Local\Tunnel($config))->getTunnel($localProcol)->then(function ($localConnection) use ($connection, &$fn, &$buffer, $config, $response, $localProcol) {
+        (new \Wpjscc\PTP\Tunnel\Local\Tunnel($config))->getTunnel($localProcol)->then(function ($localConnection) use ($connection, &$fn, &$buffer, $config, $response, $localProcol) {
 
             $connection->removeListener('data', $fn);
             $fn = null;

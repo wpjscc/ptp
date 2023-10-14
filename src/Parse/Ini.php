@@ -1,4 +1,4 @@
-<?php namespace Wpjscc\Penetration\Parse;
+<?php namespace Wpjscc\PTP\Parse;
 
 /**
  * Initialization (INI) configuration parser that uses "Winter flavoured INI",

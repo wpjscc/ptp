@@ -1,5 +1,5 @@
 {
-    "name": "wpjscc/reactphp-intranet-penetration",
+    "name": "wpjscc/ptp",
     "type": "project",
     "require": {
         "react/http": "^1.9",
@@ -23,7 +23,7 @@
     },
     "autoload": {
         "psr-4": {
-            "Wpjscc\\Penetration\\": "src/"
+            "Wpjscc\\PTP\\": "src/"
         }
     },
     "require-dev": {

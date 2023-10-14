@@ -1,6 +1,6 @@
 <?php
 
-namespace Wpjscc\Penetration\Server;
+namespace Wpjscc\PTP\Server;
 
 
 class TcpManager

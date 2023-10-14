@@ -1,6 +1,6 @@
 <?php 
 
-namespace Wpjscc\Penetration\Tunnel;
+namespace Wpjscc\PTP\Tunnel;
 
 
 interface SingleTunnelInterface

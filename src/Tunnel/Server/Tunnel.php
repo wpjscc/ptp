@@ -1,21 +1,21 @@
 <?php
 
-namespace Wpjscc\Penetration\Tunnel\Server;
+namespace Wpjscc\PTP\Tunnel\Server;
 
 use React\Socket\ConnectionInterface;
-use Wpjscc\Penetration\Proxy\ProxyManager;
+use Wpjscc\PTP\Proxy\ProxyManager;
 use RingCentral\Psr7;
-use Wpjscc\Penetration\Tunnel\Server\Tunnel\TcpTunnel;
-use Wpjscc\Penetration\Tunnel\Server\Tunnel\UdpTunnel;
-use Wpjscc\Penetration\Tunnel\Server\Tunnel\WebsocketTunnel;
-use Wpjscc\Penetration\DecorateSocket;
-use Wpjscc\Penetration\Helper;
+use Wpjscc\PTP\Tunnel\Server\Tunnel\TcpTunnel;
+use Wpjscc\PTP\Tunnel\Server\Tunnel\UdpTunnel;
+use Wpjscc\PTP\Tunnel\Server\Tunnel\WebsocketTunnel;
+use Wpjscc\PTP\DecorateSocket;
+use Wpjscc\PTP\Helper;
 use Ramsey\Uuid\Uuid;
-use Wpjscc\Penetration\Utils\Ip;
+use Wpjscc\PTP\Utils\Ip;
 
-class Tunnel implements \Wpjscc\Penetration\Log\LogManagerInterface
+class Tunnel implements \Wpjscc\PTP\Log\LogManagerInterface
 {
-    use \Wpjscc\Penetration\Log\LogManagerTraitDefault;
+    use \Wpjscc\PTP\Log\LogManagerTraitDefault;
 
     protected $config;
 
@@ -140,8 +140,8 @@ class Tunnel implements \Wpjscc\Penetration\Log\LogManagerInterface
 
             $address = $connection->getRemoteAddress();
             if (
-                !Ip::addressInIpWhitelist($address, \Wpjscc\Penetration\Config::getKey('ip_whitelist', '')) 
-                || Ip::addressInIpBlacklist($address, \Wpjscc\Penetration\Config::getKey('ip_blacklist', ''))
+                !Ip::addressInIpWhitelist($address, \Wpjscc\PTP\Config::getKey('ip_whitelist', '')) 
+                || Ip::addressInIpBlacklist($address, \Wpjscc\PTP\Config::getKey('ip_blacklist', ''))
             ) {
                 static::getLogger()->error("client: {$protocol} ip is unauthorized ", [
                     'remoteAddress' => $connection->getRemoteAddress(),

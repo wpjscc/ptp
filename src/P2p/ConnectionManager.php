@@ -1,9 +1,9 @@
 <?php
 
-namespace Wpjscc\Penetration\P2p;
+namespace Wpjscc\PTP\P2p;
 
-use Wpjscc\Penetration\Utils\Ip;
-use Wpjscc\Penetration\Utils\PingPong;
+use Wpjscc\PTP\Utils\Ip;
+use Wpjscc\PTP\Utils\PingPong;
 
 class ConnectionManager
 {

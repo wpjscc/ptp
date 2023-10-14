@@ -1,12 +1,12 @@
 <?php
 
-namespace Wpjscc\Penetration\Tunnel\Client\Tunnel;
+namespace Wpjscc\PTP\Tunnel\Client\Tunnel;
 
 use React\Socket\ConnectorInterface;
 
-class TcpTunnel implements ConnectorInterface,\Wpjscc\Penetration\Log\LogManagerInterface
+class TcpTunnel implements ConnectorInterface,\Wpjscc\PTP\Log\LogManagerInterface
 {
-    use \Wpjscc\Penetration\Log\LogManagerTraitDefault;
+    use \Wpjscc\PTP\Log\LogManagerTraitDefault;
 
     protected $connector;
 

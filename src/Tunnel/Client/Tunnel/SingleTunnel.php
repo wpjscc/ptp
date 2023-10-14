@@ -1,18 +1,18 @@
 <?php
 
-namespace Wpjscc\Penetration\Tunnel\Client\Tunnel;
+namespace Wpjscc\PTP\Tunnel\Client\Tunnel;
 
 use Evenement\EventEmitter;
 use RingCentral\Psr7;
 use Ramsey\Uuid\Uuid;
 use React\Stream\ThroughStream;
-use Wpjscc\Penetration\CompositeConnectionStream;
-use Wpjscc\Penetration\Helper;
-use Wpjscc\Penetration\Utils\ParseBuffer;
+use Wpjscc\PTP\CompositeConnectionStream;
+use Wpjscc\PTP\Helper;
+use Wpjscc\PTP\Utils\ParseBuffer;
 
-class SingleTunnel extends EventEmitter implements \Wpjscc\Penetration\Log\LogManagerInterface, \Wpjscc\Penetration\Tunnel\SingleTunnelInterface
+class SingleTunnel extends EventEmitter implements \Wpjscc\PTP\Log\LogManagerInterface, \Wpjscc\PTP\Tunnel\SingleTunnelInterface
 {
-    use \Wpjscc\Penetration\Log\LogManagerTraitDefault;
+    use \Wpjscc\PTP\Log\LogManagerTraitDefault;
 
     private $connections = array();
     private $connection;

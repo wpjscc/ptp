@@ -1,19 +1,19 @@
 <?php
 
-namespace Wpjscc\Penetration\Tunnel\Server\Tunnel;
+namespace Wpjscc\PTP\Tunnel\Server\Tunnel;
 
 use Evenement\EventEmitter;
 use React\Socket\ServerInterface;
 use RingCentral\Psr7;
-use Wpjscc\Penetration\Helper;
-use Wpjscc\Penetration\Utils\Ip;
-use Wpjscc\Penetration\P2p\ConnectionManager;
-use Wpjscc\Penetration\Utils\ParseBuffer;
+use Wpjscc\PTP\Helper;
+use Wpjscc\PTP\Utils\Ip;
+use Wpjscc\PTP\P2p\ConnectionManager;
+use Wpjscc\PTP\Utils\ParseBuffer;
 
-class P2pTunnel extends EventEmitter implements ServerInterface, \Wpjscc\Penetration\Tunnel\SingleTunnelInterface,\Wpjscc\Penetration\Log\LogManagerInterface
+class P2pTunnel extends EventEmitter implements ServerInterface, \Wpjscc\PTP\Tunnel\SingleTunnelInterface,\Wpjscc\PTP\Log\LogManagerInterface
 {
 
-    use \Wpjscc\Penetration\Log\LogManagerTraitDefault;
+    use \Wpjscc\PTP\Log\LogManagerTraitDefault;
 
     private $connection;
     private $protocol;

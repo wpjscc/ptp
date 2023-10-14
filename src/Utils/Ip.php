@@ -1,6 +1,6 @@
 <?php
 
-namespace Wpjscc\Penetration\Utils;
+namespace Wpjscc\PTP\Utils;
 
 use Darsyn\IP\Version\IPv4;
 use Darsyn\IP\Exception;

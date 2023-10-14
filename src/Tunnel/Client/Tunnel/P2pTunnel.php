@@ -1,26 +1,26 @@
 <?php
 
-namespace Wpjscc\Penetration\Tunnel\Client\Tunnel;
+namespace Wpjscc\PTP\Tunnel\Client\Tunnel;
 
 use React\Socket\ConnectorInterface;
 
 use React\Promise\Deferred;
 use Evenement\EventEmitter;
 use Ramsey\Uuid\Nonstandard\Uuid;
-use Wpjscc\Penetration\P2p\Client\PeerManager;
-use Wpjscc\Penetration\Utils\PingPong;
-use Wpjscc\Penetration\Tunnel\Client\Tunnel\UdpTunnel as ClientUdpTunnel;
-use Wpjscc\Penetration\Tunnel\Server\Tunnel\UdpTunnel;
-use Wpjscc\Penetration\Utils\ParseBuffer;
+use Wpjscc\PTP\P2p\Client\PeerManager;
+use Wpjscc\PTP\Utils\PingPong;
+use Wpjscc\PTP\Tunnel\Client\Tunnel\UdpTunnel as ClientUdpTunnel;
+use Wpjscc\PTP\Tunnel\Server\Tunnel\UdpTunnel;
+use Wpjscc\PTP\Utils\ParseBuffer;
 use React\Stream\ThroughStream;
-use Wpjscc\Penetration\CompositeConnectionStream;
-use Wpjscc\Penetration\Connection;
-use Wpjscc\Penetration\Helper;
-use Wpjscc\Penetration\Utils\Ip;
+use Wpjscc\PTP\CompositeConnectionStream;
+use Wpjscc\PTP\Connection;
+use Wpjscc\PTP\Helper;
+use Wpjscc\PTP\Utils\Ip;
 
-class P2pTunnel extends EventEmitter implements ConnectorInterface, \Wpjscc\Penetration\Log\LogManagerInterface
+class P2pTunnel extends EventEmitter implements ConnectorInterface, \Wpjscc\PTP\Log\LogManagerInterface
 {
-    use \Wpjscc\Penetration\Log\LogManagerTraitDefault;
+    use \Wpjscc\PTP\Log\LogManagerTraitDefault;
 
     protected $config;
     protected $uri;

@@ -1,20 +1,20 @@
 <?php
 
-namespace Wpjscc\Penetration\Tunnel\Server\Tunnel;
+namespace Wpjscc\PTP\Tunnel\Server\Tunnel;
 
 use Evenement\EventEmitter;
 use React\Socket\ServerInterface;
 use RingCentral\Psr7;
 use Ramsey\Uuid\Uuid;
 use React\Stream\ThroughStream;
-use Wpjscc\Penetration\CompositeConnectionStream;
-use Wpjscc\Penetration\Helper;
-use Wpjscc\Penetration\Utils\ParseBuffer;
+use Wpjscc\PTP\CompositeConnectionStream;
+use Wpjscc\PTP\Helper;
+use Wpjscc\PTP\Utils\ParseBuffer;
 
-class SingleTunnel extends EventEmitter implements ServerInterface, \Wpjscc\Penetration\Tunnel\SingleTunnelInterface,\Wpjscc\Penetration\Log\LogManagerInterface
+class SingleTunnel extends EventEmitter implements ServerInterface, \Wpjscc\PTP\Tunnel\SingleTunnelInterface,\Wpjscc\PTP\Log\LogManagerInterface
 {
 
-    use \Wpjscc\Penetration\Log\LogManagerTraitDefault;
+    use \Wpjscc\PTP\Log\LogManagerTraitDefault;
     private $connections = array();
 
     private $vuuids = [];

@@ -1,12 +1,12 @@
 <?php
 
-namespace Wpjscc\Penetration\Server;
+namespace Wpjscc\PTP\Server;
 
 use React\Socket\SocketServer;
 use React\Socket\ConnectionInterface;
-use Wpjscc\Penetration\Proxy\ProxyManager;
+use Wpjscc\PTP\Proxy\ProxyManager;
 use RingCentral\Psr7;
-use Wpjscc\Penetration\Tunnel\Server\Tunnel\TcpTunnel;
+use Wpjscc\PTP\Tunnel\Server\Tunnel\TcpTunnel;
 
 class Tcp
 {

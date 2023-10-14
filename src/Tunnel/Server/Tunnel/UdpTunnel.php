@@ -1,23 +1,23 @@
 <?php
 
-namespace Wpjscc\Penetration\Tunnel\Server\Tunnel;
+namespace Wpjscc\PTP\Tunnel\Server\Tunnel;
 
 
 use Evenement\EventEmitter;
 use React\Socket\ServerInterface;
 use React\EventLoop\LoopInterface;
 use React\Datagram\Factory;
-use Wpjscc\Penetration\CompositeConnectionStream;
-use Wpjscc\Penetration\Connection;
-use Wpjscc\Penetration\Helper;
+use Wpjscc\PTP\CompositeConnectionStream;
+use Wpjscc\PTP\Connection;
+use Wpjscc\PTP\Helper;
 use React\Stream\ThroughStream;
 use Wpjscc\Kcp\KCP;
 use Wpjscc\Bytebuffer\Buffer;
 
 // kcp 不支持
-class UdpTunnel extends EventEmitter implements ServerInterface,\Wpjscc\Penetration\Log\LogManagerInterface
+class UdpTunnel extends EventEmitter implements ServerInterface,\Wpjscc\PTP\Log\LogManagerInterface
 {
-    use \Wpjscc\Penetration\Log\LogManagerTraitDefault;
+    use \Wpjscc\PTP\Log\LogManagerTraitDefault;
     private $server;
     private $isKcp = false;
 

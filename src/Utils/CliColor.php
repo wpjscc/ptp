@@ -1,6 +1,6 @@
 <?php
 
-namespace Wpjscc\Penetration\Utils;
+namespace Wpjscc\PTP\Utils;
 
 //ref https://github.com/mikeerickson/php-cli-colors/blob/master/src/Color.php
 

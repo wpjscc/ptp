@@ -1,20 +1,20 @@
 <?php
 
-namespace Wpjscc\Penetration\Proxy;
+namespace Wpjscc\PTP\Proxy;
 
 use React\Promise\Deferred;
 use React\Promise\Timer\TimeoutException;
-use Wpjscc\Penetration\Tunnel\Server\Tunnel\SingleTunnel;
+use Wpjscc\PTP\Tunnel\Server\Tunnel\SingleTunnel;
 use Ramsey\Uuid\Uuid;
-use Wpjscc\Penetration\Client\ClientManager;
-use Wpjscc\Penetration\Helper;
-use Wpjscc\Penetration\Utils\PingPong;
-use Wpjscc\Penetration\Utils\Ip;
-use Wpjscc\Penetration\Tunnel\Server\Tunnel\P2pTunnel;
+use Wpjscc\PTP\Client\ClientManager;
+use Wpjscc\PTP\Helper;
+use Wpjscc\PTP\Utils\PingPong;
+use Wpjscc\PTP\Utils\Ip;
+use Wpjscc\PTP\Tunnel\Server\Tunnel\P2pTunnel;
 
-class ProxyManager implements \Wpjscc\Penetration\Log\LogManagerInterface
+class ProxyManager implements \Wpjscc\PTP\Log\LogManagerInterface
 {
-    use \Wpjscc\Penetration\Log\LogManagerTraitDefault;
+    use \Wpjscc\PTP\Log\LogManagerTraitDefault;
 
     public static $proxyConnections = [];
 
@@ -190,7 +190,7 @@ class ProxyManager implements \Wpjscc\Penetration\Log\LogManagerInterface
                     static::$remoteTunnelConnections[$_uri] = new \SplObjectStorage;
                 }
 
-                if (static::$remoteTunnelConnections[$_uri]->count() >= \Wpjscc\Penetration\Config::getKey('common.max_tunnel_number', 5)) {
+                if (static::$remoteTunnelConnections[$_uri]->count() >= \Wpjscc\PTP\Config::getKey('common.max_tunnel_number', 5)) {
                     static::getLogger()->error('tunnel connection count is more than 5', [
                         'uri' => $_uri,
                         'uuid' => $uuid,
@@ -352,7 +352,7 @@ class ProxyManager implements \Wpjscc\Penetration\Log\LogManagerInterface
         $proxyConnection = false;
 
         // 本地访问的是ip, 去看下是否有p2p-tcp 通道
-        if (\Wpjscc\Penetration\Environment::$type == 'client') {
+        if (\Wpjscc\PTP\Environment::$type == 'client') {
             if (Ip::isIp($host)){
                 // 本地的要么是tcp要么是udp
                 if ($connection->protocol == 'tcp') {
@@ -385,7 +385,7 @@ class ProxyManager implements \Wpjscc\Penetration\Log\LogManagerInterface
   
 
         if ($proxyConnection === false) {
-            if (\Wpjscc\Penetration\Environment::$type == 'client') {
+            if (\Wpjscc\PTP\Environment::$type == 'client') {
                 static::pipeRemote($connection, $request, $buffer);
             } else {
                 static::getLogger()->warning('no proxy connection', [
@@ -492,7 +492,7 @@ class ProxyManager implements \Wpjscc\Penetration\Log\LogManagerInterface
                 'tokens' => ClientManager::$visitUriToInfo[$uri]['tokens'],
             ]);
 
-            (new \Wpjscc\Penetration\Tunnel\Local\Tunnel\TcpTunnel([
+            (new \Wpjscc\PTP\Tunnel\Local\Tunnel\TcpTunnel([
                 'local_host' => $host,
                 'local_port' => $port,
                 'local_http_proxy' => ClientManager::$visitUriToInfo[$uri]['remote_proxy'],

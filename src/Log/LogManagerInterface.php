@@ -1,6 +1,6 @@
 <?php
 
-namespace Wpjscc\Penetration\Log;
+namespace Wpjscc\PTP\Log;
 
 use Psr\Log\LoggerInterface;
 

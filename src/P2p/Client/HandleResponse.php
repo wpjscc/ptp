@@ -1,19 +1,19 @@
 <?php
 
-namespace Wpjscc\Penetration\P2p\Client;
+namespace Wpjscc\PTP\P2p\Client;
 
 use Ramsey\Uuid\Uuid;
 use React\Stream\ThroughStream;
-use Wpjscc\Penetration\CompositeConnectionStream;
-use Wpjscc\Penetration\Tunnel\Server\Tunnel\SingleTunnel as ServerSingleTunnel;
-use Wpjscc\Penetration\Tunnel\Client\Tunnel\SingleTunnel as ClientSingleTunnel;
-use Wpjscc\Penetration\Client\ClientManager; 
+use Wpjscc\PTP\CompositeConnectionStream;
+use Wpjscc\PTP\Tunnel\Server\Tunnel\SingleTunnel as ServerSingleTunnel;
+use Wpjscc\PTP\Tunnel\Client\Tunnel\SingleTunnel as ClientSingleTunnel;
+use Wpjscc\PTP\Client\ClientManager; 
 use Evenement\EventEmitter;
 
-class HandleResponse extends EventEmitter implements \Wpjscc\Penetration\Log\LogManagerInterface
+class HandleResponse extends EventEmitter implements \Wpjscc\PTP\Log\LogManagerInterface
 {
 
-    use \Wpjscc\Penetration\Log\LogManagerTraitDefault;
+    use \Wpjscc\PTP\Log\LogManagerTraitDefault;
 
     protected $sConnections = [];
     protected $cConnections = [];
@@ -32,7 +32,7 @@ class HandleResponse extends EventEmitter implements \Wpjscc\Penetration\Log\Log
         $this->address = $address;
         $this->config = $config;
 
-        $this->parseBuffer = new \Wpjscc\Penetration\Utils\ParseBuffer();
+        $this->parseBuffer = new \Wpjscc\PTP\Utils\ParseBuffer();
         $this->parseBuffer->on('response', [$this, 'response']);
         $connection->on('data', [$this->parseBuffer, 'handleBuffer']);
 

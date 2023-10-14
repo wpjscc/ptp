@@ -1,6 +1,6 @@
 <?php
 
-namespace Wpjscc\Penetration\Proxy;
+namespace Wpjscc\PTP\Proxy;
 
 use React\EventLoop\Loop;
 use React\EventLoop\LoopInterface;
@@ -8,13 +8,13 @@ use React\Socket\ConnectionInterface;
 use React\Promise\Deferred;
 use React\Promise\Timer\TimeoutException;
 use RingCentral\Psr7;
-use Wpjscc\Penetration\Helper;
+use Wpjscc\PTP\Helper;
 use React\Stream\ThroughStream;
 use Ramsey\Uuid\Uuid;
 
-class ProxyConnection implements \Wpjscc\Penetration\Log\LogManagerInterface
+class ProxyConnection implements \Wpjscc\PTP\Log\LogManagerInterface
 {
-    use \Wpjscc\Penetration\Log\LogManagerTraitDefault;
+    use \Wpjscc\PTP\Log\LogManagerTraitDefault;
 
     public $max_connections;
     public $max_wait_queue;
@@ -76,7 +76,7 @@ class ProxyConnection implements \Wpjscc\Penetration\Log\LogManagerInterface
                 $proxyReplace .= "X-Forwarded-Port: $port\r\n";
                 $proxyReplace .= "X-Forwarded-Proto: $scheme\r\n";
                 // $proxyReplace .= "x-forwarded-for: \r\n";
-                $proxyReplace .= "X-Forwarded-Server: reactphp-intranet-penetration\r\n";
+                $proxyReplace .= "X-Forwarded-Server: reactphp-intranet-PTP\r\n";
             }
 
             $userConnection->removeListener('data', $fn);

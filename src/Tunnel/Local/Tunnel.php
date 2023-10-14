@@ -1,15 +1,15 @@
 <?php
 
-namespace Wpjscc\Penetration\Tunnel\Local;
+namespace Wpjscc\PTP\Tunnel\Local;
 
 
-use Wpjscc\Penetration\Tunnel\Local\Tunnel\TcpTunnel;
-use Wpjscc\Penetration\Tunnel\Local\Tunnel\UdpTunnel;
-use Wpjscc\Penetration\Tunnel\Local\Tunnel\UnixTunnel;
+use Wpjscc\PTP\Tunnel\Local\Tunnel\TcpTunnel;
+use Wpjscc\PTP\Tunnel\Local\Tunnel\UdpTunnel;
+use Wpjscc\PTP\Tunnel\Local\Tunnel\UnixTunnel;
 
-class Tunnel implements \Wpjscc\Penetration\Log\LogManagerInterface
+class Tunnel implements \Wpjscc\PTP\Log\LogManagerInterface
 {
-    use \Wpjscc\Penetration\Log\LogManagerTraitDefault;
+    use \Wpjscc\PTP\Log\LogManagerTraitDefault;
 
     protected $config;
 

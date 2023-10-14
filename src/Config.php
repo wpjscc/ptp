@@ -1,8 +1,8 @@
 <?php
 
-namespace Wpjscc\Penetration;
+namespace Wpjscc\PTP;
 
-use Wpjscc\Penetration\Parse\Ini;
+use Wpjscc\PTP\Parse\Ini;
 
 
 class Config

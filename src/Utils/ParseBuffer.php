@@ -1,14 +1,14 @@
 <?php
 
-namespace Wpjscc\Penetration\Utils;
+namespace Wpjscc\PTP\Utils;
 
 
 use RingCentral\Psr7;
 use Evenement\EventEmitter;
 
-class ParseBuffer extends EventEmitter implements \Wpjscc\Penetration\Log\LogManagerInterface
+class ParseBuffer extends EventEmitter implements \Wpjscc\PTP\Log\LogManagerInterface
 {
-    use \Wpjscc\Penetration\Log\LogManagerTraitDefault;
+    use \Wpjscc\PTP\Log\LogManagerTraitDefault;
 
     protected $buffer = '';
     protected $connection;

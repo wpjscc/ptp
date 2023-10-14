@@ -1,16 +1,16 @@
 <?php
 
-namespace Wpjscc\Penetration\Tunnel\Client;
+namespace Wpjscc\PTP\Tunnel\Client;
 
-use Wpjscc\Penetration\Tunnel\Client\Tunnel\P2pTunnel;
-use Wpjscc\Penetration\Tunnel\Client\Tunnel\TcpTunnel;
-use Wpjscc\Penetration\Tunnel\Client\Tunnel\UdpTunnel;
-use Wpjscc\Penetration\Tunnel\Client\Tunnel\WebsocketTunnel;
+use Wpjscc\PTP\Tunnel\Client\Tunnel\P2pTunnel;
+use Wpjscc\PTP\Tunnel\Client\Tunnel\TcpTunnel;
+use Wpjscc\PTP\Tunnel\Client\Tunnel\UdpTunnel;
+use Wpjscc\PTP\Tunnel\Client\Tunnel\WebsocketTunnel;
 
 
-class Tunnel implements \Wpjscc\Penetration\Log\LogManagerInterface
+class Tunnel implements \Wpjscc\PTP\Log\LogManagerInterface
 {
-    use \Wpjscc\Penetration\Log\LogManagerTraitDefault;
+    use \Wpjscc\PTP\Log\LogManagerTraitDefault;
 
     private $config;
     public $protocol = 'tcp';

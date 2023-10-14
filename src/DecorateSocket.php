@@ -1,6 +1,6 @@
 <?php
 
-namespace Wpjscc\Penetration;
+namespace Wpjscc\PTP;
 
 use React\Socket\ServerInterface;
 use Evenement\EventEmitter;

@@ -1,6 +1,6 @@
 <?php
 
-namespace Wpjscc\Penetration\Tunnel\Server\Tunnel;
+namespace Wpjscc\PTP\Tunnel\Server\Tunnel;
 
 use React\EventLoop\LoopInterface;
 use React\EventLoop\Loop;

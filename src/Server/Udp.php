@@ -1,10 +1,10 @@
 <?php
 
-namespace Wpjscc\Penetration\Server;
+namespace Wpjscc\PTP\Server;
 
-use Wpjscc\Penetration\Proxy\ProxyManager;
+use Wpjscc\PTP\Proxy\ProxyManager;
 use RingCentral\Psr7;
-use Wpjscc\Penetration\Tunnel\Server\Tunnel\UdpTunnel;
+use Wpjscc\PTP\Tunnel\Server\Tunnel\UdpTunnel;
 
 class Udp
 {

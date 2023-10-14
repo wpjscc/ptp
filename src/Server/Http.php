@@ -1,16 +1,16 @@
 <?php
 
-namespace Wpjscc\Penetration\Server;
+namespace Wpjscc\PTP\Server;
 
 use GuzzleHttp\Psr7\Header;
-use Wpjscc\Penetration\Proxy\ProxyManager;
+use Wpjscc\PTP\Proxy\ProxyManager;
 use RingCentral\Psr7;
-use Wpjscc\Penetration\Helper;
-use Wpjscc\Penetration\Tunnel\Server\Tunnel\TcpTunnel;
+use Wpjscc\PTP\Helper;
+use Wpjscc\PTP\Tunnel\Server\Tunnel\TcpTunnel;
 
-class Http implements \Wpjscc\Penetration\Log\LogManagerInterface
+class Http implements \Wpjscc\PTP\Log\LogManagerInterface
 {
-    use \Wpjscc\Penetration\Log\LogManagerTraitDefault;
+    use \Wpjscc\PTP\Log\LogManagerTraitDefault;
 
     public $port = 8080;
 
@@ -39,7 +39,7 @@ class Http implements \Wpjscc\Penetration\Log\LogManagerInterface
 
                 // CONNECT
                 // Support Server And Client
-                // 部署在服务端 和 Wpjscc\Penetration\Tunnel\Server\Tunnel 功能一样 |----------------------------------------------------------<-----------------------|
+                // 部署在服务端 和 Wpjscc\PTP\Tunnel\Server\Tunnel 功能一样 |----------------------------------------------------------<-----------------------|
                 // HTTP Proxy Request                                           |    |-----------------|                                                           |
                 //                           Http Server <----------------------|    |  tunnel pool    |                                                           |
                 //                             |------by domain find service-->----> |                 |                                                           |

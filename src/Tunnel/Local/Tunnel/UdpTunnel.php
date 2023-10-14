@@ -1,15 +1,15 @@
 <?php
 
-namespace Wpjscc\Penetration\Tunnel\Local\Tunnel;
+namespace Wpjscc\PTP\Tunnel\Local\Tunnel;
 
 use React\Socket\ConnectorInterface;
-use Wpjscc\Penetration\CompositeConnectionStream;
+use Wpjscc\PTP\CompositeConnectionStream;
 use React\Stream\ThroughStream;
 
 
-class UdpTunnel implements ConnectorInterface, \Wpjscc\Penetration\Log\LogManagerInterface
+class UdpTunnel implements ConnectorInterface, \Wpjscc\PTP\Log\LogManagerInterface
 {
-    use \Wpjscc\Penetration\Log\LogManagerTraitDefault;
+    use \Wpjscc\PTP\Log\LogManagerTraitDefault;
 
     protected $config;
     public function __construct($config)

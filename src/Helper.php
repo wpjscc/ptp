@@ -1,6 +1,6 @@
 <?php
 
-namespace Wpjscc\Penetration;
+namespace Wpjscc\PTP;
 
 use Psr\Http\Message\MessageInterface;
 use Psr\Http\Message\RequestInterface;

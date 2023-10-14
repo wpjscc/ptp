@@ -3,19 +3,19 @@
 require 'vendor/autoload.php';
 
 
-use Wpjscc\Penetration\Config;
-use Wpjscc\Penetration\Tunnel\Server\Tunnel;
-use Wpjscc\Penetration\Server\Http;
-use Wpjscc\Penetration\Server\TcpManager;
-use Wpjscc\Penetration\Server\UdpManager;
-use Wpjscc\Penetration\Proxy\ProxyManager;
-use Wpjscc\Penetration\Log\LogManager;
+use Wpjscc\PTP\Config;
+use Wpjscc\PTP\Tunnel\Server\Tunnel;
+use Wpjscc\PTP\Server\Http;
+use Wpjscc\PTP\Server\TcpManager;
+use Wpjscc\PTP\Server\UdpManager;
+use Wpjscc\PTP\Proxy\ProxyManager;
+use Wpjscc\PTP\Log\LogManager;
 use Psr\Log\LogLevel;
-use Wpjscc\Penetration\Helper;
-use Wpjscc\Penetration\P2p\ConnectionManager;
+use Wpjscc\PTP\Helper;
+use Wpjscc\PTP\P2p\ConnectionManager;
 
 
-\Wpjscc\Penetration\Environment::$type = 'server';
+\Wpjscc\PTP\Environment::$type = 'server';
 
 if (getParam('-vvv')) {
     LogManager::$logLevels = [
@@ -31,7 +31,7 @@ if (getParam('-vvv')) {
     ];
 }
 
-LogManager::setLogger(new \Wpjscc\Penetration\Log\EchoLog());
+LogManager::setLogger(new \Wpjscc\PTP\Log\EchoLog());
 
 
 $inis = Config::getConfig(getParam('--ini-path', './ptps.ini'));

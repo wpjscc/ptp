@@ -1,16 +1,16 @@
 <?php
 
-namespace Wpjscc\Penetration\Tunnel\Client\Tunnel;
+namespace Wpjscc\PTP\Tunnel\Client\Tunnel;
 
 use React\Socket\ConnectorInterface;
 use function Ratchet\Client\connect;
-use Wpjscc\Penetration\CompositeConnectionStream;
+use Wpjscc\PTP\CompositeConnectionStream;
 use React\Stream\ThroughStream;
 use RingCentral\Psr7;
 
-class WebsocketTunnel implements ConnectorInterface, \Wpjscc\Penetration\Log\LogManagerInterface
+class WebsocketTunnel implements ConnectorInterface, \Wpjscc\PTP\Log\LogManagerInterface
 {
-    use \Wpjscc\Penetration\Log\LogManagerTraitDefault;
+    use \Wpjscc\PTP\Log\LogManagerTraitDefault;
 
     public function connect($uri)
     {

@@ -1,16 +1,16 @@
 <?php
 
-namespace Wpjscc\Penetration\Tunnel\Server\Tunnel;
+namespace Wpjscc\PTP\Tunnel\Server\Tunnel;
 
 use Ratchet\MessageComponentInterface;
 use Ratchet\ConnectionInterface;
 use Evenement\EventEmitter;
-use Wpjscc\Penetration\CompositeConnectionStream;
+use Wpjscc\PTP\CompositeConnectionStream;
 use React\Stream\ThroughStream;
 
-class WebsocketController extends EventEmitter implements  MessageComponentInterface,\Wpjscc\Penetration\Log\LogManagerInterface
+class WebsocketController extends EventEmitter implements  MessageComponentInterface,\Wpjscc\PTP\Log\LogManagerInterface
 {
-    use \Wpjscc\Penetration\Log\LogManagerTraitDefault;
+    use \Wpjscc\PTP\Log\LogManagerTraitDefault;
 
     protected $clients;
 

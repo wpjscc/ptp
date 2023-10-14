@@ -2,22 +2,22 @@
 
 require 'vendor/autoload.php';
 
-use Wpjscc\Penetration\Client\ClientManager;
-use Wpjscc\Penetration\Log\LogManager;
+use Wpjscc\PTP\Client\ClientManager;
+use Wpjscc\PTP\Log\LogManager;
 use Psr\Log\LogLevel;
-use Wpjscc\Penetration\Config;
-use Wpjscc\Penetration\Helper;
+use Wpjscc\PTP\Config;
+use Wpjscc\PTP\Helper;
 use RingCentral\Psr7\Response;
 use RingCentral\Psr7;
 use Clue\React\Zlib\Compressor;
 use Clue\React\Zlib\Decompressor;
 use React\Promise\Deferred;
-use Wpjscc\Penetration\Server\Http;
-use Wpjscc\Penetration\P2p\Client\PeerManager;
-use Wpjscc\Penetration\P2p\ConnectionManager;
-use Wpjscc\Penetration\Server\TcpManager;
-use Wpjscc\Penetration\Server\UdpManager;
-use Wpjscc\Penetration\Proxy\ProxyManager;
+use Wpjscc\PTP\Server\Http;
+use Wpjscc\PTP\P2p\Client\PeerManager;
+use Wpjscc\PTP\P2p\ConnectionManager;
+use Wpjscc\PTP\Server\TcpManager;
+use Wpjscc\PTP\Server\UdpManager;
+use Wpjscc\PTP\Proxy\ProxyManager;
 
 // function compressor($data) {
 //     $compressor = new Compressor(ZLIB_ENCODING_GZIP);
@@ -139,7 +139,7 @@ function decompressed($data) {
 // exit();
 
 
-\Wpjscc\Penetration\Environment::$type = 'client';
+\Wpjscc\PTP\Environment::$type = 'client';
 $config = Config::getConfig(getParam('--ini-path', './ptpc.ini'));
 
 if (getParam('-vvv')) {
@@ -156,7 +156,7 @@ if (getParam('-vvv')) {
     ];
 }
 
-LogManager::setLogger(new \Wpjscc\Penetration\Log\EchoLog());
+LogManager::setLogger(new \Wpjscc\PTP\Log\EchoLog());
 
 // 本地代理服务
 $localServer80Port = $config['common']['local_server_80_port'] ?? '';

@@ -1,6 +1,6 @@
 <?php
 
-namespace Wpjscc\Penetration\Tunnel\Local\Tunnel;
+namespace Wpjscc\PTP\Tunnel\Local\Tunnel;
 
 use React\Socket\Connector;
 

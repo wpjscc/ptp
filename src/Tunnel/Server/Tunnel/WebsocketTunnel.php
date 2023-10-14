@@ -1,17 +1,17 @@
 <?php
 
-namespace Wpjscc\Penetration\Tunnel\Server\Tunnel;
+namespace Wpjscc\PTP\Tunnel\Server\Tunnel;
 
 
 use Evenement\EventEmitter;
 use React\Socket\ServerInterface;
 use React\EventLoop\LoopInterface;
 use React\EventLoop\Loop;
-use Wpjscc\Penetration\CompositeConnectionStream;
+use Wpjscc\PTP\CompositeConnectionStream;
 
-class WebsocketTunnel extends EventEmitter implements ServerInterface,\Wpjscc\Penetration\Log\LogManagerInterface
+class WebsocketTunnel extends EventEmitter implements ServerInterface,\Wpjscc\PTP\Log\LogManagerInterface
 {
-    use \Wpjscc\Penetration\Log\LogManagerTraitDefault;
+    use \Wpjscc\PTP\Log\LogManagerTraitDefault;
     private $server;
 
     public function __construct($httpHost = 'localhost', $port = 8080, $address = '127.0.0.1', LoopInterface $loop = null, $context = array(), $socket = null)

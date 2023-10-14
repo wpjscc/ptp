@@ -1,10 +1,10 @@
 <?php
 
-namespace Wpjscc\Penetration\Log;
+namespace Wpjscc\PTP\Log;
 
 use Psr\Log\AbstractLogger;
 use Psr\Log\LogLevel;
-use Wpjscc\Penetration\Utils\CliColor;
+use Wpjscc\PTP\Utils\CliColor;
 
 class EchoLog extends AbstractLogger
 {
