@@ -167,7 +167,8 @@ class Tunnel implements \Wpjscc\PTP\Log\LogManagerInterface
                 ]);
             });
 
-            $connection->on('close', function () use ($connection, $protocol) {
+            $connection->on('close', function () use ($connection, $protocol, &$buffer) {
+                $buffer = '';
                 static::getLogger()->warning("client: {$protocol} is close ", [
                     'remoteAddress' => $connection->getRemoteAddress(),
                 ]);
