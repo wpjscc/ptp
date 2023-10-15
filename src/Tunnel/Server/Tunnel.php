@@ -324,12 +324,11 @@ class Tunnel implements \Wpjscc\PTP\Log\LogManagerInterface
                             'request' => Helper::toString($request)
                         ]);
 
-                        $connection->write(implode("\r\n", [
+                        $connection->end(implode("\r\n", [
                             'HTTP/1.1 401 Unauthorized',
                             'Server: ReactPHP/1',
                             "\r\n"
                         ]));
-                        $connection->end();
                         return;
                     }
                     $buffer = '';

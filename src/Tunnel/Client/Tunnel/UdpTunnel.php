@@ -195,7 +195,7 @@ class UdpTunnel implements ConnectorInterface, \Wpjscc\PTP\Log\LogManagerInterfa
             if ($timer) {
                 \React\EventLoop\Loop::cancelTimer($timer);
             }
-            static::getLogger()->info('connectionClosed-2', [
+            static::getLogger()->warning('connectionClosed-2', [
                 'uri' => $uri,
                 'protocol' => $protocol,
             ]);

@@ -220,6 +220,11 @@ class P2pTunnel extends EventEmitter implements ConnectorInterface, \Wpjscc\PTP\
                                 $deferred->resolve($udpTunnel);
                                 $udpTunnel->emit('connection', [$connection, $this->serverAddress, $server]);
 
+                            } else {
+                                static::getLogger()->warning("P2pTunnel: ".$response->getStatusCode(), [
+                                    'class' => __CLASS__,
+                                    'response' => Helper::toString($response)
+                                ]);
                             }
                         });
                         $connection->on('data', $fnc = function ($message) use ($parseBuffer) {

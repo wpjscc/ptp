@@ -156,7 +156,7 @@ class ClientManager implements \Wpjscc\PTP\Log\LogManagerInterface
                 });
 
                 $connection->on('close', function () use ($function, $config) {
-                    static::getLogger()->debug('Connection closed', [
+                    static::getLogger()->warning('Connection closed', [
                         'uuid' => $config['uuid'] ?? '',
                     ]);
                     \React\EventLoop\Loop::get()->addTimer(3, function () use ($function, $config) {
@@ -275,6 +275,13 @@ class ClientManager implements \Wpjscc\PTP\Log\LogManagerInterface
                 'class' => __CLASS__,
             ]);
         } 
+        else if ($response->getStatusCode() === 401) {
+            static::getLogger()->error("client is Unauthorized", [
+                'class' => __CLASS__,
+                'status_code' => $response->getStatusCode(),
+                'reason_phrase' => $response->getReasonPhrase(),
+            ]);
+        }
         else {
             static::getLogger()->warning("ignore status_code", [
                 'class' => __CLASS__,
