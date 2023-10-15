@@ -101,7 +101,7 @@ final Class Helper
 
     public static function valMaxHeaderSize($buffer)
     {
-        $maxSize =  Config::getConfig('common.max_header_size') ?: 1024 * 8;
+        $maxSize =  Config::getKey('common.max_header_size') ?: 1024 * 8;
 
         if (isset($buffer[$maxSize])) {
             return false;
