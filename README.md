@@ -11,12 +11,12 @@
 
 ### Linux
 ```
-curl -o ptp https://github.com/wpjscc/ptp/releases/download/v1.1.0/release-ptp-linux-v1.1.0 && chmod +x ptp
+curl -o ptp https://raw.githubusercontent.com/wpjscc/ptp/main/bin/release-ptp-linux-v1.1.0 && chmod +x ptp
 ```
 
 ### Mac
 ```
-curl -o ptp https://github.com/wpjscc/ptp/releases/download/v1.1.0/release-ptp-mac-v1.1.0  && chmod +x ptp
+curl -o ptp https://raw.githubusercontent.com/wpjscc/ptp/main/bin/release-ptp-mac-v1.1.0 && chmod +x ptp
 ```
 
 

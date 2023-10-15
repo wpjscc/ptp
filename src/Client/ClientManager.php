@@ -382,6 +382,7 @@ class ClientManager implements \Wpjscc\PTP\Log\LogManagerInterface
                 'Host: ' . $config['tunnel_host'],
                 'X-Is-Ptp: 1',
                 'User-Agent: ReactPHP',
+                'Secret-Key: '. ($config['secret_key'] ?? ''),
                 'Authorization: ' . ($config['token'] ?? ''),
                 'Domain: ' . $config['domain'],
                 'Uuid: ' . $config['uuid'],
