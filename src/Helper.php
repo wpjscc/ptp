@@ -99,6 +99,16 @@ final Class Helper
         return base64_decode($data);
     }
 
+    public static function valMaxHeaderSize($buffer)
+    {
+        $maxSize =  Config::getConfig('common.max_header_size') ?: 1024 * 8;
+
+        if (isset($buffer[$maxSize])) {
+            return false;
+        }
+        return true;
+    }
+
     public static function encrypt($data, $key, $iv) 
     {
         $cipher = "AES-256-CBC";

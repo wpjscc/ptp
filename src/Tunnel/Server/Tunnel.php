@@ -183,6 +183,18 @@ class Tunnel implements \Wpjscc\PTP\Log\LogManagerInterface
                 ]);
                 $buffer .= $chunk;
 
+                if (!Helper::valMaxHeaderSize($buffer)) {
+                    $buffer = '';
+                    $connection->removeListener('data', $fn);
+                    $fn = null;
+                    $connection->end(implode("\r\n", [
+                        'HTTP/1.1 413 Request Entity Too Large',
+                        'Server: ReactPHP/1',
+                        "\r\n"
+                    ]));
+                    return;
+                }
+
                 $pos = strpos($buffer, "\r\n\r\n");
                 if ($pos !== false) {
                     // HTTP Proxy Request                                                |-----------------|

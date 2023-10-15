@@ -35,6 +35,17 @@ class Http implements \Wpjscc\PTP\Log\LogManagerInterface
             $buffer = '';
             $userConnection->on('data', $fn = function ($chunk) use ($userConnection, &$buffer,  &$fn, &$first) {
                 $buffer .= $chunk;
+                if (!Helper::valMaxHeaderSize($buffer)) {
+                    $buffer = '';
+                    $userConnection->removeListener('data', $fn);
+                    $fn = null;
+                    $userConnection->end(implode("\r\n", [
+                        'HTTP/1.1 413 Request Entity Too Large',
+                        'Server: ReactPHP/1',
+                        "\r\n"
+                    ]));
+                    return;
+                }
                 $pos = strpos($buffer, "\r\n\r\n");
 
                 // CONNECT
