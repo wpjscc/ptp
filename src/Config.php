@@ -43,6 +43,7 @@ class Config
         $common['pool_count']  = $common['pool_count'] ?? 1;
         $common['tunnel_protocol']  = $common['tunnel_protocol'] ?? 'tcp';
         $common['dynamic_tunnel_protocol']  = $common['dynamic_tunnel_protocol'] ?? 'tcp';
+        $common['local_protocol']  = $common['local_protocol'] ?? 'tcp';
 
         return $common;
     }

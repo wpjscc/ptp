@@ -32,7 +32,7 @@ class Tunnel implements \Wpjscc\PTP\Log\LogManagerInterface
 
     }
 
-    public function getTunnel($protocol = null)
+    public function getTunnel($protocol = null, $key = null)
     {
 
         if (!$protocol) {
@@ -69,7 +69,7 @@ class Tunnel implements \Wpjscc\PTP\Log\LogManagerInterface
             $tunnel = (new TcpTunnel(array('timeout' => $this->timeout)))->connect("tls://".$this->tunnelHost.":".$this->tunnel443Port);
         }
         elseif ($protocol == 'p2p') {
-            $tunnel = (new P2pTunnel($this->config))->connect("udp://" . $this->tunnelHost . ":" . $this->tunnel80Port);
+            $tunnel = (new P2pTunnel($this->config, $key))->connect("udp://" . $this->tunnelHost . ":" . $this->tunnel80Port);
         }
         else {
             $tunnel = (new TcpTunnel(array('timeout' => $this->timeout)))->connect("tcp://".$this->tunnelHost.":".$this->tunnel80Port);

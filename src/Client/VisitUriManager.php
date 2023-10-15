@@ -26,13 +26,25 @@ class VisitUriManager
     public static function addUriRemoteProxy($uri, $remoteProxy)
     {
         if ($uri && $remoteProxy) {
-            static::$visitUriToInfo[$uri]['remote_proxy'] = $remoteProxy;
+            static::$visitUriToInfo[$uri]['remote_proxy'][$remoteProxy] = $remoteProxy;
         }
+    }
+
+    public static function removeUriRemoteProxy($uri, $remoteProxy)
+    {
+        unset(static::$visitUriToInfo[$uri]['remote_proxy'][$remoteProxy]);
     }
 
     public static function getUriRemoteProxy($uri)
     {
-        return static::$visitUriToInfo[$uri]['remote_proxy'] ?? '';
+
+        $remoteProxys = static::$visitUriToInfo[$uri]['remote_proxy'] ?? [];
+        if (empty($remoteProxys)) {
+            return null;
+        }
+        // 随机一个
+        return array_rand($remoteProxys);
+
     }
 
     public static function getUris()

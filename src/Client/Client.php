@@ -9,16 +9,20 @@ use Wpjscc\PTP\Tunnel\Client\Tunnel;
 use Wpjscc\PTP\Utils\ParseBuffer;
 use Wpjscc\PTP\Tunnel\Client\Tunnel\SingleTunnel;
 use Wpjscc\PTP\Utils\PingPong;
+use Evenement\EventEmitter;
 
-class Client implements \Wpjscc\PTP\Log\LogManagerInterface
+class Client extends EventEmitter implements \Wpjscc\PTP\Log\LogManagerInterface
 {
     use \Wpjscc\PTP\Log\LogManagerTraitDefault;
 
 
+    protected $key;
     protected $config;
+    protected $close;
 
     public function __construct($key)
     {
+        $this->key = $key;
         $this->config = Config::getClientConfigByKey($key);
         var_dump($this->config);
     }
@@ -109,9 +113,12 @@ class Client implements \Wpjscc\PTP\Log\LogManagerInterface
 
     protected function tryAgain()
     {
-        \React\EventLoop\Loop::get()->addTimer(3, function () {
-            $this->run();
-        });
+        if ($this->close) {
+            \React\EventLoop\Loop::get()->addTimer(3, function () {
+                $this->run();
+            });
+        }
+
     }
 
     public function handleTunnelResponse($response, $parseBuffer)
@@ -168,13 +175,13 @@ class Client implements \Wpjscc\PTP\Log\LogManagerInterface
             'response' => Helper::toString($response)
         ]);
 
-        ClientManager::addTunnelConnection($uri, $connection);
+        ClientManager::addTunnelConnection($uri, $connection, $this->key);
 
         $connection->on('close', function () use ($uri, $connection) {
             static::getLogger()->debug('local tunnel connection closed', [
                 'class' => __CLASS__,
             ]);
-            ClientManager::removeTunnelConnection($uri, $connection);
+            ClientManager::removeTunnelConnection($uri, $connection, $this->key);
         });
 
         // 单通道 接收所有权，处理后续数据请求
@@ -269,6 +276,11 @@ class Client implements \Wpjscc\PTP\Log\LogManagerInterface
             ]);
             ClientManager::removeDynamicTunnelConnection($uri, $connection);
         });
+    }
+
+    public function close()
+    {
+        $this->close = true;
     }
 
 }

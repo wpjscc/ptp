@@ -371,6 +371,15 @@ class PeerManager implements \Wpjscc\PTP\Log\LogManagerInterface
         }
     }
 
+    public static function removeAddressConnection($address)
+    {
+        if (isset(static::$connections[$address])) {
+            foreach (static::$connections[$address] as $peer => $value) {
+                static::removeConnection($address, $peer);
+            }
+        }
+    }
+
     public static function getConnectionAddresses()
     {
         return array_keys(static::$connections);

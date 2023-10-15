@@ -22,6 +22,7 @@ class P2pTunnel extends EventEmitter implements ConnectorInterface, \Wpjscc\PTP\
 {
     use \Wpjscc\PTP\Log\LogManagerTraitDefault;
 
+    protected $key;
     protected $config;
     protected $uri;
     protected $server;
@@ -35,8 +36,11 @@ class P2pTunnel extends EventEmitter implements ConnectorInterface, \Wpjscc\PTP\
 
     protected $currentTcpNumber = 0;
 
-    public function __construct(&$config = [])
+    protected $close;
+
+    public function __construct(&$config = [], $key)
     {
+        $this->key = $key;
         $this->config = &$config;
         if (empty(PeerManager::$uuid)) {
             PeerManager::$uuid = Uuid::uuid4()->toString();
@@ -95,9 +99,7 @@ class P2pTunnel extends EventEmitter implements ConnectorInterface, \Wpjscc\PTP\
 
                     if ($address == $this->serverAddress) {
                         echo "close retry after 3 seconds" . PHP_EOL;
-                        \React\EventLoop\Loop::addTimer(3, function () use ($uri) {
-                            $this->connect($uri);
-                        });
+                        $this->tryAgain($uri);
                     }
                 });
             });
@@ -108,9 +110,7 @@ class P2pTunnel extends EventEmitter implements ConnectorInterface, \Wpjscc\PTP\
                 'msg' => "retry after 3 seconds",
                 'error' => $e->getMessage(),
             ]);
-            \React\EventLoop\Loop::addTimer(3, function () use ($uri) {
-                $this->connect($uri);
-            });
+            $this->tryAgain($uri);
             return $e;
         })->otherwise(function ($e) use ($uri) {
             static::getLogger()->error("P2pTunnel::" . __FUNCTION__ . " error2", [
@@ -119,12 +119,20 @@ class P2pTunnel extends EventEmitter implements ConnectorInterface, \Wpjscc\PTP\
                 'msg' => "retry after 3 seconds",
                 'error' => $e->getMessage(),
             ]);
-            \React\EventLoop\Loop::addTimer(3, function () use ($uri) {
-                $this->connect($uri);
-            });
+            $this->tryAgain($uri);
             return $e;
         });
         return $this;
+    }
+
+    public function tryAgain($uri)
+    {
+        if (!$this->close) {
+            \React\EventLoop\Loop::addTimer(3, function () use ($uri) {
+                $this->connect($uri);
+            });
+        }
+
     }
 
     public function _connect($uri)
@@ -796,5 +804,16 @@ class P2pTunnel extends EventEmitter implements ConnectorInterface, \Wpjscc\PTP\
             }
         }
         return PeerManager::getVirtualConnection($localAddress, $address);
+    }
+
+    public function close()
+    {
+        $this->close = true;
+
+        // udp peer remove
+        PeerManager::removeAddressConnection($this->currentAddress);
+        // tcp peer remove
+        PeerManager::removeAddressConnection('tcp://'.$this->localAddress);
+
     }
 }
