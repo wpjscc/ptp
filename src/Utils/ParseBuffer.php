@@ -57,6 +57,16 @@ class ParseBuffer extends EventEmitter implements \Wpjscc\PTP\Log\LogManagerInte
         }
     }
 
+    public function setConnection($connection)
+    {
+        $this->connection = $connection;
+    }
+
+    public function getConnection()
+    {
+        return $this->connection;
+    }
+
 
     public function setLocalAddress($address)
     {

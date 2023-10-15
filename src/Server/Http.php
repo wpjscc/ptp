@@ -14,6 +14,8 @@ class Http implements \Wpjscc\PTP\Log\LogManagerInterface
 
     public $port = 8080;
 
+    protected $tunnel;
+
     public function __construct($port = null)
     {
         if ($port) {
@@ -26,7 +28,7 @@ class Http implements \Wpjscc\PTP\Log\LogManagerInterface
     public function run()
     {
      
-        $tunnel = new TcpTunnel('0.0.0.0:'.$this->port);
+       $this->tunnel = $tunnel = new TcpTunnel('0.0.0.0:'.$this->port);
 
         $tunnel->on('connection', function ($userConnection) {
             echo 'http user: '.$userConnection->getLocalAddress().' is connected'."\n";
@@ -160,5 +162,15 @@ class Http implements \Wpjscc\PTP\Log\LogManagerInterface
         });
 
         echo "Http and Proxy Server is running at {$this->port}...\n";
+    }
+
+    public function getPort()
+    {
+        return $this->port;
+    }
+
+    public function close()
+    {
+        $this->tunnel->close();
     }
 }

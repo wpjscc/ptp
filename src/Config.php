@@ -29,12 +29,46 @@ class Config
         static::$iniPath = $iniPath;
         return $inis;
     }
+    
+    public static function getClientConfigByKey($key)
+    {
+        return array_merge(Config::getClientCommon(), Config::getKey($key));
+    }
+
+    public static function getClientCommon()
+    {
+        $common = static::getKey('common');
+        $common['timeout']  = $common['timeout'] ?? 6;
+        $common['single_tunnel']  = $common['single_tunnel'] ?? 0;
+        $common['pool_count']  = $common['pool_count'] ?? 1;
+        $common['tunnel_protocol']  = $common['tunnel_protocol'] ?? 'tcp';
+        $common['dynamic_tunnel_protocol']  = $common['dynamic_tunnel_protocol'] ?? 'tcp';
+
+        return $common;
+    }
+
+    public static function getRemoteProxy()
+    {
+        $common = static::getClientCommon();
+        $protocol = $common['tunnel_protocol'];
+        $tunnelProtocol = $common['dynamic_tunnel_protocol']; 
+        if (in_array($protocol, ['tls', 'wss']) || in_array($tunnelProtocol, ['tls', 'wss'])) {
+            return 'https://'.$common['tunnel_host'].':'.$common['tunnel_443_port'];
+        } else {
+            return 'http://'.$common['tunnel_host'].':'.$common['tunnel_80_port'];
+        }
+    }
 
     public static function getKey($key, $default = null)
     {
         if (!static::$inis) {
             throw new \Exception('inis is required');
         }
+
+        if (!$key) {
+            return static::$inis;
+        }
+
         $value = static::getValueByKey(static::$inis, $key);
 
         if ($value === null) {
@@ -65,9 +99,9 @@ class Config
         return static::getValueByKey($inis, 'udp.ip');
     }
 
-    public static function getTcpPorts($inis)
+    public static function getTcpPorts()
     {
-        $ports = static::getValueByKey($inis, 'tcp.ports');
+        $ports = static::getKey('tcp.ports');
         if (!$ports) {
             return [];
         }
@@ -75,9 +109,9 @@ class Config
         return $ports;
     }
     
-    public static function getUdpPorts($inis)
+    public static function getUdpPorts()
     {
-        $ports = static::getValueByKey($inis, 'udp.ports');
+        $ports = static::getKey('udp.ports');
         if (!$ports) {
             return [];
         }

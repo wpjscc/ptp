@@ -2,6 +2,7 @@
 
 namespace Wpjscc\PTP\Server;
 
+use Wpjscc\PTP\Config;
 
 class TcpManager
 {
@@ -88,6 +89,11 @@ class TcpManager
     public function getPorts()
     {
         return $this->ports;
+    }
+
+    public function check()
+    {
+        $this->checkPorts(Config::getTcpPorts());
     }
 
 }

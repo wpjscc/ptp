@@ -6,12 +6,14 @@ use Wpjscc\PTP\Client\ClientManager;
 use Wpjscc\PTP\Log\LogManager;
 use Psr\Log\LogLevel;
 use Wpjscc\PTP\Config;
+use Wpjscc\PTP\Environment;
 use Wpjscc\PTP\Helper;
 use RingCentral\Psr7\Response;
 use RingCentral\Psr7;
 use Clue\React\Zlib\Compressor;
 use Clue\React\Zlib\Decompressor;
 use React\Promise\Deferred;
+use Wpjscc\PTP\Client\VisitUriManager;
 use Wpjscc\PTP\Server\Http;
 use Wpjscc\PTP\P2p\Client\PeerManager;
 use Wpjscc\PTP\P2p\ConnectionManager;
@@ -140,7 +142,8 @@ function decompressed($data) {
 
 
 \Wpjscc\PTP\Environment::$type = 'client';
-$config = Config::getConfig(getParam('--ini-path', './ptpc.ini'));
+Config::getConfig(getParam('--ini-path', './ptpc.ini'));
+
 
 if (getParam('-vvv')) {
     LogManager::$logLevels = [
@@ -158,41 +161,36 @@ if (getParam('-vvv')) {
 
 LogManager::setLogger(new \Wpjscc\PTP\Log\EchoLog());
 
-// 本地代理服务
-$localServer80Port = $config['common']['local_server_80_port'] ?? '';
-
-if ($localServer80Port) {
-    $httpServer = new Http($localServer80Port);
-    $httpServer->run();
-}
+$clientManager = new ClientManager();
+$clientManager->run();
 
 
-$tcpManager = TcpManager::create(
-    Config::getTcpIp($config),
-    Config::getTcpPorts($config)
-);
-$tcpManager->run();
-
-// udp server
-$udpManager = UdpManager::create(
-    Config::getUdpIp($config),
-    Config::getUdpPorts($config)
-);
-$udpManager->run();
-
-unset($config['tcp']);
-unset($config['udp']);
-ClientManager::createLocalTunnelConnection($config);
-
-
-\React\EventLoop\Loop::get()->addPeriodicTimer(5, function () use ($tcpManager, $udpManager) {
+\React\EventLoop\Loop::get()->addPeriodicTimer(5, function () use ($clientManager) {
     $inis = Config::getConfig(getParam('--ini-path', './ptpc.ini'));
-    list($tcpAddPorts, $tcpRemovePorts) = $tcpManager->checkPorts(Config::getTcpPorts($inis));
-    list($udpAddPorts, $udpRemovePorts) = $udpManager->checkPorts(Config::getUdpPorts($inis));
+    $clientManager->check();
+    // list($tcpAddPorts, $tcpRemovePorts) = $tcpManager->checkPorts(Config::getTcpPorts($inis));
+    // list($udpAddPorts, $udpRemovePorts) = $udpManager->checkPorts(Config::getUdpPorts($inis));
 });
 
 
-\React\EventLoop\Loop::addPeriodicTimer(2, function () use ($localServer80Port, $tcpManager, $udpManager) {
+
+
+\React\EventLoop\Loop::addPeriodicTimer(2, function () {
+
+    $localServer80Port = Environment::getHttpServer() ? Environment::getHttpServer()->getPort() : '';
+    $tcpManager = Environment::getTcpManager();
+    $udpManager = Environment::getUdpManager();
+
+    $uris = ClientManager::getTunnelUris();
+
+    foreach ($uris as $uri) {
+        echo "======> tunnel $uri count: " . ClientManager::getTunnelConnectionCount($uri) . PHP_EOL;
+    }
+
+    $uris = ClientManager::getDynamicTunnelUris();
+    foreach ($uris as $uri) {
+        echo "======> dynamic tunnel $uri count: " . ClientManager::getDynamicTunnelConnectionCount($uri) . PHP_EOL;
+    }
 
     echo "======> local http and proxy server at 0.0.0.0:$localServer80Port ...".PHP_EOL;
     PeerManager::print();
@@ -206,7 +204,7 @@ ClientManager::createLocalTunnelConnection($config);
             return $uri;
         }
         return $uri . ':' . $localServer80Port;
-    },array_keys(ProxyManager::$remoteTunnelConnections))) .PHP_EOL;
+    }, array_keys(ProxyManager::$remoteTunnelConnections))) .PHP_EOL;
     
-    echo "======> visit uris: " . implode(', ', array_keys(ClientManager::$visitUriToInfo)) . PHP_EOL.PHP_EOL;
+    echo "======> visit uris: " . implode(', ', array_keys(VisitUriManager::getUris())) . PHP_EOL.PHP_EOL;
 });

@@ -7,7 +7,9 @@ use React\Promise\Timer\TimeoutException;
 use Wpjscc\PTP\Tunnel\Server\Tunnel\SingleTunnel;
 use Ramsey\Uuid\Uuid;
 use Wpjscc\PTP\Client\ClientManager;
+use Wpjscc\PTP\Client\VisitUriManager;
 use Wpjscc\PTP\Helper;
+use Wpjscc\PTP\Config;
 use Wpjscc\PTP\Utils\PingPong;
 use Wpjscc\PTP\Utils\Ip;
 use Wpjscc\PTP\Tunnel\Server\Tunnel\P2pTunnel;
@@ -474,11 +476,11 @@ class ProxyManager implements \Wpjscc\PTP\Log\LogManagerInterface
 
         $proxyConnection = ProxyManager::getProxyConnection($uri);
         if ($proxyConnection === false) {
-            if (!isset(ClientManager::$visitUriToInfo[$uri])) {
-                $buffer = '';
-                static::endConnection($connection, "local no $uri service, try pipe remote failed, no config for $uri");
-                return;
-            }
+            // if (!isset(ClientManager::$visitUriToInfo[$uri])) {
+            //     $buffer = '';
+            //     static::endConnection($connection, "local no $uri service, try pipe remote failed, no config for $uri");
+            //     return;
+            // }
 
             $connection->on('data', $fn =function($chunk) use (&$buffer) {
                 $buffer .= $chunk;
@@ -488,17 +490,17 @@ class ProxyManager implements \Wpjscc\PTP\Log\LogManagerInterface
                 'uri' => $uri,
                 'host' => $host,
                 'port' => $port,
-                'proxy' => ClientManager::$visitUriToInfo[$uri]['remote_proxy'],
-                'tokens' => ClientManager::$visitUriToInfo[$uri]['tokens'],
+                'proxy' => VisitUriManager::getUriRemoteProxy($uri) ?? Config::getRemoteProxy(),
+                'tokens' => VisitUriManager::getUriTokens($uri),
             ]);
 
             (new \Wpjscc\PTP\Tunnel\Local\Tunnel\TcpTunnel([
                 'local_host' => $host,
                 'local_port' => $port,
-                'local_http_proxy' => ClientManager::$visitUriToInfo[$uri]['remote_proxy'],
+                'local_http_proxy' => VisitUriManager::getUriRemoteProxy($uri) ?? Config::getRemoteProxy(),
                 'timeout' => 1,
             ], [
-                'Proxy-Authorization' => implode(',', ClientManager::$visitUriToInfo[$uri]['tokens']),
+                'Proxy-Authorization' => implode(',', VisitUriManager::getUriTokens($uri)),
                 'Authorization' => $request->getHeaderLine('Authorization'),
             ]))->connect($uri)->then(function ($proxyConnection) use ($connection, $request, &$buffer, $fn, $uri) {
                 static::getLogger()->debug('pipe remote success', [

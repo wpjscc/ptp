@@ -2,6 +2,7 @@
 
 namespace Wpjscc\PTP\Server;
 
+use Wpjscc\PTP\Config;
 
 class UdpManager
 {
@@ -87,6 +88,11 @@ class UdpManager
     public function getPorts()
     {
         return $this->ports;
+    }
+
+    public function check()
+    {
+        $this->checkPorts(Config::getUdpPorts());
     }
 
 }
