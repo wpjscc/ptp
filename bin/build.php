@@ -11,9 +11,9 @@ if ($version === false) {
 }
 
 // use first argument as output file or use "phar-composer-{version}.phar"
-$phar = isset($argv[1]) ? $argv[1] : ('ptp-' . $version).'.phar';
-$linuxBin = isset($argv[1]) ? $argv[1] : ('ptp-linux-' . $version);
-$macBin = isset($argv[1]) ? $argv[1] : ('ptp-mac-' . $version);
+$phar = isset($argv[1]) ? $argv[1].'.phar' : ('ptp-' . $version).'.phar';
+$linuxBin = isset($argv[1]) ? 'release-ptp-linux-'.$argv[1] : ('ptp-linux-' . $version);
+$macBin = isset($argv[1]) ? 'release-ptp-mac-'.$argv[1] : ('ptp-mac-' . $version);
 
 
 passthru('
