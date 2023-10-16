@@ -9,24 +9,6 @@ class LocalManager implements \Wpjscc\PTP\Log\LogManagerInterface
 
     public static $localConnections = [];
 
-    public static function createConnection($uri)
-    {
-        // todo by uri set config
-        return new LocalConnection($uri, [
-            'max_connections' => 25,
-            'max_wait_queue' => 50,
-            'wait_timeout' => 10,
-        ]);
-    }
-
-    public static function getLocalConnection($uri)
-    {
-        if (isset(static::$localConnections[$uri])) {
-            return static::$localConnections[$uri];
-        }
-        return static::$localConnections[$uri] = static::createConnection($uri);
-    }
-
 
     public static function handleLocalConnection($connection, $config, &$buffer, $response)
     {
@@ -36,13 +18,26 @@ class LocalManager implements \Wpjscc\PTP\Log\LogManagerInterface
             'dynamic_tunnel_uuid' => $response->getHeaderLine('Uuid'),
         ]);
 
-        // $uri = $config['local_host'];
-        // $localPort = $config['local_port'] ?? '';
-        // if ($localPort) {
-        //     $uri .= ':' . $localPort;
-        // }
         $uri = $response->getHeaderLine('Uri');
-        LocalManager::getLocalConnection($uri)->pipe($connection, $buffer, $response, $config);
+        static::getLocalConnection($uri, $config)->pipe($connection, $buffer, $response, $config);
+    }
+
+    public static function getLocalConnection($uri, $config)
+    {
+        if (isset(static::$localConnections[$uri])) {
+            return static::$localConnections[$uri];
+        }
+        return static::$localConnections[$uri] = static::createConnection($uri, $config);
+    }
+    
+
+    public static function createConnection($uri, $config)
+    {
+        return new LocalConnection($uri, [
+            'max_connections' => $config['max_connections'] ?? 10,
+            'max_wait_queue' => $config['max_wait_queue'] ?? 50,
+            'wait_timeout' => $config['wait_timeout'] ?? 5,
+        ]);
     }
     
 }

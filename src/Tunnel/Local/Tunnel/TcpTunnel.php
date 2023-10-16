@@ -3,6 +3,7 @@
 namespace Wpjscc\PTP\Tunnel\Local\Tunnel;
 
 use React\Socket\Connector;
+use Wpjscc\PTP\Helper;
 
 class TcpTunnel implements \React\Socket\ConnectorInterface
 {
@@ -25,8 +26,11 @@ class TcpTunnel implements \React\Socket\ConnectorInterface
 
         $config  = $this->config;
         $proxy = null;
-
+        $query = '';
         if ($config['local_http_proxy'] ?? '') {
+            $httpProxyHost = parse_url($config['local_http_proxy'])['host'];
+            // hostname is https
+            $query = 'hostname='.$httpProxyHost;
             $proxy = new \Clue\React\HttpProxy\ProxyConnector(
                 $config['local_http_proxy'],
                 new Connector([
@@ -55,6 +59,6 @@ class TcpTunnel implements \React\Socket\ConnectorInterface
                     'dns' => false,
                 ] : [])
             )
-        ))->connect($protocol . "://" . $config['local_host'] . ":" . $config['local_port']);
+        ))->connect($protocol . "://" . Helper::getLocalHostAndPort($config) .'?'. $query);
     }
 }

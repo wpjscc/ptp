@@ -8,8 +8,10 @@ use React\EventLoop\LoopInterface;
 use React\Stream\ThroughStream;
 use Wpjscc\PTP\Helper;
 
-class LocalConnection extends AbstractConnectionLimit
+class LocalConnection extends AbstractConnectionLimit implements \Wpjscc\PTP\Log\LogManagerInterface
 {
+    use \Wpjscc\PTP\Log\LogManagerTraitDefault;
+
     private $uri;
 
     public function __construct(
@@ -38,6 +40,9 @@ class LocalConnection extends AbstractConnectionLimit
             $fn = null;
 
             $localConnection->pipe(new ThroughStream(function ($data) {
+                static::getLogger()->debug('local connection response data', [
+                    'lenght' => strlen($data),
+                ]);
                 // todo 压缩/加密
                 return $data;
             }))->pipe($connection, [
@@ -45,6 +50,9 @@ class LocalConnection extends AbstractConnectionLimit
             ]);
 
             $connection->pipe(new ThroughStream(function ($buffer) use ($config) {
+                static::getLogger()->debug('dynamic connection receive data', [
+                    'lenght' => strlen($buffer),
+                ]);
                 // todo 解压/解密
                 return $this->handleRequestBuffeer($buffer, $config);
             }))->pipe($localConnection, [

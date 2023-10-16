@@ -206,5 +206,5 @@ $clientManager->run();
         return $uri . ':' . $localServer80Port;
     }, array_keys(ProxyManager::$remoteTunnelConnections))) .PHP_EOL;
     
-    echo "======> visit uris: " . implode(', ', array_keys(VisitUriManager::getUris())) . PHP_EOL.PHP_EOL;
+    echo "======> visit uris: " . implode(', ', VisitUriManager::getUris()) . PHP_EOL.PHP_EOL;
 });
