@@ -1,6 +1,6 @@
 <?php
 
-namespace Wpjscc\PTP\Utils;
+namespace Wpjscc\PTP\Parse;
 
 
 use RingCentral\Psr7;

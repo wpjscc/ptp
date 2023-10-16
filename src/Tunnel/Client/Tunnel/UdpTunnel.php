@@ -85,8 +85,10 @@ class UdpTunnel implements ConnectorInterface, \Wpjscc\PTP\Log\LogManagerInterfa
 
         $read = new ThroughStream;
         $write = new ThroughStream;
+        $contection = new CompositeConnectionStream($read, $write, $client, 'udp');
 
-        $write->on('data', function ($data) use ($client, $uri, $protocol, $kcp, $start) {
+        $write->on('data', function ($data) use ($client, $uri, $protocol, $kcp, $start, $contection) {
+            $contection->activeTime = time();
             // static::getLogger()->debug('sendDataToServer', [
             //     'class' => __CLASS__,
             //     'uri' => $uri,
@@ -121,8 +123,9 @@ class UdpTunnel implements ConnectorInterface, \Wpjscc\PTP\Log\LogManagerInterfa
             }
         });
 
-        $contection = new CompositeConnectionStream($read, $write, $client, 'udp');
-        $client->on('message', function ($msg) use ($read, $uri, $protocol, $kcp, $receiveBuffer, $start) {
+        $client->on('message', function ($msg) use ($read, $uri, $protocol, $kcp, $receiveBuffer, $start, $contection) {
+            $contection->activeTime = time();
+
             // static::getLogger()->debug('receiveDataFromServer', [
             //     'class' => __CLASS__,
             //     'uri' => $uri,
@@ -191,14 +194,26 @@ class UdpTunnel implements ConnectorInterface, \Wpjscc\PTP\Log\LogManagerInterfa
             $kcp->setNodelay(true, 2, true);
             $kcp->setInterval(10);
         }
-        $contection->on('close', function () use ($client, $uri, $protocol, $timer) {
+
+        $activetimer = \React\EventLoop\Loop::get()->addPeriodicTimer(30, function () use ($contection) {
+            if ((time() - $contection->activeTime) > 60) {
+                $contection->close();
+            }
+        });
+
+        $contection->on('close', function () use ($client, $uri, $protocol, $timer, $activetimer) {
             if ($timer) {
                 \React\EventLoop\Loop::cancelTimer($timer);
             }
+            if ($activetimer) {
+                \React\EventLoop\Loop::cancelTimer($activetimer);
+            }
+            
             static::getLogger()->warning('connectionClosed-2', [
                 'uri' => $uri,
                 'protocol' => $protocol,
             ]);
+
             \React\EventLoop\Loop::addTimer(0.001, function () use ($client) {
                 $client->close();
             });
@@ -206,6 +221,8 @@ class UdpTunnel implements ConnectorInterface, \Wpjscc\PTP\Log\LogManagerInterfa
 
        
 
+        $contection->activeTime = time();
+       
         return  $contection;
     }
 }

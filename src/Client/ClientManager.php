@@ -5,6 +5,7 @@ namespace Wpjscc\PTP\Client;
 
 use Wpjscc\PTP\Helper;
 use Wpjscc\PTP\Config;
+use Wpjscc\PTP\Local\LocalManager;
 use Wpjscc\PTP\Environment;
 use Wpjscc\PTP\P2p\Client\HandleResponse;
 use Wpjscc\PTP\P2p\Client\PeerManager;
@@ -112,9 +113,6 @@ class ClientManager implements \Wpjscc\PTP\Log\LogManagerInterface
 
             $this->runClient($addKey);
         }
-        
-
-
     
     }
 
@@ -393,146 +391,6 @@ class ClientManager implements \Wpjscc\PTP\Log\LogManagerInterface
 
     public static function handleLocalConnection($connection, $config, &$buffer, $response)
     {
-        $connection->on('data', $fn = function ($chunk) use (&$buffer) {
-            $buffer .= $chunk;
-        });
-        static::getLogger()->debug(__FUNCTION__, [
-            'tunnel_uuid' => $config['uuid'],
-            'dynamic_tunnel_uuid' => $response->getHeaderLine('Uuid'),
-        ]);
-        $localProcol = $config['local_protocol'] ?? 'tcp';
-        (new \Wpjscc\PTP\Tunnel\Local\Tunnel($config))->getTunnel($localProcol)->then(function ($localConnection) use ($connection, &$fn, &$buffer, $config, $response, $localProcol) {
-
-            $connection->removeListener('data', $fn);
-            $fn = null;
-
-            static::getLogger()->debug('local connection success', [
-                'tunnel_uuid' => $config['uuid'],
-                'dynamic_tunnel_uuid' => $response->getHeaderLine('Uuid'),
-            ]);
-            // var_dump($buffer);
-            // 交换数据
-            $isReplaced = false;
-            $connection->pipe(new \React\Stream\ThroughStream(function ($buffer) use ($config, $connection, $response, $localProcol, &$isReplaced) {
-                if (strpos($buffer, 'POST /close HTTP/1.1') !== false) {
-                    static::getLogger()->debug('udp dynamic connection receive close request', [
-                        'tunnel_uuid' => $config['uuid'],
-                        'dynamic_tunnel_uuid' => $response->getHeaderLine('Uuid'),
-                        'response' => $buffer
-                    ]);
-                    $connection->close();
-                    return '';
-                }
-                
-                if ($config['local_remove_xff'] ?? false) {
-                    $buffer = preg_replace('/^X-Forwarded.*\R?/m', '', $buffer);
-                    $buffer = preg_replace('/^X-Real-Ip.*\R?/m', '', $buffer);
-                }
-
-                if ($config['local_replace_host'] ?? false) {
-                    // $buffer = preg_replace('/^X-Forwarded.*\R?/m', '', $buffer);
-                    // $buffer = preg_replace('/^X-Real-Ip.*\R?/m', '', $buffer);
-                    $buffer = str_replace('Host: ' . $config['uri'], 'Host: ' . $config['local_host'] . ':' . $config['local_port'], $buffer);
-                }
-
-                static::getLogger()->debug("dynamic connection receive data ", [
-                    'tunnel_uuid' => $config['uuid'],
-                    'dynamic_tunnel_uuid' => $response->getHeaderLine('Uuid'),
-                    'length' => strlen($buffer),
-                ]);
-                if ($localProcol == 'unix' && !$isReplaced) {
-                    $isReplaced = true;
-                    $domain = explode(',', $config['domain'])[0];
-                    $buffer = str_replace('Host: ' . $config['local_host'], 'Host: '.$domain, $buffer);
-                }
-                return $buffer;
-            }))->pipe($localConnection);
-
-            $localConnection->pipe(new \React\Stream\ThroughStream(function ($buffer) use ($config, $response) {
-                static::getLogger()->debug("local connection send data ", [
-                    'tunnel_uuid' => $config['uuid'],
-                    'dynamic_tunnel_uuid' => $response->getHeaderLine('Uuid'),
-                    'length' => strlen($buffer),
-                ]);
-                return $buffer;
-            }))->pipe($connection);
-
-            $localConnection->on('end', function () use ($connection, $config, $response) {
-                static::getLogger()->debug('local connection end', [
-                    'tunnel_uuid' => $config['uuid'],
-                    'dynamic_tunnel_uuid' => $response->getHeaderLine('Uuid'),
-                ]);
-                // udp 要发送关闭请求
-                if (isset($connection->protocol) && $connection->protocol == 'udp') {
-                    static::getLogger()->debug('udp dynamic connection close and try send close requset', [
-                        'tunnel_uuid' => $config['uuid'],
-                        'dynamic_tunnel_uuid' => $response->getHeaderLine('Uuid'),
-                        'request' => "POST /close HTTP/1.1\r\n\r\n",
-                    ]);
-                    $connection->write("POST /close HTTP/1.1\r\n\r\n");
-                }
-            });
-
-            $localConnection->on('close', function () use ($connection, $config, $response) {
-                static::getLogger()->debug('local connection close', [
-                    'tunnel_uuid' => $config['uuid'],
-                    'dynamic_tunnel_uuid' => $response->getHeaderLine('Uuid'),
-                ]);
-                $connection->close();
-            });
-
-            $connection->on('end', function () use ($config, $response) {
-                static::getLogger()->debug('dynamic connection end', [
-                    'tunnel_uuid' => $config['uuid'],
-                    'dynamic_tunnel_uuid' => $response->getHeaderLine('Uuid'),
-                ]);
-            });
-
-            $connection->on('close', function () use ($localConnection, $config, $response) {
-                static::getLogger()->debug('dynamic connection close', [
-                    'tunnel_uuid' => $config['uuid'],
-                    'dynamic_tunnel_uuid' => $response->getHeaderLine('Uuid'),
-                ]);
-                $localConnection->close();
-            });
-
-            if ($buffer) {
-                if ($config['local_remove_xff'] ?? false) {
-                    $buffer = preg_replace('/^X-Forwarded.*\R?/m', '', $buffer);
-                    $buffer = preg_replace('/^X-Real-Ip.*\R?/m', '', $buffer);
-                }
-                if ($config['local_replace_host'] ?? false) {
-                    // $buffer = preg_replace('/^X-Forwarded.*\R?/m', '', $buffer);
-                    // $buffer = preg_replace('/^X-Real-Ip.*\R?/m', '', $buffer);
-                    $buffer = str_replace('Host: ' . $config['uri'], 'Host: ' . $config['local_host'] . ':' . $config['local_port'], $buffer);
-                }
-                if ($localProcol == 'unix') {
-                    $domain = explode(',', $config['domain'])[0];
-                    $buffer = str_replace('Host: ' . $config['local_host'], 'Host: '.$domain, $buffer);
-                }
-
-                $localConnection->write($buffer);
-                $buffer = '';
-            }
-        }, function ($e) use ($connection, &$buffer, $config, $response) {
-            static::getLogger()->error($e->getMessage(), [
-                'class' => __CLASS__,
-                'file' => $e->getFile(),
-                'line' => $e->getLine(),
-                'tunnel_uuid' => $config['uuid'],
-                'buffer' => $buffer,
-                'dynamic_tunnel_uuid' => $response->getHeaderLine('Uuid'),
-            ]);
-            $content = $e->getMessage();
-            $connection->write(implode("\r\n", [
-                'HTTP/1.0 404 OK',
-                'Server: ReactPHP/1',
-                'Content-Type: text/html; charset=UTF-8',
-                'Content-Length: ' . strlen($content),
-                "\r\n",
-                $content
-            ]));
-            $buffer = '';
-        });
+        return LocalManager::handleLocalConnection($connection, $config, $buffer, $response);
     }
 }

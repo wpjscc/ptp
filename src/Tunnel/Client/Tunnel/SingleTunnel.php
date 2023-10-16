@@ -8,7 +8,7 @@ use Ramsey\Uuid\Uuid;
 use React\Stream\ThroughStream;
 use Wpjscc\PTP\CompositeConnectionStream;
 use Wpjscc\PTP\Helper;
-use Wpjscc\PTP\Utils\ParseBuffer;
+use Wpjscc\PTP\Parse\ParseBuffer;
 
 class SingleTunnel extends EventEmitter implements \Wpjscc\PTP\Log\LogManagerInterface, \Wpjscc\PTP\Tunnel\SingleTunnelInterface
 {

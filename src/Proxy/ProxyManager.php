@@ -22,8 +22,9 @@ class ProxyManager implements \Wpjscc\PTP\Log\LogManagerInterface
 
     public static function createConnection($uri)
     {
+        // todo by uri set config
         return new ProxyConnection($uri, [
-            'max_connections' => 1000,
+            'max_connections' => 25,
             'max_wait_queue' => 50,
             'wait_timeout' => 10,
         ]);
@@ -83,6 +84,7 @@ class ProxyManager implements \Wpjscc\PTP\Log\LogManagerInterface
                     $singleTunnel = static::$remoteTunnelConnections[$uri][$tunnelConnection]['Single-Tunnel'] ?? false;
                     $uuid = Uuid::uuid4()->toString();
                     if ($singleTunnel) {
+                        // 客户端运行
                         if (in_array(($tunnelConnection->protocol ?? ''), ['p2p-udp', 'p2p-tcp'])) {
                             static::getLogger()->notice("send create dynamic connection by p2p {$tunnelConnection->protocol}  single tunnel", [
                                 'uri' => $uri,
@@ -90,31 +92,37 @@ class ProxyManager implements \Wpjscc\PTP\Log\LogManagerInterface
                                 'remote_address' => $tunnelConnection->getRemoteAddress(),
                             ]);
                             $uuid = Uuid::uuid4()->toString();
-                            $data = "HTTP/1.1 310 OK\r\nUuid:{$uuid}" . "\r\n\r\n";
+                            $data = "HTTP/1.1 310 OK\r\nUuid:{$uuid}\r\nUri: {$uri}" . "\r\n\r\n";
                             $data = base64_encode($data);
                             // 通知客户端创建一个单通道
                             $tunnelConnection->write("HTTP/1.1 201 OK\r\nUuid: {$uuid}\r\nData: {$data}\r\n\r\n");
-                        } else {
+                        }
+                        // 服务端 
+                        else {
                             static::getLogger()->notice('send create dynamic connection by single tunnel', [
                                 'uri' => $uri,
                                 'uuid' => $uuid,
                                 'remote_address' => $tunnelConnection->getRemoteAddress(),
                             ]);
                             // 通知客户端创建一个单通道
-                            $tunnelConnection->write("HTTP/1.1 310 OK\r\nUuid:{$uuid}" . "\r\n\r\n");
+                            $tunnelConnection->write("HTTP/1.1 310 OK\r\nUuid:{$uuid}\r\nUri: {$uri}" . "\r\n\r\n");
                         }
-                    } else if (in_array(($tunnelConnection->protocol ?? ''), ['p2p-udp', 'p2p-tcp'])) {
+                    } 
+                    // 客户端运行
+                    else if (in_array(($tunnelConnection->protocol ?? ''), ['p2p-udp', 'p2p-tcp'])) {
                         static::getLogger()->notice("send create dynamic connection by p2p {$tunnelConnection->protocol} single tunnel11", [
                             'uri' => $uri,
                             'uuid' => $uuid,
                             'remote_address' => $tunnelConnection->getRemoteAddress(),
                         ]);
                         $uuid = Uuid::uuid4()->toString();
-                        $data = "HTTP/1.1 310 OK\r\nUuid:{$uuid}" . "\r\n\r\n";
+                        $data = "HTTP/1.1 310 OK\r\nUuid:{$uuid}\r\nUri: {$uri}" . "\r\n\r\n";
                         $data = base64_encode($data);
-                        // 通知客户端创建一个单通道
+                        // 通知对端开始接受请求
                         $tunnelConnection->write("HTTP/1.1 201 OK\r\nUuid: {$uuid}\r\nData: {$data}\r\n\r\n");
-                    } else {
+                    }
+                    // 服务端运行 
+                    else {
                         static::getLogger()->notice('send create dynamic connection', [
                             'uri' => $uri,
                             'remote_address' => $tunnelConnection->getRemoteAddress(),
@@ -513,7 +521,7 @@ class ProxyManager implements \Wpjscc\PTP\Log\LogManagerInterface
                 // $connection->pipe($proxyConnection);
 
                 $proxyConnection->on('data', function ($chunk) use ($connection) {
-                    var_dump($chunk);
+                    // var_dump($chunk);
                     $connection->write($chunk);
                 });
                 $connection->on('data', function ($chunk) use ($proxyConnection) {

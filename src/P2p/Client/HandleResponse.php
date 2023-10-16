@@ -32,7 +32,7 @@ class HandleResponse extends EventEmitter implements \Wpjscc\PTP\Log\LogManagerI
         $this->address = $address;
         $this->config = $config;
 
-        $this->parseBuffer = new \Wpjscc\PTP\Utils\ParseBuffer();
+        $this->parseBuffer = new \Wpjscc\PTP\Parse\ParseBuffer();
         $this->parseBuffer->on('response', [$this, 'response']);
         $connection->on('data', [$this->parseBuffer, 'handleBuffer']);
 

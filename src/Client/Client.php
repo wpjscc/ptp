@@ -6,7 +6,7 @@ namespace Wpjscc\PTP\Client;
 use Wpjscc\PTP\Helper;
 use Wpjscc\PTP\Config;
 use Wpjscc\PTP\Tunnel\Client\Tunnel;
-use Wpjscc\PTP\Utils\ParseBuffer;
+use Wpjscc\PTP\Parse\ParseBuffer;
 use Wpjscc\PTP\Tunnel\Client\Tunnel\SingleTunnel;
 use Wpjscc\PTP\Utils\PingPong;
 use Evenement\EventEmitter;
@@ -113,7 +113,7 @@ class Client extends EventEmitter implements \Wpjscc\PTP\Log\LogManagerInterface
 
     protected function tryAgain()
     {
-        if ($this->close) {
+        if (!$this->close) {
             \React\EventLoop\Loop::get()->addTimer(3, function () {
                 $this->run();
             });
@@ -130,7 +130,7 @@ class Client extends EventEmitter implements \Wpjscc\PTP\Log\LogManagerInterface
         }
         // 请求创建代理连接
         elseif ($response->getStatusCode() === 201) {
-            $this->createDynamicTunnelConnections($connection);
+            $this->createDynamicTunnelConnection();
         }
         // 服务端ping
         elseif ($response->getStatusCode() === 300) {
@@ -201,7 +201,7 @@ class Client extends EventEmitter implements \Wpjscc\PTP\Log\LogManagerInterface
         PingPong::pingPong($connection, $connection->getRemoteAddress());
     }
 
-    public function createDynamicTunnelConnections()
+    public function createDynamicTunnelConnection()
     {
         static::getLogger()->notice(__FUNCTION__, [
             'uuid' => $this->config['uuid'],
@@ -262,7 +262,7 @@ class Client extends EventEmitter implements \Wpjscc\PTP\Log\LogManagerInterface
     public function addLocalDynamicConnection($connection, $response)
     {
         $uri = $response->getHeaderLine('Uri');
-        static::getLogger()->info('dynamic tunnel success ', [
+        static::getLogger()->debug('dynamic tunnel success ', [
             'class' => __CLASS__,
             'uri' => $uri,
             'response' => Helper::toString($response)
@@ -271,7 +271,7 @@ class Client extends EventEmitter implements \Wpjscc\PTP\Log\LogManagerInterface
        ClientManager::addDynamicTunnelConnection($uri, $connection);
 
         $connection->on('close', function () use ($uri, $connection) {
-            static::getLogger()->info('local dynamic connection closed', [
+            static::getLogger()->debug('local dynamic connection closed', [
                 'class' => __CLASS__,
             ]);
             ClientManager::removeDynamicTunnelConnection($uri, $connection);

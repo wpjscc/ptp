@@ -8,7 +8,7 @@ use RingCentral\Psr7;
 use Wpjscc\PTP\Helper;
 use Wpjscc\PTP\Utils\Ip;
 use Wpjscc\PTP\P2p\ConnectionManager;
-use Wpjscc\PTP\Utils\ParseBuffer;
+use Wpjscc\PTP\Parse\ParseBuffer;
 
 class P2pTunnel extends EventEmitter implements ServerInterface, \Wpjscc\PTP\Tunnel\SingleTunnelInterface,\Wpjscc\PTP\Log\LogManagerInterface
 {

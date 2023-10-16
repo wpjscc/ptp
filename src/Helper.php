@@ -132,6 +132,16 @@ final Class Helper
 
     }
 
+    public static function getLocalHostAndPort($config)
+    {
+        $host = $config['local_host'] ?? '';
+        $port = $config['local_port'] ?? '';
+        if ($port) {
+            $host .= ':' . $port;
+        }
+        return $host;
+    }
+
     public static function getMillisecond() {
         // var_dump(time(), microtime(true));
         // exit();

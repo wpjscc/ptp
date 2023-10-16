@@ -11,7 +11,7 @@ use Wpjscc\PTP\P2p\Client\PeerManager;
 use Wpjscc\PTP\Utils\PingPong;
 use Wpjscc\PTP\Tunnel\Client\Tunnel\UdpTunnel as ClientUdpTunnel;
 use Wpjscc\PTP\Tunnel\Server\Tunnel\UdpTunnel;
-use Wpjscc\PTP\Utils\ParseBuffer;
+use Wpjscc\PTP\Parse\ParseBuffer;
 use React\Stream\ThroughStream;
 use Wpjscc\PTP\CompositeConnectionStream;
 use Wpjscc\PTP\Connection;
