@@ -161,7 +161,9 @@ class Http implements \Wpjscc\PTP\Log\LogManagerInterface
 
         });
 
+
         echo "Http and Proxy Server is running at {$this->port}...\n";
+        return $tunnel;
     }
 
     public function getPort()

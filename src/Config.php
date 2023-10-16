@@ -7,11 +7,34 @@ use Wpjscc\PTP\Parse\Ini;
 
 class Config
 {
-    static $inis;
-    static $iniPath;
+    use \Wpjscc\PTP\Traits\Singleton;
+    
+    protected $configs;
+    protected static $inis;
 
-    public static function getConfig($iniPath)
+    protected function init()
     {
+        $this->refresh();
+    }
+
+    public function getConfigs()
+    {
+        return $this->configs;
+    }
+    public function getLatestConfigs()
+    {
+        $this->refresh();
+        return $this->configs;
+    }
+
+    protected function refresh()
+    {
+        if ($this->key == 'client') {
+            $iniPath = getParam('--ini-path', './ptpc.ini');
+        } else {
+            $iniPath = getParam('--ini-path', './ptps.ini');
+        }
+
         if (strpos($iniPath, '/') !== 0) {
             if (strpos($iniPath, './') === 0) {
                 $iniPath = ltrim($iniPath, './');
@@ -24,20 +47,30 @@ class Config
             throw new \Exception('--iniPath is required');
         }
         
-        $inis = (new Ini)->parse(file_get_contents($iniPath));
-        static::$inis = $inis;
-        static::$iniPath = $iniPath;
-        return $inis;
-    }
-    
-    public static function getClientConfigByKey($key)
-    {
-        return array_merge(Config::getClientCommon(), Config::getKey($key));
+        $this->configs = (new Ini)->parse(file_get_contents($iniPath));
     }
 
-    public static function getClientCommon()
+    public function getValue($key, $default = null)
     {
-        $common = static::getKey('common');
+        $keys = explode('.', $key);
+
+        $value = $this->configs;
+        
+        foreach ($keys as $key) {
+            $value = $value[$key] ?? null;
+        }
+
+        if ($value === null) {
+            return $default;
+        }
+
+        return $value;
+    }
+
+
+    public function getClientCommon()
+    {
+        $common = $this->getValue('common');
         $common['timeout']  = $common['timeout'] ?? 6;
         $common['single_tunnel']  = $common['single_tunnel'] ?? 0;
         $common['pool_count']  = $common['pool_count'] ?? 1;
@@ -48,9 +81,9 @@ class Config
         return $common;
     }
 
-    public static function getRemoteProxy()
+    public function getRemoteProxy()
     {
-        $common = static::getClientCommon();
+        $common = $this->getClientCommon();
         $protocol = $common['tunnel_protocol'];
         $tunnelProtocol = $common['dynamic_tunnel_protocol']; 
         if (in_array($protocol, ['tls', 'wss']) || in_array($tunnelProtocol, ['tls', 'wss'])) {
@@ -60,59 +93,44 @@ class Config
         }
     }
 
-    public static function getKey($key, $default = null)
+    public function getClientConfigByKey($key)
     {
-        if (!static::$inis) {
-            throw new \Exception('inis is required');
-        }
-
-        if (!$key) {
-            return static::$inis;
-        }
-
-        $value = static::getValueByKey(static::$inis, $key);
-
-        if ($value === null) {
-            return $default;
-        }
-
-        return $value;
+        return array_merge($this->getClientCommon(), $this->getValue($key));
     }
 
-    public static function getValueByKey($inis, $key)
+    public function getHttpPorts()
     {
-        $keys = explode('.', $key);
-
-        $value = $inis;
-        foreach ($keys as $key) {
-            $value = $value[$key] ?? null;
-        }
-        return $value;
-    }
-
-    public static function getTcpIp($inis)
-    {
-        return static::getValueByKey($inis, 'tcp.ip');
-    }
-
-    public static function getUdpIp($inis)
-    {
-        return static::getValueByKey($inis, 'udp.ip');
-    }
-
-    public static function getTcpPorts()
-    {
-        $ports = static::getKey('tcp.ports');
+        $ports = $this->getValue('http.ports');
         if (!$ports) {
             return [];
         }
         $ports = array_filter(array_unique(explode(',', $ports)));
         return $ports;
     }
-    
-    public static function getUdpPorts()
+
+    public function getTcpIp()
     {
-        $ports = static::getKey('udp.ports');
+        return $this->getValue('tcp.ip');
+    }
+
+    public function getTcpPorts()
+    {
+        $ports = $this->getValue('tcp.ports');
+        if (!$ports) {
+            return [];
+        }
+        $ports = array_filter(array_unique(explode(',', $ports)));
+        return $ports;
+    }
+
+    public function getUdpIp()
+    {
+        return $this->getValue('tcp.ip');
+    }
+
+    public function getUdpPorts()
+    {
+        $ports = $this->getValue('udp.ports');
         if (!$ports) {
             return [];
         }

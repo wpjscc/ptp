@@ -200,7 +200,7 @@ class ProxyManager implements \Wpjscc\PTP\Log\LogManagerInterface
                     static::$remoteTunnelConnections[$_uri] = new \SplObjectStorage;
                 }
 
-                if (static::$remoteTunnelConnections[$_uri]->count() >= \Wpjscc\PTP\Config::getKey('common.max_tunnel_number', 5)) {
+                if (static::$remoteTunnelConnections[$_uri]->count() >= \Wpjscc\PTP\Config::instance('server')->getValue('common.max_tunnel_number', 5)) {
                     static::getLogger()->error('tunnel connection count is more than 5', [
                         'uri' => $_uri,
                         'uuid' => $uuid,
@@ -498,14 +498,14 @@ class ProxyManager implements \Wpjscc\PTP\Log\LogManagerInterface
                 'uri' => $uri,
                 'host' => $host,
                 'port' => $port,
-                'proxy' => VisitUriManager::getUriRemoteProxy($uri) ?? Config::getRemoteProxy(),
+                'proxy' => VisitUriManager::getUriRemoteProxy($uri) ?? Config::instance('client')->getRemoteProxy(),
                 'tokens' => VisitUriManager::getUriTokens($uri),
             ]);
 
             (new \Wpjscc\PTP\Tunnel\Local\Tunnel\TcpTunnel([
                 'local_host' => $host,
                 'local_port' => $port,
-                'local_http_proxy' => VisitUriManager::getUriRemoteProxy($uri) ?? Config::getRemoteProxy(),
+                'local_http_proxy' => VisitUriManager::getUriRemoteProxy($uri) ?? Config::instance('client')->getRemoteProxy(),
                 'timeout' => 1,
             ], [
                 'Proxy-Authorization' => implode(',', VisitUriManager::getUriTokens($uri)),

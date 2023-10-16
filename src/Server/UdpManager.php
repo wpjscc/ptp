@@ -6,93 +6,26 @@ use Wpjscc\PTP\Config;
 
 class UdpManager
 {
-    protected $ip;
-    protected $ports = [];
+    use \Wpjscc\PTP\Traits\Singleton;
+    use \Wpjscc\PTP\Traits\RunPort;
 
-    protected $sockets = [];
-
-    public static function create($ip, $ports = [])
+    protected function init()
     {
-        return new static($ip, $ports);
-    }
-
-    public function __construct($ip, $ports = [])
-    {
-        $this->ip = $ip;
-        $this->ports = $ports;
-
-    }
-
-    public function run()
-    {
-        foreach ($this->ports as $port) {
-           $this->runPort($port);
-        }
-
+        $this->ip = Config::instance($this->key)->getUdpIp();
+        $this->ports = Config::instance($this->key)->getUdpPorts();
     }
 
     protected function runPort($port)
     {
-        $tcpServer = new Udp(
+        $this->sockets[$port] = (new Udp(
             $this->ip,
             $port
-        );
-        $this->sockets[$port] = $tcpServer->run();
-    }
-
-    protected function addPort($port)
-    {
-        if (isset($this->sockets[$port]) || in_array($port, $this->ports)) {
-            return;
-        }
-
-        echo "add udp port: {$port}\n";
-
-        $this->ports[] = $port;
-        $this->runPort($port);
-    }
-
-    protected function removePort($port)
-    {
-        if (!isset($this->sockets[$port]) || !in_array($port, $this->ports)) {
-            return;
-        }
-        echo "remove udp port: {$port}\n";
-        $this->sockets[$port]->close();
-        unset($this->sockets[$port]);
-        $index = array_search($port, $this->ports);
-        unset($this->ports[$index]);
-    }
-
-    public function checkPorts($ports)
-    {
-        $ports = array_unique($ports);
-        $addPorts = array_diff($ports, $this->ports);
-        $removePorts = array_diff($this->ports, $ports);
-
-        foreach ($addPorts as $port) {
-            $this->addPort($port);
-        }
-
-        foreach ($removePorts as $port) {
-            $this->removePort($port);
-        }
-
-        return [$addPorts, $removePorts];
-
-    }
-    public function getIp()
-    {
-        return $this->ip;
-    }
-    public function getPorts()
-    {
-        return $this->ports;
+        ))->run();
     }
 
     public function check()
     {
-        $this->checkPorts(Config::getUdpPorts());
+        $this->checkPorts(Config::instance($this->key)->getUdpPorts());
     }
 
 }

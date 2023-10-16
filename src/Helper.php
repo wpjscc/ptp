@@ -101,7 +101,7 @@ final Class Helper
 
     public static function valMaxHeaderSize($buffer)
     {
-        $maxSize =  Config::getKey('common.max_header_size') ?: 1024 * 8;
+        $maxSize =  Config::instance('server')->getValue('common.max_header_size') ?: 1024 * 8;
 
         if (isset($buffer[$maxSize])) {
             return false;
@@ -153,7 +153,7 @@ final Class Helper
 
     public static function validateSecretKey($secretKey)
     {
-        $secretKeys = explode(',', Config::getKey('common.secret_key') ?: '');
+        $secretKeys = explode(',', Config::instance('server')->getValue('common.secret_key') ?: '');
 
         if (empty($secretKeys)) {
             return true;

@@ -2,7 +2,7 @@
 
 namespace Wpjscc\PTP\Client;
 
-
+use Ratchet\Http\HttpServer;
 use Wpjscc\PTP\Helper;
 use Wpjscc\PTP\Config;
 use Wpjscc\PTP\Local\LocalManager;
@@ -12,11 +12,13 @@ use Wpjscc\PTP\P2p\Client\PeerManager;
 use Wpjscc\PTP\Server\Http;
 use Wpjscc\PTP\Server\TcpManager;
 use Wpjscc\PTP\Server\UdpManager;
+use Wpjscc\PTP\Server\HttpManager;
 use Wpjscc\PTP\Tunnel\Client\Tunnel;
 
 class ClientManager implements \Wpjscc\PTP\Log\LogManagerInterface
 {
     use \Wpjscc\PTP\Log\LogManagerTraitDefault;
+    use \Wpjscc\PTP\Traits\Singleton;
 
     // 客户端相关
     protected static $tunnelConnections = [];
@@ -26,15 +28,26 @@ class ClientManager implements \Wpjscc\PTP\Log\LogManagerInterface
     protected static $clients = [];
     protected static $p2pTunnels = [];
 
-
     protected $configs = [];
     protected $running = false;
 
-    public function __construct()
+    protected $info = [
+        'version' => '0.0.1',
+        'tunnel_host' => '',
+        'tunnel_80_port' => '',
+        'tunnel_443_port' => '',
+    ];
+
+
+    public function getInfo()
     {
-        $this->configs = Config::getKey('');
+        return $this->info;
     }
 
+    protected function init()
+    {
+        $this->configs = Config::instance('client')->getConfigs();
+    }
 
     public function run()
     {
@@ -43,9 +56,13 @@ class ClientManager implements \Wpjscc\PTP\Log\LogManagerInterface
         }
         $this->running = true;
 
-        $this->runCommon();
-        $this->runTcp();
-        $this->runUdp();
+        $this->info['tunnel_host'] = $this->configs['common']['tunnel_host'] ?? '';
+        $this->info['tunnel_80_port'] = $this->configs['common']['tunnel_80_port'] ?? '';
+        $this->info['tunnel_443_port'] = $this->configs['common']['tunnel_443_port'] ?? '';
+
+        HttpManager::instance('client')->run();
+        TcpManager::instance('client')->run();
+        UdpManager::instance('client')->run();
 
         foreach ($this->configs as $key => $config) {
             if (!is_array($config)) {
@@ -55,7 +72,7 @@ class ClientManager implements \Wpjscc\PTP\Log\LogManagerInterface
                 continue;
             }
 
-            if (in_array($key, ['tcp', 'udp'])) {
+            if (in_array($key, ['http', 'tcp', 'udp'])) {
                 continue;
             }
 
@@ -69,16 +86,14 @@ class ClientManager implements \Wpjscc\PTP\Log\LogManagerInterface
             return;
         }
 
+        $configs = Config::instance('client')->getLatestConfigs();
 
-        Environment::getTcpManager() && Environment::getTcpManager()->check();
-        Environment::getUdpManager() && Environment::getUdpManager()->check();
+        HttpManager::instance('client')->check();
+        TcpManager::instance('client')->check();
+        UdpManager::instance('client')->check();
 
         $hadKeys = array_keys($this->configs);
-
-        $configs = Config::getKey('');
-
         $currentKeys = array_keys($configs);
-
 
         $removeKeys = array_diff($hadKeys, $currentKeys);
 
@@ -90,7 +105,7 @@ class ClientManager implements \Wpjscc\PTP\Log\LogManagerInterface
                 continue;
             }
 
-            if (in_array($key, ['tcp', 'udp'])) {
+            if (in_array($key, ['http', 'tcp', 'udp'])) {
                 continue;
             }
             $this->removeClient($key);
@@ -106,7 +121,7 @@ class ClientManager implements \Wpjscc\PTP\Log\LogManagerInterface
                 continue;
             }
 
-            if (in_array($addKey, ['tcp', 'udp'])) {
+            if (in_array($addKey, ['http','tcp', 'udp'])) {
                 continue;
             }
             $this->configs[$addKey] = $configs[$addKey];
@@ -116,42 +131,9 @@ class ClientManager implements \Wpjscc\PTP\Log\LogManagerInterface
     
     }
 
-    protected function runCommon()
-    {
-        $common = Config::getClientCommon();
-
-        $localServer80Port = $common['local_server_80_port'] ?? '';
-
-        if ($localServer80Port) {
-            $httpServer = new Http($localServer80Port);
-            $httpServer->run();
-            Environment::addHttpServer($httpServer);
-        }
-    }
-
-    protected function runTcp()
-    {
-        $tcpManager = TcpManager::create(
-            Config::getTcpIp($this->configs) ?: '127.0.0.1',
-            Config::getTcpPorts($this->configs)
-        );
-        $tcpManager->run();
-        Environment::addTcpManager($tcpManager);
-    }
-
-    protected function runUdp()
-    {
-        $udpManager = UdpManager::create(
-            Config::getUdpIp($this->configs) ?: '127.0.0.1',
-            Config::getUdpPorts($this->configs)
-        );
-        $udpManager->run();
-        Environment::addUdpManager($udpManager);
-    }
-
     public function runClient($key)
     {
-        $config = Config::getClientConfigByKey($key);
+        $config = Config::instance('client')->getClientConfigByKey($key);
         $protocol = $config['tunnel_protocol'];
         $number = $config['pool_count'];
         $number = min($number, 5);
@@ -201,10 +183,9 @@ class ClientManager implements \Wpjscc\PTP\Log\LogManagerInterface
 
     }
 
-
     public function runP2p($key)
     {
-        $config = Config::getClientConfigByKey($key);
+        $config = Config::instance('client')->getClientConfigByKey($key);
         $protocol = $config['tunnel_protocol'];
         $tunnel = (new Tunnel($config))->getTunnel($protocol, $key);
         static::$p2pTunnels[$key][] = $tunnel;
@@ -230,7 +211,7 @@ class ClientManager implements \Wpjscc\PTP\Log\LogManagerInterface
 
     public function setVisitUriInfo($key)
     {
-        $config = Config::getClientConfigByKey($key);
+        $config = Config::instance('client')->getClientConfigByKey($key);
         $protocol = $config['tunnel_protocol'] ?? '';
         $tunnelProtocol = $config['dynamic_tunnel_protocol'] ?? '';
 

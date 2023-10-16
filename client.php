@@ -6,7 +6,6 @@ use Wpjscc\PTP\Client\ClientManager;
 use Wpjscc\PTP\Log\LogManager;
 use Psr\Log\LogLevel;
 use Wpjscc\PTP\Config;
-use Wpjscc\PTP\Environment;
 use Wpjscc\PTP\Helper;
 use RingCentral\Psr7\Response;
 use RingCentral\Psr7;
@@ -36,7 +35,8 @@ use Wpjscc\PTP\Proxy\ProxyManager;
 //     return $deferred->promise();
 // }
 
-function decompressed($data) {
+function decompressed($data)
+{
     $decompressor = new Decompressor(ZLIB_ENCODING_GZIP);
     $deferred = new Deferred();
     $buffer = '';
@@ -142,7 +142,6 @@ function decompressed($data) {
 
 
 \Wpjscc\PTP\Environment::$type = 'client';
-Config::getConfig(getParam('--ini-path', './ptpc.ini'));
 
 
 if (getParam('-vvv')) {
@@ -155,21 +154,17 @@ if (getParam('-vvv')) {
         LogLevel::INFO,
         LogLevel::WARNING,
         LogLevel::NOTICE,
-    
+
     ];
 }
 
 LogManager::setLogger(new \Wpjscc\PTP\Log\EchoLog());
 
-$clientManager = new ClientManager();
-$clientManager->run();
+ClientManager::instance('client')->run();
 
 
-\React\EventLoop\Loop::get()->addPeriodicTimer(5, function () use ($clientManager) {
-    $inis = Config::getConfig(getParam('--ini-path', './ptpc.ini'));
-    $clientManager->check();
-    // list($tcpAddPorts, $tcpRemovePorts) = $tcpManager->checkPorts(Config::getTcpPorts($inis));
-    // list($udpAddPorts, $udpRemovePorts) = $udpManager->checkPorts(Config::getUdpPorts($inis));
+\React\EventLoop\Loop::get()->addPeriodicTimer(5, function () {
+    ClientManager::instance('client')->check();
 });
 
 
@@ -177,9 +172,23 @@ $clientManager->run();
 
 \React\EventLoop\Loop::addPeriodicTimer(2, function () {
 
-    $localServer80Port = Environment::getHttpServer() ? Environment::getHttpServer()->getPort() : '';
-    $tcpManager = Environment::getTcpManager();
-    $udpManager = Environment::getUdpManager();
+    $info = ClientManager::instance('client')->getInfo();
+
+    $httpManager = TcpManager::instance('client');
+    $tcpManager = TcpManager::instance('client');
+    $udpManager = UdpManager::instance('client');
+    // server port
+    echo "======> PTP Version -> " . $info['version'] . PHP_EOL;
+    echo "======> tunnel server host -> " . $info['tunnel_host'] . PHP_EOL;
+    echo "======> tunnel server [80] port listen at -> " . $info['tunnel_80_port'] . PHP_EOL;
+    echo "======> tunnel server [443] port listen at -> " . $info['tunnel_443_port'] . PHP_EOL;
+    // http ports
+    echo "======> http ports listen at -> {$httpManager->getIp()}:" . implode(', ', $httpManager->getPorts()) . PHP_EOL;
+    // tcp ports
+    echo "======> tcp ports listen at -> {$tcpManager->getIp()}:" . implode(', ', $tcpManager->getPorts()) . PHP_EOL;
+    // udp ports
+    echo "======> udp ports listen at -> {$udpManager->getIp()}:" . implode(', ', $udpManager->getPorts()) . PHP_EOL;
+
 
     $uris = ClientManager::getTunnelUris();
 
@@ -192,19 +201,15 @@ $clientManager->run();
         echo "======> dynamic tunnel $uri count: " . ClientManager::getDynamicTunnelConnectionCount($uri) . PHP_EOL;
     }
 
-    echo "======> local http and proxy server at 0.0.0.0:$localServer80Port ...".PHP_EOL;
     PeerManager::print();
-    // tcp ports
-    echo "======> tcp ports listen at -> {$tcpManager->getIp()}:". implode(', ', $tcpManager->getPorts()) . PHP_EOL;
-    // udp ports
-    echo "======> udp ports listen at -> {$udpManager->getIp()}:". implode(', ', $udpManager->getPorts()) . PHP_EOL;
 
-    echo "======> p2p uris: " . implode(', ', array_map(function ($uri) use ($localServer80Port) { 
+
+    echo "======> p2p uris: " . implode(', ', array_map(function ($uri) use ($httpManager) {
         if (strpos($uri, ':') !== false) {
             return $uri;
         }
-        return $uri . ':' . $localServer80Port;
-    }, array_keys(ProxyManager::$remoteTunnelConnections))) .PHP_EOL;
-    
-    echo "======> visit uris: " . implode(', ', VisitUriManager::getUris()) . PHP_EOL.PHP_EOL;
+        return $uri . ':' . ($httpManager->getPorts()[0] ?? '');
+    }, array_keys(ProxyManager::$remoteTunnelConnections))) . PHP_EOL;
+
+    echo "======> visit uris: " . implode(', ', VisitUriManager::getUris()) . PHP_EOL . PHP_EOL;
 });

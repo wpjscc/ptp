@@ -23,7 +23,7 @@ class Client extends EventEmitter implements \Wpjscc\PTP\Log\LogManagerInterface
     public function __construct($key)
     {
         $this->key = $key;
-        $this->config = Config::getClientConfigByKey($key);
+        $this->config = Config::instance('client')->getClientConfigByKey($key);
         var_dump($this->config);
     }
 

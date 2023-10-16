@@ -140,8 +140,8 @@ class Tunnel implements \Wpjscc\PTP\Log\LogManagerInterface
 
             $address = $connection->getRemoteAddress();
             if (
-                !Ip::addressInIpWhitelist($address, \Wpjscc\PTP\Config::getKey('ip_whitelist', '')) 
-                || Ip::addressInIpBlacklist($address, \Wpjscc\PTP\Config::getKey('ip_blacklist', ''))
+                !Ip::addressInIpWhitelist($address, \Wpjscc\PTP\Config::instance('server')->getValue('ip_whitelist', '')) 
+                || Ip::addressInIpBlacklist($address, \Wpjscc\PTP\Config::instance('server')->getValue('ip_blacklist', ''))
             ) {
                 static::getLogger()->error("client: {$protocol} ip is unauthorized ", [
                     'remoteAddress' => $connection->getRemoteAddress(),
