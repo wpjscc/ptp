@@ -115,7 +115,9 @@ class Client extends EventEmitter implements \Wpjscc\PTP\Log\LogManagerInterface
     {
         if (!$this->close) {
             \React\EventLoop\Loop::get()->addTimer(3, function () {
-                $this->run();
+                if (!$this->close){
+                    $this->run();
+                }
             });
         }
 
@@ -178,7 +180,7 @@ class Client extends EventEmitter implements \Wpjscc\PTP\Log\LogManagerInterface
         ClientManager::addTunnelConnection($uri, $connection, $this->key);
 
         $connection->on('close', function () use ($uri, $connection) {
-            static::getLogger()->debug('local tunnel connection closed', [
+            static::getLogger()->warning('local tunnel connection closed', [
                 'class' => __CLASS__,
             ]);
             ClientManager::removeTunnelConnection($uri, $connection, $this->key);

@@ -24,8 +24,6 @@ class Tunnel implements \Wpjscc\PTP\Log\LogManagerInterface
     public $server80port;
     public $server443port;
     public $cert = [];
-    public $certPemPath = '';
-    public $certKeyPath = '';
     public $httpPortOverTunnelPort = '';
 
     public function __construct($config, $cert = [])
@@ -40,8 +38,6 @@ class Tunnel implements \Wpjscc\PTP\Log\LogManagerInterface
         $this->protocol = $config['tunnel_protocol'] ?? 'tcp';
         $this->server80port = $config['tunnel_80_port'];
         $this->server443port = $config['tunnel_443_port'] ?? '';
-        // $this->certPemPath = $config['cert_pem_path'] ?? '';
-        // $this->certKeyPath = $config['cert_key_path'] ?? '';
         $this->httpPortOverTunnelPort = $config['http_port_over_tunnel_port'] ?? true;
     }
 
@@ -57,8 +53,6 @@ class Tunnel implements \Wpjscc\PTP\Log\LogManagerInterface
         if ($this->cert) {
             $context = [
                 'tls' => array(
-                    // 'local_cert' => $this->certPemPath,
-                    // 'local_pk' => $this->certKeyPath,
                     'SNI_enabled' => true,
                     'SNI_server_certs' => $this->cert
                 )

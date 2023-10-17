@@ -28,9 +28,12 @@ class TcpTunnel implements \React\Socket\ConnectorInterface
         $proxy = null;
         $query = '';
         if ($config['local_http_proxy'] ?? '') {
-            $httpProxyHost = parse_url($config['local_http_proxy'])['host'];
-            // hostname is https
-            $query = 'hostname='.$httpProxyHost;
+            if (strpos('https', $protocol) !== false) {
+                $httpProxyHost = parse_url($config['local_http_proxy'])['host'];
+                // hostname is https
+                $query = 'hostname='.$httpProxyHost;
+            }
+           
             $proxy = new \Clue\React\HttpProxy\ProxyConnector(
                 $config['local_http_proxy'],
                 new Connector([

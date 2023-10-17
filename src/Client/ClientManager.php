@@ -145,8 +145,9 @@ class ClientManager implements \Wpjscc\PTP\Log\LogManagerInterface
                     $client = (new Client($key));
                     static::$clients[$key][] = $client;
                     $client->run();
-                    $client->on('remove_' . $key, function () use ($client) {
+                    $client->on('remove_' . $key, function () use ($client, $key) {
                         $client->close();
+                        unset(static::$clients[$key]);
                     });
                 }
             }
@@ -162,7 +163,6 @@ class ClientManager implements \Wpjscc\PTP\Log\LogManagerInterface
             foreach ($tunnels as $tunnel) {
                 $tunnel->emit('remove_' . $key);
             }
-            unset(static::$p2pTunnels[$key]);
         } else {
             $uri = $this->configs[$key]['domain'] ?? '';
             $uris = explode(',', $uri);
@@ -173,8 +173,6 @@ class ClientManager implements \Wpjscc\PTP\Log\LogManagerInterface
             foreach ($clients as $client) {
                 $client->emit('remove_' . $key);
             }
-            unset(static::$clients[$key]);
-
             $this->removeVisitUriInfo($key);
         }
        
@@ -203,8 +201,9 @@ class ClientManager implements \Wpjscc\PTP\Log\LogManagerInterface
             });
         });
 
-        $tunnel->on('remove_' . $key, function () use ($tunnel) {
+        $tunnel->on('remove_' . $key, function () use ($tunnel, $key) {
             $tunnel->close();
+            unset(static::$p2pTunnels[$key]);
         });
     }
     
@@ -232,7 +231,10 @@ class ClientManager implements \Wpjscc\PTP\Log\LogManagerInterface
 
     public function removeVisitUriInfo($key)
     {
+
         $config = $this->configs[$key];
+        $config = array_merge($config, $this->configs['common']);
+        
         $protocol = $config['tunnel_protocol'] ?? '';
         $tunnelProtocol = $config['dynamic_tunnel_protocol'] ?? '';
 

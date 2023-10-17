@@ -129,7 +129,9 @@ class P2pTunnel extends EventEmitter implements ConnectorInterface, \Wpjscc\PTP\
     {
         if (!$this->close) {
             \React\EventLoop\Loop::addTimer(3, function () use ($uri) {
-                $this->connect($uri);
+                if (!$this->close){
+                    $this->connect($uri);
+                }
             });
         }
 
