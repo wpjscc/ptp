@@ -163,8 +163,8 @@ LogManager::setLogger(new \Wpjscc\PTP\Log\EchoLog());
 
 // 客户端带宽设置(默认1M, 最大5M)
 FileBandwidthManager::instance('client_dashboard')->setBandwidth(
-    1024*1024* Config::instance('client')->getValue('client_dashboard.max_bandwidth,dashboard.max_bandwidth', 5),
-    1024*1024* Config::instance('client')->getValue('client_dashboard.bandwidth,dashboard.bandwidth', 1),
+    1024 * 1024 * 1024 * Config::instance('client')->getValue('client_dashboard.max_bandwidth,dashboard.max_bandwidth', 5),
+    1024 * 1024 * 1024 * Config::instance('client')->getValue('client_dashboard.bandwidth,dashboard.bandwidth', 1),
     1000
 );
 

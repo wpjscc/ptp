@@ -22,6 +22,6 @@ bundle();
 function bundle() {
   b.bundle()
     .on('error', console.error)
-    .pipe(fs.createWriteStream('build/client.js'))
+    .pipe(fs.createWriteStream('dist/client.js'))
   ;
 }

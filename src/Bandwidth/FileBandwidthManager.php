@@ -24,7 +24,7 @@ class FileBandwidthManager
         $this->filesystem = Factory::create();
     }
 
-    public function setBandwidth(int $maxBandwidth, int $bandwidth, int $interval)
+    public function setBandwidth(int $maxBandwidth, int $bandwidth, int|string $interval)
     {
         $this->maxBandwidth = $maxBandwidth;
         $this->bandwidth = $bandwidth;

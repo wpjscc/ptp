@@ -27,12 +27,12 @@ class ClientDashboard
                 array(
                     'Content-Type' => 'text/html; charset=utf-8',
                 ),
-                $this->fileStream($this->assetPath . '/client.html')
+                $this->fileStream($this->assetPath . '/src/client.html')
             );
         });
-        $app->get('/assets/build/{path}', function (\Psr\Http\Message\ServerRequestInterface $request) {
-            $path = $request->getAttribute('path');
-            if (!file_exists($this->assetPath . '/build/' . $path)) {
+        $app->get('/assets/dist/{path}', function (\Psr\Http\Message\ServerRequestInterface $request) {
+            $path = $this->assetPath . '/dist/' . $request->getAttribute('path');
+            if (!file_exists($path)) {
                 return new \React\Http\Message\Response(
                     \React\Http\Message\Response::STATUS_OK,
                     array(
@@ -41,13 +41,17 @@ class ClientDashboard
                     '<center><h1>404 Not Found</h1></center>'
                 );
             }
+
             
             return new \React\Http\Message\Response(
                 \React\Http\Message\Response::STATUS_OK,
                 array(
-                    'Content-Type' => pathinfo($path, PATHINFO_EXTENSION)  .'; charset=utf-8'
+                    'Content-Type' => [
+                        'js' => 'application/javascript',
+                        'css' => 'text/css',
+                    ][pathinfo($path, PATHINFO_EXTENSION)] ?? 'octet-stream'
                 ),
-                $this->fileStream($this->assetPath . '/build/' . $path)
+                $this->fileStream($path)
             );
         });
         
