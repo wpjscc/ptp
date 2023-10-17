@@ -52,12 +52,17 @@ class Config
 
     public function getValue($key, $default = null)
     {
-        $keys = explode('.', $key);
-
-        $value = $this->configs;
-        
-        foreach ($keys as $key) {
-            $value = $value[$key] ?? null;
+        $mkeys = explode(',', $key);
+        $value = null;
+        foreach ($mkeys as $key) {
+            $keys = explode('.', $key);
+            $value = $this->configs;
+            foreach ($keys as $key) {
+                $value = $value[$key] ?? null;
+            }
+            if ($value !== null) {
+                return $value;
+            }
         }
 
         if ($value === null) {
@@ -106,6 +111,16 @@ class Config
         }
         $ports = array_filter(array_unique(explode(',', $ports)));
         return $ports;
+    }
+
+    public function getClientDashboardPort()
+    {
+        return $this->getValue('dashboard_client.port,dashboard.port');
+    }
+
+    public function getServerClientDashboardPort()
+    {
+        return $this->getValue('dashboard_server.port,dashboard.port');
     }
 
     public function getTcpIp()

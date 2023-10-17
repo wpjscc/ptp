@@ -25,6 +25,7 @@ class ClientManager implements \Wpjscc\PTP\Log\LogManagerInterface
     protected static $dynamicTunnelConnections = [];
 
 
+    protected $filterKeys = [];
     protected static $clients = [];
     protected static $p2pTunnels = [];
 
@@ -44,9 +45,22 @@ class ClientManager implements \Wpjscc\PTP\Log\LogManagerInterface
         return $this->info;
     }
 
+    public function addFilterKey($key)
+    {
+
+    }
+
     protected function init()
     {
         $this->configs = Config::instance('client')->getConfigs();
+        $this->filterKeys = [
+            'tcp',
+            'udp',
+            'http',
+            'common',
+            'dashboard',
+            'dashboard_client',
+        ];
     }
 
     public function run()
@@ -68,11 +82,7 @@ class ClientManager implements \Wpjscc\PTP\Log\LogManagerInterface
             if (!is_array($config)) {
                 continue;
             }
-            if (in_array($key, ['common'])) {
-                continue;
-            }
-
-            if (in_array($key, ['http', 'tcp', 'udp'])) {
+            if (in_array($key, $this->filterKeys)) {
                 continue;
             }
 
@@ -101,11 +111,7 @@ class ClientManager implements \Wpjscc\PTP\Log\LogManagerInterface
             if (!is_array($this->configs[$key])) {
                 continue;
             }
-            if (in_array($key, ['common'])) {
-                continue;
-            }
-
-            if (in_array($key, ['http', 'tcp', 'udp'])) {
+            if (in_array($key, $this->filterKeys)) {
                 continue;
             }
             $this->removeClient($key);
@@ -117,11 +123,7 @@ class ClientManager implements \Wpjscc\PTP\Log\LogManagerInterface
             if (!is_array($configs[$addKey])) {
                 continue;
             }
-            if (in_array($addKey, ['common'])) {
-                continue;
-            }
-
-            if (in_array($addKey, ['http','tcp', 'udp'])) {
+            if (in_array($key, $this->filterKeys)) {
                 continue;
             }
             $this->configs[$addKey] = $configs[$addKey];

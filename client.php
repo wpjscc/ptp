@@ -19,6 +19,7 @@ use Wpjscc\PTP\P2p\ConnectionManager;
 use Wpjscc\PTP\Server\TcpManager;
 use Wpjscc\PTP\Server\UdpManager;
 use Wpjscc\PTP\Proxy\ProxyManager;
+use Wpjscc\PTP\Bandwidth\FileBandwidthManager;
 
 // function compressor($data) {
 //     $compressor = new Compressor(ZLIB_ENCODING_GZIP);
@@ -160,6 +161,13 @@ if (getParam('-vvv')) {
 
 LogManager::setLogger(new \Wpjscc\PTP\Log\EchoLog());
 
+// 客户端带宽设置(默认1M, 最大5M)
+FileBandwidthManager::instance('client_dashboard')->setBandwidth(
+    1024*1024* Config::instance('client')->getValue('client_dashboard.max_bandwidth,dashboard.max_bandwidth', 5),
+    1024*1024* Config::instance('client')->getValue('client_dashboard.bandwidth,dashboard.bandwidth', 1),
+    1000
+);
+
 ClientManager::instance('client')->run();
 
 
@@ -174,6 +182,7 @@ ClientManager::instance('client')->run();
 
     $info = ClientManager::instance('client')->getInfo();
 
+    $dashboard = \Wpjscc\PTP\Dashboard\DashboardManager::instance('client');
     $httpManager = TcpManager::instance('client');
     $tcpManager = TcpManager::instance('client');
     $udpManager = UdpManager::instance('client');
@@ -182,6 +191,8 @@ ClientManager::instance('client')->run();
     echo "======> tunnel server host -> " . $info['tunnel_host'] . PHP_EOL;
     echo "======> tunnel server [80] port listen at -> " . $info['tunnel_80_port'] . PHP_EOL;
     echo "======> tunnel server [443] port listen at -> " . $info['tunnel_443_port'] . PHP_EOL;
+    // dashboard
+    echo "======> dashboard listen at -> {$dashboard->getIp()}:". implode(',', $dashboard->getPorts()) . PHP_EOL;
     // http ports
     echo "======> http ports listen at -> {$httpManager->getIp()}:" . implode(', ', $httpManager->getPorts()) . PHP_EOL;
     // tcp ports
@@ -213,3 +224,5 @@ ClientManager::instance('client')->run();
 
     echo "======> visit uris: " . implode(', ', VisitUriManager::getUris()) . PHP_EOL . PHP_EOL;
 });
+
+\Wpjscc\PTP\Dashboard\DashboardManager::instance('client')->run();

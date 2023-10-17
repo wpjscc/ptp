@@ -13,7 +13,10 @@
         "darsyn/ip": "^4.1",
         "react/async": "^4 || ^3 || ^2",
         "react/promise-timer": "^1.10",
-        "clue/socks-react": "^1.4"
+        "clue/socks-react": "^1.4",
+        "clue/framework-x": "dev-main",
+        "wpjscc/filesystem": "^0.2@dev",
+        "wpjscc/reactphp-limiter": "^1.0"
     },
     "repositories": {
         "wpjscc/kcp-php": {
