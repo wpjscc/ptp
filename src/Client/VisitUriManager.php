@@ -16,6 +16,9 @@ class VisitUriManager
     public static function removeUriToken($uri, $token)
     {
         unset(static::$visitUriToInfo[$uri]['tokens'][$token]);
+        if (empty(static::$visitUriToInfo[$uri]['tokens'])) {
+            unset(static::$visitUriToInfo[$uri]);
+        }
     }
 
     public static function getUriTokens($uri)
@@ -33,6 +36,9 @@ class VisitUriManager
     public static function removeUriRemoteProxy($uri, $remoteProxy)
     {
         unset(static::$visitUriToInfo[$uri]['remote_proxy'][$remoteProxy]);
+        if (empty(static::$visitUriToInfo[$uri]['remote_proxy'])) {
+            unset(static::$visitUriToInfo[$uri]);
+        }
     }
 
     public static function getUriRemoteProxy($uri)

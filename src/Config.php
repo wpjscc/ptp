@@ -27,8 +27,14 @@ class Config
         return $this->configs;
     }
 
-    protected function refresh()
+    public function getIniPath()
     {
+        if ($this->key == 'client') {
+            $iniPath = getParam('--ini-path', './ptpc.ini');
+        } else {
+            $iniPath = getParam('--ini-path', './ptps.ini');
+        }
+
         if ($this->key == 'client') {
             $iniPath = getParam('--ini-path', './ptpc.ini');
         } else {
@@ -46,9 +52,32 @@ class Config
         if (!$iniPath || !file_exists($iniPath)) {
             throw new \Exception('--iniPath is required');
         }
-        
+
+        return $iniPath;
+    }
+
+    protected function refresh()
+    {
+        $iniPath = $this->getIniPath(); 
         $this->configs = (new Ini)->parse(file_get_contents($iniPath));
     }
+
+    // 覆盖config
+
+    public function overrideConfig($iniString)
+    {
+        $iniPath = $this->getIniPath();
+
+        // 备份周期已有的
+        $backupPath = $iniPath . '.' . date('YmdHis').'.ini';
+        if (file_exists($iniPath)) {
+            copy($iniPath, $backupPath);
+        }
+
+        file_put_contents($iniPath, $iniString);
+    }
+
+
 
     public function getValue($key, $default = null)
     {

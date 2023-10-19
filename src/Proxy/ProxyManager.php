@@ -10,6 +10,7 @@ use Wpjscc\PTP\Client\ClientManager;
 use Wpjscc\PTP\Client\VisitUriManager;
 use Wpjscc\PTP\Helper;
 use Wpjscc\PTP\Config;
+use Wpjscc\PTP\Utils\BasicAuth;
 use Wpjscc\PTP\Utils\PingPong;
 use Wpjscc\PTP\Utils\Ip;
 use Wpjscc\PTP\Tunnel\Server\Tunnel\P2pTunnel;
@@ -429,7 +430,8 @@ class ProxyManager implements \Wpjscc\PTP\Log\LogManagerInterface
                     'request' => Helper::toString($request)
                 ]);
                 $auth = $request->getHeaderLine('Authorization');
-                if (!$auth) {
+                $verfiy = BasicAuth::checkAuth($auth, ProxyManager::$uriToInfo[$uri]['http_user'], ProxyManager::$uriToInfo[$uri]['http_pwd']);
+                if (!$verfiy) {
                     $connection->end(implode("\r\n",[
                         "HTTP/1.1 401 Invalid credentials",
                         "WWW-Authenticate: Basic",
@@ -437,28 +439,6 @@ class ProxyManager implements \Wpjscc\PTP\Log\LogManagerInterface
                     ]));
                     return;
                 }
-
-                $auth = explode(' ', $auth);
-                if (count($auth) != 2 || $auth[0] != 'Basic') {
-                    $connection->end(implode("\r\n", [
-                        "HTTP/1.1 401 Invalid credentials",
-                        "WWW-Authenticate: Basic",
-                        "\r\n"
-                    ]));
-                    return;
-                }
-
-                $auth = base64_decode($auth[1]);
-                $auth = explode(':', $auth);
-                if (count($auth) != 2 || $auth[0] != ProxyManager::$uriToInfo[$uri]['http_user'] || $auth[1] != ProxyManager::$uriToInfo[$uri]['http_pwd']) {
-                    $connection->end(implode("\r\n",[
-                        "HTTP/1.1 401 Invalid credentials",
-                        "WWW-Authenticate: Basic",
-                        "\r\n"
-                    ]));
-                    return;
-                }
-                
             }
             static::getLogger()->debug('Authenticate success', [
                 'uri' => $uri,

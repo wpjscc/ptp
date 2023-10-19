@@ -69,7 +69,7 @@ trait RunPort
 
     public function getPorts()
     {
-        return $this->ports;
+        return array_values($this->ports);
     }
 
 

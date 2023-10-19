@@ -13,6 +13,7 @@ use Wpjscc\PTP\Server\Http;
 use Wpjscc\PTP\Server\TcpManager;
 use Wpjscc\PTP\Server\UdpManager;
 use Wpjscc\PTP\Server\HttpManager;
+use Wpjscc\PTP\Dashboard\DashboardManager;
 use Wpjscc\PTP\Tunnel\Client\Tunnel;
 
 class ClientManager implements \Wpjscc\PTP\Log\LogManagerInterface
@@ -45,11 +46,6 @@ class ClientManager implements \Wpjscc\PTP\Log\LogManagerInterface
         return $this->info;
     }
 
-    public function addFilterKey($key)
-    {
-
-    }
-
     protected function init()
     {
         $this->configs = Config::instance('client')->getConfigs();
@@ -61,6 +57,53 @@ class ClientManager implements \Wpjscc\PTP\Log\LogManagerInterface
             'dashboard',
             'dashboard_client',
         ];
+    }
+
+    public function getConfigs()
+    {
+        return $this->configs;
+    }
+
+    public function getFilterKeys()
+    {
+        return $this->filterKeys;
+    }
+
+    public function getTransformConfigs()
+    {
+        $configs = [];
+
+        $configs['common'] = Config::instance('client')->getClientCommon();
+
+        foreach ($this->configs as $key => $config) {
+            if (!is_array($config)) {
+                continue;
+            }
+            if (in_array($key, $this->filterKeys)) {
+                continue;
+            }
+            $configs[$key] = Config::instance('client')->getClientConfigByKey($key);
+
+            if (!isset($config['domain'])) {
+                unset($configs[$key]['single_tunnel']);
+                unset($configs[$key]['pool_count']);
+                unset($configs[$key]['dynamic_tunnel_protocol']);
+                unset($configs[$key]['local_protocol']);
+            }
+        }
+
+        // dashboard
+        $configs['dashboard'] = $this->configs['dashboard'] ?? [];
+
+        // http 
+        $configs['http']['ip'] = HttpManager::instance('client')->getIp();
+        $configs['http']['ports'] = implode(',',  HttpManager::instance('client')->getPorts());
+        $configs['tcp']['ip'] = TcpManager::instance('client')->getIp();
+        $configs['tcp']['ports'] = implode(',', TcpManager::instance('client')->getPorts());
+        $configs['udp']['ip'] = UdpManager::instance('client')->getIp();
+        $configs['udp']['ports'] = implode(',', UdpManager::instance('client')->getPorts());
+
+        return $configs;
     }
 
     public function run()
@@ -123,7 +166,7 @@ class ClientManager implements \Wpjscc\PTP\Log\LogManagerInterface
             if (!is_array($configs[$addKey])) {
                 continue;
             }
-            if (in_array($key, $this->filterKeys)) {
+            if (in_array($addKey, $this->filterKeys)) {
                 continue;
             }
             $this->configs[$addKey] = $configs[$addKey];
@@ -160,12 +203,21 @@ class ClientManager implements \Wpjscc\PTP\Log\LogManagerInterface
     public function removeClient($key)
     {
         $protocol = $this->configs[$key]['tunnel_protocol'];
+
+        static::getLogger()->debug("remove client $key", [
+            'protocol' => $protocol,
+        ]);
+
         if ($protocol == 'p2p') {
+            $this->removeVisitUriInfo($key);
+
             $tunnels = static::$p2pTunnels[$key] ?? [];
             foreach ($tunnels as $tunnel) {
                 $tunnel->emit('remove_' . $key);
             }
         } else {
+            $this->removeVisitUriInfo($key);
+
             $uri = $this->configs[$key]['domain'] ?? '';
             $uris = explode(',', $uri);
             foreach ($uris as $uri) {
@@ -175,7 +227,6 @@ class ClientManager implements \Wpjscc\PTP\Log\LogManagerInterface
             foreach ($clients as $client) {
                 $client->emit('remove_' . $key);
             }
-            $this->removeVisitUriInfo($key);
         }
        
 
@@ -245,12 +296,22 @@ class ClientManager implements \Wpjscc\PTP\Log\LogManagerInterface
         $visitUris = explode(',', $visitDomain);
 
         foreach ($visitUris as $visitUri) {
+            static::getLogger()->debug("remove visit uri $visitUri", [
+                'protocol' => $protocol,
+                'tunnelProtocol' => $tunnelProtocol,
+                'token' => $token,
+            ]);
             VisitUriManager::removeUriToken($visitUri, $token);
-            if (in_array($protocol, ['tls', 'wss']) || in_array($tunnelProtocol, ['tls', 'wss'])) {
+            if ($config['tunnel_443_port'] ?? ''){
                 $remoteProxy = 'https://'.$config['tunnel_host'].':'.$config['tunnel_443_port'];
             } else {
                 $remoteProxy = 'http://'.$config['tunnel_host'].':'.$config['tunnel_80_port'];
             }
+            // if (in_array($protocol, ['tls', 'wss']) || in_array($tunnelProtocol, ['tls', 'wss'])) {
+            //     $remoteProxy = 'https://'.$config['tunnel_host'].':'.$config['tunnel_443_port'];
+            // } else {
+            //     $remoteProxy = 'http://'.$config['tunnel_host'].':'.$config['tunnel_80_port'];
+            // }
             VisitUriManager::removeUriRemoteProxy($visitUri, $remoteProxy);
         }
     }

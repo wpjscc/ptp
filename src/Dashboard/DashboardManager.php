@@ -36,7 +36,7 @@ class DashboardManager
 
     public function check()
     {
-        // $this->checkPorts(Config::instance($this->key)->getClientDashboardPort());
+        $this->checkPorts(array_filter([Config::instance($this->key)->getServerDashboardPort()]));
     }
 
    
