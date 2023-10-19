@@ -43,17 +43,24 @@ $startTime = time();
 ConnectionManager::consumeQueues(1);
 
 \React\EventLoop\Loop::get()->addPeriodicTimer(5, function () {
+
+    ServerManager::instance('server')->check();
     
+    $info = ServerManager::instance('server')->getInfo();
+
+    $dashboard = \Wpjscc\PTP\Dashboard\DashboardManager::instance('server');
     $httpManager = HttpManager::instance('server');
     $tcpManager = TcpManager::instance('server');
     $udpManager = UdpManager::instance('server');
     $uris = array_keys(ProxyManager::$remoteTunnelConnections);
-    $info = ServerManager::instance('server')->getInfo();
     // server port
     echo "======> PTP Version -> " . $info['version'] . PHP_EOL;
     echo "======> tunnel server host -> ". $info['tunnel_host'] . PHP_EOL;
     echo "======> tunnel server [80] port listen at -> ". $info['tunnel_80_port'] . PHP_EOL;
     echo "======> tunnel server [443] port listen at -> ". $info['tunnel_443_port'] . PHP_EOL;
+
+    // dashboard
+    echo "======> dashboard listen at -> {$dashboard->getIp()}:". implode(',', $dashboard->getPorts()) . PHP_EOL;
    // http ports
    echo "=======> http ports listen at -> {$httpManager->getIp()}:". implode(', ', $httpManager->getPorts()) . PHP_EOL;
    // tcp ports
@@ -87,3 +94,4 @@ ConnectionManager::consumeQueues(1);
     echo "\n";
 });
 
+\Wpjscc\PTP\Dashboard\DashboardManager::instance('server')->run();

@@ -56,7 +56,7 @@ class Config
         return $iniPath;
     }
 
-    protected function refresh()
+    public function refresh()
     {
         $iniPath = $this->getIniPath(); 
         $this->configs = (new Ini)->parse(file_get_contents($iniPath));
@@ -142,15 +142,11 @@ class Config
         return $ports;
     }
 
-    public function getClientDashboardPort()
+    public function getDashboardPort()
     {
-        return $this->getValue('dashboard_client.port,dashboard.port');
+        return $this->getValue('dashboard.port');
     }
 
-    public function getServerClientDashboardPort()
-    {
-        return $this->getValue('dashboard_server.port,dashboard.port');
-    }
 
     public function getTcpIp()
     {

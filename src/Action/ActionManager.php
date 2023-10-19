@@ -6,6 +6,7 @@ use Wpjscc\PTP\Client\ClientManager;
 use Wpjscc\PTP\Server\HttpManager;
 use Wpjscc\PTP\Server\TcpManager;
 use Wpjscc\PTP\Server\UdpManager;
+use Wpjscc\PTP\Server\ServerManager;
 use Wpjscc\PTP\Proxy\ProxyManager;
 use Wpjscc\PTP\Parse\Ini;
 use Wpjscc\PTP\Config;
@@ -20,21 +21,30 @@ class ActionManager
 
     }
 
+    public function message()
+    {
+        if ($this->key == 'client') {
+            return $this->client_dashboard_message();
+        } else {
+            return $this->server_dashboard_message();
+        }
+    }
+
     public function client_dashboard_message()
     {
         return [
-            'info' => ClientManager::instance('client')->getInfo(),
+            'info' => ClientManager::instance($this->key)->getInfo(),
             'http_ports' => [
-                'ip' => HttpManager::instance('client')->getIp(),
-                'ports' => HttpManager::instance('client')->getPorts()
+                'ip' => HttpManager::instance($this->key)->getIp(),
+                'ports' => HttpManager::instance($this->key)->getPorts()
             ],
             'tcp_ports' => [
-                'ip' => TcpManager::instance('client')->getIp(),
-                'ports' => TcpManager::instance('client')->getPorts()
+                'ip' => TcpManager::instance($this->key)->getIp(),
+                'ports' => TcpManager::instance($this->key)->getPorts()
             ],
             'udp_ports' => [
-                'ip' => UdpManager::instance('client')->getIp(),
-                'ports' => UdpManager::instance('client')->getPorts()
+                'ip' => UdpManager::instance($this->key)->getIp(),
+                'ports' => UdpManager::instance($this->key)->getPorts()
             ],
             'proxy_uris' => ClientManager::getTunnelUris(),
             'p2p_proxy_uris' => array_keys(ProxyManager::$remoteTunnelConnections)
@@ -42,16 +52,42 @@ class ActionManager
         
     }
 
-
-    public function getClientConfigs()
+    public function server_dashboard_message()
     {
-        return ClientManager::instance('client')->getTransformConfigs();
+        return [
+            'info' => ServerManager::instance($this->key)->getInfo(),
+            'http_ports' => [
+                'ip' => HttpManager::instance($this->key)->getIp(),
+                'ports' => HttpManager::instance($this->key)->getPorts()
+            ],
+            'tcp_ports' => [
+                'ip' => TcpManager::instance($this->key)->getIp(),
+                'ports' => TcpManager::instance($this->key)->getPorts()
+            ],
+            'udp_ports' => [
+                'ip' => UdpManager::instance($this->key)->getIp(),
+                'ports' => UdpManager::instance($this->key)->getPorts()
+            ],
+            'proxy_uris' => array_keys(ProxyManager::$remoteTunnelConnections),
+        ];
+        
+    }
+
+
+    public function getConfigs()
+    {
+        if ($this->key == 'client') {
+            // return ClientManager::instance('client')->getTransformConfigs();
+            return Config::instance('client')->getLatestConfigs();
+        } else {
+            return Config::instance('server')->getLatestConfigs();
+        }
     }
 
 
     public function addClientConfig($key, $config)
     {
-        $configs = $this->getClientConfigs();
+        $configs = $this->getConfigs();
 
         if (isset($configs[$key])) {
             throw new \Exception("config $key already exists");
@@ -84,7 +120,7 @@ class ActionManager
 
     public function deleteClientConfig($key)
     {
-        $configs = $this->getClientConfigs();
+        $configs = $this->getConfigs();
         if (!isset($configs[$key])) {
             throw new \Exception("config $key not exists");
         }
@@ -100,15 +136,52 @@ class ActionManager
         Config::instance('client')->overrideConfig($iniString);
     }
 
-    public function addClientTcpPort($port, $ip = '127.0.0.1')
+    public function addHttpPort($port, $ip = '127.0.0.1')
     {
-        $configs = $this->getClientConfigs();
+        $configs = $this->getConfigs();
 
-        $ports = TcpManager::instance('client')->getPorts();
+        $ports = HttpManager::instance($this->key)->getPorts();
         if (in_array($port, $ports)) {
             throw new \Exception("port $port already exists");
         }
+        
+        $ports[] = $port;
 
+        $configs['http']['ip'] = $ip;
+        $configs['http']['ports'] = implode(',', $ports);
+        $iniString = (new Ini)->render($configs);
+
+        Config::instance($this->key)->overrideConfig($iniString);
+    }
+
+    public function removeHttpPort($port)
+    {
+        $configs = $this->getConfigs();
+
+        $ports = HttpManager::instance($this->key)->getPorts();
+        if (!in_array($port, $ports)) {
+            throw new \Exception("port $port not exists");
+        }
+
+        $index = array_search($port, $ports);
+        unset($ports[$index]);
+
+        $configs['http']['ports'] = implode(',', $ports);
+        $iniString = (new Ini)->render($configs);
+
+        Config::instance($this->key)->overrideConfig($iniString);
+    }
+
+
+
+    public function addTcpPort($port, $ip = '127.0.0.1')
+    {
+        $configs = $this->getConfigs();
+
+        $ports = TcpManager::instance($this->key)->getPorts();
+        if (in_array($port, $ports)) {
+            throw new \Exception("port $port already exists");
+        }
         
         $ports[] = $port;
 
@@ -116,14 +189,14 @@ class ActionManager
         $configs['tcp']['ports'] = implode(',', $ports);
         $iniString = (new Ini)->render($configs);
 
-        Config::instance('client')->overrideConfig($iniString);
+        Config::instance($this->key)->overrideConfig($iniString);
     }
 
-    public function removeClientTcpPort($port)
+    public function removeTcpPort($port)
     {
-        $configs = $this->getClientConfigs();
+        $configs = $this->getConfigs();
 
-        $ports = TcpManager::instance('client')->getPorts();
+        $ports = TcpManager::instance($this->key)->getPorts();
         if (!in_array($port, $ports)) {
             throw new \Exception("port $port not exists");
         }
@@ -132,16 +205,17 @@ class ActionManager
         unset($ports[$index]);
 
         $configs['tcp']['ports'] = implode(',', $ports);
+        var_dump($configs);
         $iniString = (new Ini)->render($configs);
 
-        Config::instance('client')->overrideConfig($iniString);
+        Config::instance($this->key)->overrideConfig($iniString);
     }
 
-    public function addClientUdpPort($port, $ip = '127.0.0.1')
+    public function addUdpPort($port, $ip = '127.0.0.1')
     {
-        $configs = $this->getClientConfigs();
+        $configs = $this->getConfigs();
 
-        $ports = UdpManager::instance('client')->getPorts();
+        $ports = UdpManager::instance($this->key)->getPorts();
         if (in_array($port, $ports)) {
             throw new \Exception("port $port already exists");
         }
@@ -149,15 +223,15 @@ class ActionManager
         $configs['udp']['ip'] = $ip;
         $configs['udp']['ports'] = implode(',', $ports);
         $iniString = (new Ini)->render($configs);
-        Config::instance('client')->overrideConfig($iniString);
-
+        Config::instance($this->key)->overrideConfig($iniString);
     }
 
-    public function removeClientUdpPort($port)
-    {
-        $configs = $this->getClientConfigs();
 
-        $ports = UdpManager::instance('client')->getPorts();
+    public function removeUdpPort($port)
+    {
+        $configs = $this->getConfigs();
+
+        $ports = UdpManager::instance($this->key)->getPorts();
         if (!in_array($port, $ports)) {
             throw new \Exception("port $port not exists");
         }
@@ -168,8 +242,9 @@ class ActionManager
         $configs['udp']['ports'] = implode(',', $ports);
         $iniString = (new Ini)->render($configs);
 
-        Config::instance('client')->overrideConfig($iniString);
+        Config::instance($this->key)->overrideConfig($iniString);
     }
+    
 
 
 

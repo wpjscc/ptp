@@ -4,6 +4,7 @@ namespace Wpjscc\PTP\Server;
 
 use Wpjscc\PTP\Tunnel\Server\Tunnel;
 use Wpjscc\PTP\Config;
+use Wpjscc\PTP\Bandwidth\FileBandwidthManager;
 
 class ServerManager implements \Wpjscc\PTP\Log\LogManagerInterface
 {
@@ -44,7 +45,20 @@ class ServerManager implements \Wpjscc\PTP\Log\LogManagerInterface
         HttpManager::instance('server')->run();
         TcpManager::instance('server')->run();
         UdpManager::instance('server')->run();
+
+        // 服务端带宽设置(默认1M, 最大5M)
+        FileBandwidthManager::instance('dashboard')->setBandwidth(
+            1024 * 1024 * 1024 * Config::instance('server')->getValue('dashboard.max_bandwidth', 5),
+            1024 * 1024 * 1024 * Config::instance('server')->getValue('dashboard.bandwidth', 1),
+            1000
+        );
         
+    }
+
+
+    public function getTransformConfigs()
+    {
+        return $this->configs;
     }
 
     protected function runCommon()
@@ -57,12 +71,20 @@ class ServerManager implements \Wpjscc\PTP\Log\LogManagerInterface
         $this->info['tunnel_host'] = $this->configs['common']['tunnel_host'] ?? '';
         $this->info['tunnel_80_port'] = $this->configs['common']['tunnel_80_port'] ?? '';
         $this->info['tunnel_443_port'] = $this->configs['common']['tunnel_443_port'] ?? '';
+        $this->info['cert'] = $this->configs['cert'] ?? [];
     }
 
     public function check()
     {
+        Config::instance('server')->refresh();
+
         HttpManager::instance('server')->check();
         TcpManager::instance('server')->check();
         UdpManager::instance('server')->check();
+        FileBandwidthManager::instance('dashboard')->setBandwidth(
+            1024 * 1024 * 1024 * Config::instance('server')->getValue('dashboard.max_bandwidth', 5),
+            1024 * 1024 * 1024 * Config::instance('server')->getValue('dashboard.bandwidth', 1),
+            1000
+        );
     }
 }

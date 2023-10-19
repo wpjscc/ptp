@@ -28,11 +28,11 @@ class ClientDashboard
         $app = new App();
 
         $app->addGroup('', [
-            new Middlewares\BasicAuthMiddleware('client')
+            new Middlewares\BasicAuthMiddleware($this->key)
         ], function ($app) {
             $app->get('/', function () {
-                return new \React\Http\Message\Response(
-                    \React\Http\Message\Response::STATUS_OK,
+                return new Response(
+                    Response::STATUS_OK,
                     array(
                         'Content-Type' => 'text/html; charset=utf-8',
                     ),
@@ -42,8 +42,8 @@ class ClientDashboard
             $app->get('/assets/dist/{path}', function (\Psr\Http\Message\ServerRequestInterface $request) {
                 $path = $this->assetPath . '/dist/' . $request->getAttribute('path');
                 if (!file_exists($path)) {
-                    return new \React\Http\Message\Response(
-                        \React\Http\Message\Response::STATUS_OK,
+                    return new Response(
+                        Response::STATUS_OK,
                         array(
                             'Content-Type' => 'text/html; charset=utf-8',
                         ),
@@ -52,8 +52,8 @@ class ClientDashboard
                 }
 
 
-                return new \React\Http\Message\Response(
-                    \React\Http\Message\Response::STATUS_OK,
+                return new Response(
+                    Response::STATUS_OK,
                     array(
                         'Content-Type' => [
                             'js' => 'application/javascript',
@@ -138,7 +138,7 @@ class ClientDashboard
     protected function fileStream($filepath)
     {
         $stream = new ThroughStream;
-        FileBandwidthManager::instance('client_dashboard')->addStream($stream, $filepath);
+        FileBandwidthManager::instance('dashboard')->addStream($stream, $filepath);
         return $stream;
     }
 }

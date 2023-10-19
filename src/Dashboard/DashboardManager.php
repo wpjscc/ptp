@@ -12,11 +12,7 @@ class DashboardManager
 
     protected function init()
     {
-        if ($this->key == 'client') {
-            $this->ports = array_filter([Config::instance($this->key)->getClientDashboardPort()]);
-        } else {
-            $this->ports = array_filter([Config::instance($this->key)->getServerDashboardPort()]);
-        }
+        $this->ports = array_filter([Config::instance($this->key)->getDashboardPort()]);
     }
 
 
@@ -36,7 +32,7 @@ class DashboardManager
 
     public function check()
     {
-        $this->checkPorts(array_filter([Config::instance($this->key)->getServerDashboardPort()]));
+        $this->checkPorts(array_filter([Config::instance($this->key)->getDashboardPort()]));
     }
 
    

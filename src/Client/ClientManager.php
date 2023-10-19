@@ -69,42 +69,42 @@ class ClientManager implements \Wpjscc\PTP\Log\LogManagerInterface
         return $this->filterKeys;
     }
 
-    public function getTransformConfigs()
-    {
-        $configs = [];
+    // public function getTransformConfigs()
+    // {
+    //     $configs = [];
 
-        $configs['common'] = Config::instance('client')->getClientCommon();
+    //     $configs['common'] = Config::instance('client')->getClientCommon();
 
-        foreach ($this->configs as $key => $config) {
-            if (!is_array($config)) {
-                continue;
-            }
-            if (in_array($key, $this->filterKeys)) {
-                continue;
-            }
-            $configs[$key] = Config::instance('client')->getClientConfigByKey($key);
+    //     foreach ($this->configs as $key => $config) {
+    //         if (!is_array($config)) {
+    //             continue;
+    //         }
+    //         if (in_array($key, $this->filterKeys)) {
+    //             continue;
+    //         }
+    //         $configs[$key] = Config::instance('client')->getClientConfigByKey($key);
 
-            if (!isset($config['domain'])) {
-                unset($configs[$key]['single_tunnel']);
-                unset($configs[$key]['pool_count']);
-                unset($configs[$key]['dynamic_tunnel_protocol']);
-                unset($configs[$key]['local_protocol']);
-            }
-        }
+    //         if (!isset($config['domain'])) {
+    //             unset($configs[$key]['single_tunnel']);
+    //             unset($configs[$key]['pool_count']);
+    //             unset($configs[$key]['dynamic_tunnel_protocol']);
+    //             unset($configs[$key]['local_protocol']);
+    //         }
+    //     }
 
-        // dashboard
-        $configs['dashboard'] = $this->configs['dashboard'] ?? [];
+    //     // dashboard
+    //     $configs['dashboard'] = $this->configs['dashboard'] ?? [];
 
-        // http 
-        $configs['http']['ip'] = HttpManager::instance('client')->getIp();
-        $configs['http']['ports'] = implode(',',  HttpManager::instance('client')->getPorts());
-        $configs['tcp']['ip'] = TcpManager::instance('client')->getIp();
-        $configs['tcp']['ports'] = implode(',', TcpManager::instance('client')->getPorts());
-        $configs['udp']['ip'] = UdpManager::instance('client')->getIp();
-        $configs['udp']['ports'] = implode(',', UdpManager::instance('client')->getPorts());
+    //     // http 
+    //     $configs['http']['ip'] = HttpManager::instance('client')->getIp();
+    //     $configs['http']['ports'] = implode(',',  HttpManager::instance('client')->getPorts());
+    //     $configs['tcp']['ip'] = TcpManager::instance('client')->getIp();
+    //     $configs['tcp']['ports'] = implode(',', TcpManager::instance('client')->getPorts());
+    //     $configs['udp']['ip'] = UdpManager::instance('client')->getIp();
+    //     $configs['udp']['ports'] = implode(',', UdpManager::instance('client')->getPorts());
 
-        return $configs;
-    }
+    //     return $configs;
+    // }
 
     public function run()
     {
