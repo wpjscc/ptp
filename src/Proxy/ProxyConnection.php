@@ -26,8 +26,8 @@ class ProxyConnection extends AbstractConnectionLimit implements \Wpjscc\PTP\Log
         LoopInterface $loop = null
     ) {
         parent::__construct(
-            $config['max_connections'] ?? 10,
-            $config['max_wait_queue'] ?? 50,
+            $config['max_connections'] ?? 100,
+            $config['max_wait_queue'] ?? 500,
             $config['wait_timeout'] ?? 5,
             $loop
         );
