@@ -251,10 +251,14 @@ class PeerManager implements \Wpjscc\PTP\Log\LogManagerInterface
                 ]);
                 if (ProxyManager::$remoteTunnelConnections[$_uri]->count() == 0) {
                     unset(ProxyManager::$remoteTunnelConnections[$_uri]);
-                    // p2p 并没有
+                    // p2p 是下方的带宽
                     unset(ProxyManager::$uriToInfo[$_uri]);
                 }
             });
+
+            // 设置p2p带宽默20M 最大100M
+            ProxyManager::$uriToInfo[$uri]['bandwidth_limit']['max_bandwidth'] = 100;
+            ProxyManager::$uriToInfo[$uri]['bandwidth_limit']['bandwidth'] = 20;
         }
 
         echo Helper::toString($request) . PHP_EOL;

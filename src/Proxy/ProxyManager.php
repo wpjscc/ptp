@@ -14,6 +14,7 @@ use Wpjscc\PTP\Utils\BasicAuth;
 use Wpjscc\PTP\Utils\PingPong;
 use Wpjscc\PTP\Utils\Ip;
 use Wpjscc\PTP\Tunnel\Server\Tunnel\P2pTunnel;
+use Wpjscc\PTP\Bandwidth\BufferBandwidthManager;
 
 class ProxyManager implements \Wpjscc\PTP\Log\LogManagerInterface
 {
@@ -225,8 +226,12 @@ class ProxyManager implements \Wpjscc\PTP\Log\LogManagerInterface
                         'uuid' => $uuid,
                     ]);
                     if (static::$remoteTunnelConnections[$_uri]->count() == 0) {
+                        // 去掉通道
                         unset(static::$remoteTunnelConnections[$_uri]);
+                        // 去掉uri信息
                         unset(static::$uriToInfo[$_uri]);
+                        // 去掉带宽实例
+                        BufferBandwidthManager::forgetInstance($_uri);
                     }
                 });
             }

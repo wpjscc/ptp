@@ -5,6 +5,8 @@ namespace Wpjscc\PTP\Proxy;
 use React\EventLoop\LoopInterface;
 use React\Socket\ConnectionInterface;
 use React\Stream\ThroughStream;
+use Wpjscc\PTP\Bandwidth\AsyncThroughStream;
+use Wpjscc\PTP\Bandwidth\BufferBandwidthManager;
 use Ramsey\Uuid\Uuid;
 use React\Promise\Promise;
 
@@ -74,25 +76,37 @@ class ProxyConnection extends AbstractConnectionLimit implements \Wpjscc\PTP\Log
                 'uuid' => $uuid,
             ]);
 
-
-            // 交换数据
-            $userConnection->pipe(new ThroughStream(function ($data){
+            BufferBandwidthManager::instance($this->uri)->setBandwidth(
+                1024 * 1024 * 1024 * (ProxyManager::$uriToInfo[$this->uri]['bandwidth_limit']['max_bandwidth'] ?? 5),
+                1024 * 1024 * 1024 * (ProxyManager::$uriToInfo[$this->uri]['bandwidth_limit']['bandwidth'] ?? 1),
+            );
+            $userAsyncThroughStream = new AsyncThroughStream(function ($data, $stream) use ($uuid) {
+                static::getLogger()->debug("user connection receive data", [
+                    'class' => __CLASS__,
+                    'uuid' => $uuid,
+                    'length' => strlen($data),
+                ]);
                 // todo 压缩/加密
-
-                return $data;
-            }))->pipe($clientConnection, [
+                // return $data;
+                // 带宽限制
+                return BufferBandwidthManager::instance($this->uri)->addBuffer($stream, $data);
+            });
+            // 交换数据
+            $userConnection->pipe($userAsyncThroughStream)->pipe($clientConnection, [
                 'end' => false
             ]);
         
-            $clientConnection->pipe(new ThroughStream(function ($buffer) use ($uuid) {
+            $clientConnection->pipe(new AsyncThroughStream(function ($buffer, $stream) use ($uuid) {
                 static::getLogger()->debug("dynamic connection receive data", [
                     'uuid' => $uuid,
                     'length' => strlen($buffer),
                 ]);
-
+                // return $buffer;
                 // todo 解压/解密
 
-                return $buffer;
+                // 带宽限制
+                return BufferBandwidthManager::instance($this->uri)->addBuffer($stream, $buffer);
+
             }))->pipe($userConnection, [
                 'end' => false
             ]);
@@ -118,7 +132,9 @@ class ProxyConnection extends AbstractConnectionLimit implements \Wpjscc\PTP\Log
 
             if ($buffer) {
                 // todo 压缩/加密
-                $clientConnection->write($buffer);
+                // $clientConnection->write($buffer);
+                $userAsyncThroughStream->write($buffer);
+
                 $buffer = '';
             }
         }, function ($e) use ($userConnection, &$buffer) {

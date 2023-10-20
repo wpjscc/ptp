@@ -404,6 +404,16 @@ class Tunnel implements \Wpjscc\PTP\Log\LogManagerInterface
                 ProxyManager::$uriToInfo[$uri]['is_private'] = $isPrivate ? true : false;
                 ProxyManager::$uriToInfo[$uri]['http_user'] = $httpUser;
                 ProxyManager::$uriToInfo[$uri]['http_pwd'] = $httpPwd;
+
+                // 连接数默认限制
+                ProxyManager::$uriToInfo[$uri]['connection_limit']['max_connections'] = 100;
+                ProxyManager::$uriToInfo[$uri]['connection_limit']['max_wait_queue'] = 500;
+                ProxyManager::$uriToInfo[$uri]['connection_limit']['wait_timeout'] = 10;
+
+                // 带宽默认限制 最大1M 带宽0.5M
+                ProxyManager::$uriToInfo[$uri]['bandwidth_limit']['max_bandwidth'] = 1;
+                ProxyManager::$uriToInfo[$uri]['bandwidth_limit']['bandwidth'] = 0.5;
+
             }
         }
 

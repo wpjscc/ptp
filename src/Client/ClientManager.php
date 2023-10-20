@@ -5,6 +5,7 @@ namespace Wpjscc\PTP\Client;
 use Ratchet\Http\HttpServer;
 use Wpjscc\PTP\Helper;
 use Wpjscc\PTP\Config;
+use Wpjscc\PTP\Bandwidth\BufferBandwidthManager;
 use Wpjscc\PTP\Local\LocalManager;
 use Wpjscc\PTP\Environment;
 use Wpjscc\PTP\P2p\Client\HandleResponse;
@@ -339,6 +340,8 @@ class ClientManager implements \Wpjscc\PTP\Log\LogManagerInterface
 
                 if (ClientManager::$tunnelConnections[$uri]->count() == 0) {
                     unset(ClientManager::$tunnelConnections[$uri]);
+                    // 移除带宽限制
+                    BufferBandwidthManager::forgetInstance($uri);
                 }
             }
         }

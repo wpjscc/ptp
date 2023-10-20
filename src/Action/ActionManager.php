@@ -47,7 +47,12 @@ class ActionManager
                 'ports' => UdpManager::instance($this->key)->getPorts()
             ],
             'proxy_uris' => ClientManager::getTunnelUris(),
-            'p2p_proxy_uris' => array_keys(ProxyManager::$remoteTunnelConnections)
+            
+
+            // uri的详细信息 \Wpjscc\PTP\P2p\Client\PeerManageer->handleClientConnection
+            'p2p_proxy_uris' => array_keys(ProxyManager::$remoteTunnelConnections),
+            // 包含token,带宽，最大连接数，
+            'p2p_proxy_uris_info' => ProxyManager::$uriToInfo
         ];
         
     }
@@ -68,7 +73,11 @@ class ActionManager
                 'ip' => UdpManager::instance($this->key)->getIp(),
                 'ports' => UdpManager::instance($this->key)->getPorts()
             ],
+
+            // 所有uri 包含p2p 的 \Wpjscc\PTP\Proxy\ProxyManager->handleClientConnection
             'proxy_uris' => array_keys(ProxyManager::$remoteTunnelConnections),
+            // uri的详细信息(仅包含带宽限制) \Wpjscc\PTP\Tunnel\Server\Tunnel->validate
+            'uris_info' => ProxyManager::$uriToInfo,
         ];
         
     }

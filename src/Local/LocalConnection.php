@@ -4,6 +4,8 @@ namespace Wpjscc\PTP\Local;
 
 use React\Promise\Promise;
 use Wpjscc\PTP\Proxy\AbstractConnectionLimit;
+use Wpjscc\PTP\Bandwidth\AsyncThroughStream;
+use Wpjscc\PTP\Bandwidth\BufferBandwidthManager;
 use React\EventLoop\LoopInterface;
 use React\Stream\ThroughStream;
 use Wpjscc\PTP\Helper;
@@ -36,27 +38,34 @@ class LocalConnection extends AbstractConnectionLimit implements \Wpjscc\PTP\Log
         });
 
         $this->getIdleConnection($config)->then(function ($localConnection) use ($connection, &$fn, &$buffer, $response, $config) {
+            BufferBandwidthManager::instance($this->uri)->setBandwidth(
+                1024 * 1024 * 1024 * ($config['max_bandwidth'] ?? 5),
+                1024 * 1024 * 1024 * ($config['bandwidth'] ?? 1)
+            );
             $connection->removeListener('data', $fn);
             $fn = null;
-
-            $localConnection->pipe(new ThroughStream(function ($data) {
-                static::getLogger()->debug('local connection response data', [
+           
+            $localConnection->pipe(new AsyncThroughStream(function ($data, $stream) {
+                static::getLogger()->notice('local connection response data', [
                     'lenght' => strlen($data),
                 ]);
                 // todo 压缩/加密
-                return $data;
+                return BufferBandwidthManager::instance($this->uri)->addBuffer($stream, $data);
             }))->pipe($connection, [
-                'end' => false
+                'end' => true
             ]);
 
-            $connection->pipe(new ThroughStream(function ($buffer) use ($config) {
-                static::getLogger()->debug('dynamic connection receive data', [
-                    'lenght' => strlen($buffer),
+
+            $asyncThroughStream = new AsyncThroughStream(function ($data, $stream) use ($config) {
+                static::getLogger()->notice('dynamic connection receive data', [
+                    'lenght' => strlen($data),
                 ]);
                 // todo 解压/解密
-                return $this->handleRequestBuffeer($buffer, $config);
-            }))->pipe($localConnection, [
-                'end' => false
+                return BufferBandwidthManager::instance($this->uri)->addBuffer($stream, $this->handleRequestBuffeer($data, $config));
+            });
+
+            $connection->pipe($asyncThroughStream)->pipe($localConnection, [
+                'end' => true
             ]);
 
             $localConnection->on('close', function () use ($connection) {
@@ -69,7 +78,9 @@ class LocalConnection extends AbstractConnectionLimit implements \Wpjscc\PTP\Log
 
             if ($buffer) {
                 // todo 解压/解密
-                $localConnection->write($this->handleRequestBuffeer($buffer, $config));
+                // $localConnection->write($this->handleRequestBuffeer($buffer, $config));
+                $asyncThroughStream->write($buffer);
+                // BufferBandwidthManager::instance($this->uri)->addBuffer($asyncThroughStream, $this->handleRequestBuffeer($buffer, $config));
                 $buffer = '';
             }
         }, function ($e) use ($connection, &$fn, &$buffer) {
@@ -119,7 +130,7 @@ class LocalConnection extends AbstractConnectionLimit implements \Wpjscc\PTP\Log
 
         if ($config['local_replace_host'] ?? false) {
             $localHostPort = Helper::getLocalHostAndPort($config);
-            $buffer = preg_replace('/Host: '.$uri.'.*\r\n/', "Host: $localHostPort\r\n", $buffer);
+            $buffer = preg_replace('/Host: ' . $uri . '.*\r\n/', "Host: $localHostPort\r\n", $buffer);
         }
 
         return $buffer;
