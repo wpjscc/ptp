@@ -56,6 +56,7 @@ class BufferBandwidthManager implements \Wpjscc\PTP\Log\LogManagerInterface
         //     static::getLogger()->error('stream close', [
         //         'class' => __CLASS__,
         //         'streamId' => $streamId,
+                // 'stream_ids' => array_keys($this->queues),
         //         'size' => $this->size,
         //     ]);
         //     $deferred->reject(new \Error('stream close'));
@@ -77,6 +78,7 @@ class BufferBandwidthManager implements \Wpjscc\PTP\Log\LogManagerInterface
             static::getLogger()->debug('addBuffer', [
                 'class' => __CLASS__,
                 'streamId' => $streamId,
+                'stream_ids' => array_keys($this->queues),
                 'size' => $this->size,
                 'count' => count($this->queues[$streamId]['queues']),
             ]);
@@ -93,6 +95,7 @@ class BufferBandwidthManager implements \Wpjscc\PTP\Log\LogManagerInterface
             static::getLogger()->debug('startConsume:running', [
                 'class' => __CLASS__,
                 'streamId' => $streamId,
+                'stream_ids' => array_keys($this->queues),
                 'size' => $this->size,
                 'count' => count($this->queues[$streamId]['queues'] ?? []),
             ]);
@@ -102,6 +105,7 @@ class BufferBandwidthManager implements \Wpjscc\PTP\Log\LogManagerInterface
                 static::getLogger()->debug('startConsume', [
                     'class' => __CLASS__,
                     'streamId' => $streamId,
+                    'stream_ids' => array_keys($this->queues),
                     'size' => $this->size,
                     'count' => count($this->queues[$streamId]['queues'] ?? []),
                 ]);
@@ -110,6 +114,7 @@ class BufferBandwidthManager implements \Wpjscc\PTP\Log\LogManagerInterface
                 static::getLogger()->notice('startConsume:empty', [
                     'class' => __CLASS__,
                     'streamId' => $streamId,
+                    'stream_ids' => array_keys($this->queues),
                     'size' => $this->size,
                     'count' => count($this->queues[$streamId]['queues'] ?? []),
                 ]);
@@ -119,6 +124,7 @@ class BufferBandwidthManager implements \Wpjscc\PTP\Log\LogManagerInterface
             static::getLogger()->notice('startConsume:no:data', [
                 'class' => __CLASS__,
                 'streamId' => $streamId,
+                'stream_ids' => array_keys($this->queues),
                 'size' => $this->size,
             ]);
         }
@@ -142,6 +148,7 @@ class BufferBandwidthManager implements \Wpjscc\PTP\Log\LogManagerInterface
                 static::getLogger()->debug('runStream', [
                     'class' => __CLASS__,
                     'streamId' => $streamId,
+                    'stream_ids' => array_keys($this->queues),
                     'size' => $this->size,
                     'count' => count($this->queues[$streamId]['queues'] ?? []),
                 ]);
@@ -156,6 +163,7 @@ class BufferBandwidthManager implements \Wpjscc\PTP\Log\LogManagerInterface
                     static::getLogger()->error('runStream:isReadable:not', [
                         'class' => __CLASS__,
                         'streamId' => $streamId,
+                    'stream_ids' => array_keys($this->queues),
                         'size' => $this->size,
                         'current_size' => $currentSize,
                         'count' => count($this->queues[$streamId]['queues'] ?? []),
@@ -165,7 +173,7 @@ class BufferBandwidthManager implements \Wpjscc\PTP\Log\LogManagerInterface
 
                     $deferred->reject(new \Error('stream not readable'));
 
-                    $this->removeStream($streamId);
+                    $this->continueStream($streamId);
                     return;
                 }
 
@@ -181,6 +189,7 @@ class BufferBandwidthManager implements \Wpjscc\PTP\Log\LogManagerInterface
                     static::getLogger()->debug('runStream:currentSize', [
                         'class' => __CLASS__,
                         'streamId' => $streamId,
+                        'stream_ids' => array_keys($this->queues),
                         'size' => $this->size,
                         'buffer_length' => strlen($buffer),
                         'currentSize' => $currentSize,
@@ -202,6 +211,7 @@ class BufferBandwidthManager implements \Wpjscc\PTP\Log\LogManagerInterface
                         static::getLogger()->debug('runStream:continue', [
                             'class' => __CLASS__,
                             'streamId' => $streamId,
+                            'stream_ids' => array_keys($this->queues),
                             'size' => $this->size,
                             'buffer' => $buffer,
                             'content' => $content,
