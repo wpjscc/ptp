@@ -66,6 +66,7 @@ class BufferBandwidthManager implements \Wpjscc\PTP\Log\LogManagerInterface
         // });
    
         $this->activeTime = time();
+        $this->queues[$streamId]['activeTime'] = time();
         $this->queues[$streamId]['queues'][] = [
             'stream' => $stream,
             'deferred' => $deferred,
@@ -157,11 +158,12 @@ class BufferBandwidthManager implements \Wpjscc\PTP\Log\LogManagerInterface
 
     public function removeStream($streamId)
     {
-        // var_dump(array_keys($this->queues));
-        // exit();
-        $stream = $this->queues[$streamId]['stream'];
-        $stream->end();
-        unset($this->queues[$streamId]);
+        if (isset($this->queues[$streamId]['stream'])) {
+            $stream = $this->queues[$streamId]['stream'];
+            $stream->end();
+            unset($this->queues[$streamId]);
+        }
+      
     }
 
     protected function continueStream($streamId)
