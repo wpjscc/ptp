@@ -20,6 +20,7 @@ use Wpjscc\PTP\Server\TcpManager;
 use Wpjscc\PTP\Server\UdpManager;
 use Wpjscc\PTP\Proxy\ProxyManager;
 use Wpjscc\PTP\Bandwidth\FileBandwidthManager;
+use Wpjscc\PTP\Bandwidth\BufferBandwidthManager;
 
 // function compressor($data) {
 //     $compressor = new Compressor(ZLIB_ENCODING_GZIP);
@@ -205,6 +206,9 @@ ClientManager::instance('client')->run();
 
     foreach ($uris as $uri) {
         echo "======> tunnel $uri count: " . ClientManager::getTunnelConnectionCount($uri) . PHP_EOL;
+        echo "======> tunnel $uri bandwidth: " . BufferBandwidthManager::instance($uri)->getBandwidth() . PHP_EOL;
+        echo "======> tunnel $uri getMaxBandwidth: " . BufferBandwidthManager::instance($uri)->getMaxBandwidth() . PHP_EOL;
+        echo "======> tunnel $uri streamIds: " . implode(',', BufferBandwidthManager::instance($uri)->getStreamIds()) . PHP_EOL;
     }
 
     $uris = ClientManager::getDynamicTunnelUris();

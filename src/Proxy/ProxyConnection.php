@@ -126,20 +126,9 @@ class ProxyConnection extends AbstractConnectionLimit implements \Wpjscc\PTP\Log
                     'uuid' => $uuid,
                     'stream_id' => spl_object_id($clientAsyncThroughStream),
                 ]);
-                if (BufferBandwidthManager::instance($this->uri)->hasMoreBuffer(spl_object_id($clientAsyncThroughStream))){
-                    BufferBandwidthManager::instance($this->uri)->setParentStreamClose(spl_object_id($clientAsyncThroughStream));
-                } else {
-                    if (BufferBandwidthManager::instance($this->uri)->hasStream(spl_object_id($clientAsyncThroughStream))) {
-                        BufferBandwidthManager::instance($this->uri)->removeStream(spl_object_id($clientAsyncThroughStream));
-                    } else {
-                        static::getLogger()->warning("dynamic connection close but not in BufferBandwidthManager", [
-                            'class' => __CLASS__,
-                            'uuid' => $uuid,
-                            'stream_id' => spl_object_id($clientAsyncThroughStream),
-                        ]);
-                        $clientAsyncThroughStream->end();
-                    }
-                }
+                // 通道关闭，这时
+                BufferBandwidthManager::instance($this->uri)->setParentStreamClose(spl_object_id($clientAsyncThroughStream));
+
             });
 
             $clientAsyncThroughStream->on('close', function () use ($userConnection, $uuid) {
@@ -160,27 +149,9 @@ class ProxyConnection extends AbstractConnectionLimit implements \Wpjscc\PTP\Log
                 $clientConnection->end();
                 $clientConnection->tunnelConnection->removeListener('close', $fnclose);
                 $fnclose = null;
-                if (BufferBandwidthManager::instance($this->uri)->hasStream(spl_object_id($userAsyncThroughStream))) {
-                    BufferBandwidthManager::instance($this->uri)->removeStream(spl_object_id($userAsyncThroughStream));
-                } else {
-                    static::getLogger()->warning("user connection close but not in BufferBandwidthManager", [
-                        'class' => __CLASS__,
-                        'uuid' => $uuid,
-                        'stream_id' => spl_object_id($userAsyncThroughStream),
-                    ]);
-                    $userAsyncThroughStream->end();
-                }
 
-                if (BufferBandwidthManager::instance($this->uri)->hasStream(spl_object_id($clientAsyncThroughStream))) {
-                    BufferBandwidthManager::instance($this->uri)->removeStream(spl_object_id($clientAsyncThroughStream));
-                } else {
-                    static::getLogger()->warning("clientAsyncThroughStream close but not in BufferBandwidthManager", [
-                        'class' => __CLASS__,
-                        'uuid' => $uuid,
-                        'stream_id' => spl_object_id($clientAsyncThroughStream),
-                    ]);
-                    $clientAsyncThroughStream->end();
-                }
+                $userAsyncThroughStream->end();
+                $clientAsyncThroughStream->end();
 
             });
 

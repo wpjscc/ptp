@@ -77,6 +77,15 @@ class BufferBandwidthManager implements \Wpjscc\PTP\Log\LogManagerInterface
 
         if (!isset($this->queues[$streamId]['running'])){
             $this->queues[$streamId]['running'] = false;
+            $stream->on('close', function () use ($streamId) {
+                static::getLogger()->error('stream close', [
+                    'class' => __CLASS__,
+                    'streamId' => $streamId,
+                    'stream_ids' => array_keys($this->queues),
+                    'size' => $this->size,
+                ]);
+                $this->removeStream($streamId);
+            });
         }
         $this->queues[$streamId]['stream'] = $stream;
 
@@ -100,11 +109,24 @@ class BufferBandwidthManager implements \Wpjscc\PTP\Log\LogManagerInterface
     public function setParentStreamClose($streamId)
     {
         $this->queues[$streamId]['close'] = true;
+        if (!$this->hasMoreBuffer($streamId)) {
+            $this->removeStream($streamId);
+        }
     }
 
     public function getStreamIds()
     {
         return array_keys($this->queues);
+    }
+
+    public function getMaxBandwidth()
+    {
+        return (int)($this->maxBandwidth/1024/1024) .'kb';
+    }
+
+    public function getBandwidth()
+    {
+        return (int)($this->bandwidth/1024/1024) .'kb';
     }
 
 
@@ -217,7 +239,7 @@ class BufferBandwidthManager implements \Wpjscc\PTP\Log\LogManagerInterface
                     $this->size -= $currentSize;
                     
                     $deferred->resolve($p);
-                    static::getLogger()->error('runStream:currentSize', [
+                    static::getLogger()->debug('runStream:currentSize', [
                         'class' => __CLASS__,
                         'streamId' => $streamId,
                         'stream_ids' => array_keys($this->queues),

@@ -15,7 +15,7 @@ use Wpjscc\PTP\Log\LogManager;
 use Psr\Log\LogLevel;
 use Wpjscc\PTP\Helper;
 use Wpjscc\PTP\P2p\ConnectionManager;
-
+use Wpjscc\PTP\Bandwidth\BufferBandwidthManager;
 
 \Wpjscc\PTP\Environment::$type = 'server';
 
@@ -86,6 +86,9 @@ ConnectionManager::consumeQueues(1);
    
     foreach (ProxyManager::$remoteTunnelConnections as $uri => $remoteTunnelConnection) {
         echo sprintf("%s-%s-%s", 'remote:tunnel:connection', $uri, $remoteTunnelConnection->count())."\n";
+        echo "======> tunnel $uri bandwidth: " . BufferBandwidthManager::instance($uri)->getBandwidth() . PHP_EOL;
+        echo "======> tunnel $uri getMaxBandwidth: " . BufferBandwidthManager::instance($uri)->getMaxBandwidth() . PHP_EOL;
+        echo "======> tunnel $uri streamIds: " . implode(',', BufferBandwidthManager::instance($uri)->getStreamIds()) . PHP_EOL;
     }
 
     foreach (ProxyManager::$remoteDynamicConnections as $uri => $remoteDynamicConnection) {
