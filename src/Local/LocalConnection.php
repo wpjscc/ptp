@@ -45,14 +45,17 @@ class LocalConnection extends AbstractConnectionLimit implements \Wpjscc\PTP\Log
             $connection->removeListener('data', $fn);
             $fn = null;
            
-            $localConnection->pipe(new AsyncThroughStream(function ($data, $stream) {
-                static::getLogger()->notice('local connection response data', [
+            $localAsyncThroughStream = new AsyncThroughStream(function ($data, $stream) use ($config) {
+                static::getLogger()->notice('local connection receive data', [
                     'lenght' => strlen($data),
                 ]);
-                // todo 压缩/加密
+                // todo 解压/解密
                 return BufferBandwidthManager::instance($this->uri)->addBuffer($stream, $data);
-            }))->pipe($connection, [
-                'end' => true
+            });
+            $localConnection->pipe($localAsyncThroughStream, [
+                'end' => false
+            ])->pipe($connection, [
+                'end' => false
             ]);
 
 
@@ -64,16 +67,55 @@ class LocalConnection extends AbstractConnectionLimit implements \Wpjscc\PTP\Log
                 return BufferBandwidthManager::instance($this->uri)->addBuffer($stream, $this->handleRequestBuffeer($data, $config));
             });
 
-            $connection->pipe($asyncThroughStream)->pipe($localConnection, [
-                'end' => true
+            $connection->pipe($asyncThroughStream, [
+                'end' => false
+            ])->pipe($localConnection, [
+                'end' => false
             ]);
 
-            $localConnection->on('close', function () use ($connection) {
+            $localConnection->on('close', function () use ($connection, $localAsyncThroughStream) {
+                static::getLogger()->debug('local connection close', [
+                    'class' => __CLASS__,
+                    'uri' => $this->uri,
+                    'localAsyncThroughStream' => spl_object_id($localAsyncThroughStream),
+                ]);
+                if(BufferBandwidthManager::instance($this->uri)->hasMoreBuffer(spl_object_id($localAsyncThroughStream))){
+                    static::getLogger()->warning('local connection close but has more buffer', [
+                        'class' => __CLASS__,
+                        'uri' => $this->uri,
+                        'localAsyncThroughStream' => spl_object_id($localAsyncThroughStream),
+                    ]);
+                    BufferBandwidthManager::instance($this->uri)->setParentStreamClose(spl_object_id($localAsyncThroughStream));
+                } else {
+                    if (BufferBandwidthManager::instance($this->uri)->hasStream(spl_object_id($localAsyncThroughStream))) {
+                        BufferBandwidthManager::instance($this->uri)->removeStream(spl_object_id($localAsyncThroughStream));
+                    } else {
+                        static::getLogger()->warning('local connection close but not in BufferBandwidthManager', [
+                            'class' => __CLASS__,
+                            'uri' => $this->uri,
+                            'localAsyncThroughStream' => spl_object_id($localAsyncThroughStream),
+                        ]);
+                        $localAsyncThroughStream->end();
+                    }
+                }
+            });
+
+            $localAsyncThroughStream->on('close', function () use ($connection) {
                 $connection->end();
             });
 
-            $connection->on('close', function () use ($localConnection) {
+            $connection->on('close', function () use ($localConnection, $asyncThroughStream) {
                 $localConnection->end();
+                if (BufferBandwidthManager::instance($this->uri)->hasStream(spl_object_id($asyncThroughStream))) {
+                    BufferBandwidthManager::instance($this->uri)->removeStream(spl_object_id($asyncThroughStream));
+                } else {
+                    static::getLogger()->warning('dynamic connection close but not in BufferBandwidthManager', [
+                        'class' => __CLASS__,
+                        'uri' => $this->uri,
+                        'asyncThroughStream' => spl_object_id($asyncThroughStream),
+                    ]);
+                    $asyncThroughStream->end();
+                }
             });
 
             if ($buffer) {

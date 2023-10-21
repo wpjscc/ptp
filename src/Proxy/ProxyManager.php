@@ -231,7 +231,7 @@ class ProxyManager implements \Wpjscc\PTP\Log\LogManagerInterface
                         // 去掉uri信息
                         unset(static::$uriToInfo[$_uri]);
                         // 去掉带宽实例
-                        BufferBandwidthManager::forgetInstance($_uri);
+                        // BufferBandwidthManager::forgetInstance($_uri);
                     }
                 });
             }

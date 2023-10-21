@@ -24,11 +24,13 @@ class BufferBandwidthManager implements \Wpjscc\PTP\Log\LogManagerInterface
 
     protected $isSet = false;
 
+    protected $activeTime = 0;
+
     protected function init()
     {
     }
 
-    public function setBandwidth(int $maxBandwidth, int $bandwidth, int|string $interval = 10000)
+    public function setBandwidth(int $maxBandwidth, int $bandwidth, int|string $interval = 1000)
     {
         if ($this->isSet) {
             return;
@@ -37,7 +39,7 @@ class BufferBandwidthManager implements \Wpjscc\PTP\Log\LogManagerInterface
         $this->maxBandwidth = $maxBandwidth;
         $this->bandwidth = $bandwidth;
 
-        $this->kb = $bandwidth / 1024 / 1024;
+        $this->kb = (int) ($bandwidth / 1024 / 1024);
 
         $this->bucket = new TokenBucket($maxBandwidth, $bandwidth, $interval);
 
@@ -64,9 +66,9 @@ class BufferBandwidthManager implements \Wpjscc\PTP\Log\LogManagerInterface
         // });
    
         \React\EventLoop\Loop::addTimer(0.001, function () use ($deferred, $stream, $buffer, $streamId) {
+            $this->activeTime = time();
             $this->queues[$streamId]['queues'][] = [
                 'deferred' => $deferred,
-                'stream' => $stream,
                 'buffer' => $buffer,
                 'size' => strlen($buffer),
                 'position' => 0,
@@ -75,6 +77,8 @@ class BufferBandwidthManager implements \Wpjscc\PTP\Log\LogManagerInterface
             if (!isset($this->queues[$streamId]['running'])){
                 $this->queues[$streamId]['running'] = false;
             }
+            $this->queues[$streamId]['stream'] = $stream;
+
             static::getLogger()->debug('addBuffer', [
                 'class' => __CLASS__,
                 'streamId' => $streamId,
@@ -88,6 +92,21 @@ class BufferBandwidthManager implements \Wpjscc\PTP\Log\LogManagerInterface
         return  $deferred->promise();
     }
 
+    public function hasMoreBuffer($streamId)
+    {
+        return isset($this->queues[$streamId]['queues']) && !empty($this->queues[$streamId]['queues']);
+    }
+
+    public function setParentStreamClose($streamId)
+    {
+        $this->queues[$streamId]['close'] = true;
+    }
+
+    public function getStreamIds()
+    {
+        return array_keys($this->queues);
+    }
+
 
     protected function startConsume($streamId)
     {
@@ -99,8 +118,8 @@ class BufferBandwidthManager implements \Wpjscc\PTP\Log\LogManagerInterface
                 'size' => $this->size,
                 'count' => count($this->queues[$streamId]['queues'] ?? []),
             ]);
-            $this->queues[$streamId]['running'] = true;
             if (isset($this->queues[$streamId]['queues']) && !empty($this->queues[$streamId]['queues'])) {
+                $this->queues[$streamId]['running'] = true;
                 $stream = array_shift($this->queues[$streamId]['queues']);
                 static::getLogger()->debug('startConsume', [
                     'class' => __CLASS__,
@@ -118,7 +137,6 @@ class BufferBandwidthManager implements \Wpjscc\PTP\Log\LogManagerInterface
                     'size' => $this->size,
                     'count' => count($this->queues[$streamId]['queues'] ?? []),
                 ]);
-                $this->removeStream($streamId);
             }
         } else {
             static::getLogger()->notice('startConsume:no:data', [
@@ -127,11 +145,23 @@ class BufferBandwidthManager implements \Wpjscc\PTP\Log\LogManagerInterface
                 'stream_ids' => array_keys($this->queues),
                 'size' => $this->size,
             ]);
+            if (isset($this->queues[$streamId]['close']) && $this->queues[$streamId]['close'] === true) {
+                $this->removeStream($streamId);
+            }
         }
     }
 
-    protected function removeStream($streamId)
+    public function hasStream($streamId)
     {
+        return isset($this->queues[$streamId]);
+    }
+
+    public function removeStream($streamId)
+    {
+        // var_dump(array_keys($this->queues));
+        // exit();
+        $stream = $this->queues[$streamId]['stream'];
+        $stream->end();
         unset($this->queues[$streamId]);
     }
 
@@ -157,7 +187,7 @@ class BufferBandwidthManager implements \Wpjscc\PTP\Log\LogManagerInterface
                 $buffer = $stream['buffer'];
                 $size = $stream['size'];
                 $currentSize = $size - $p;
-                $writeable = $stream['stream'];
+                $writeable = $this->queues[$streamId]['stream'];
 
                 if (!$writeable->isReadable()) {
                     static::getLogger()->error('runStream:isReadable:not', [
@@ -186,7 +216,7 @@ class BufferBandwidthManager implements \Wpjscc\PTP\Log\LogManagerInterface
                     $this->size -= $currentSize;
                     
                     $deferred->resolve($p);
-                    static::getLogger()->debug('runStream:currentSize', [
+                    static::getLogger()->error('runStream:currentSize', [
                         'class' => __CLASS__,
                         'streamId' => $streamId,
                         'stream_ids' => array_keys($this->queues),
@@ -207,14 +237,23 @@ class BufferBandwidthManager implements \Wpjscc\PTP\Log\LogManagerInterface
                     $p += strlen($content);
                     $stream['position'] = $p;
                     $writeable->emit('data', [$content]);
+                    static::getLogger()->debug('runStream:content', [
+                        'class' => __CLASS__,
+                        'streamId' => $streamId,
+                        'stream_ids' => array_keys($this->queues),
+                        'size' => $this->size,
+                        'buffer_length' => strlen($buffer),
+                        'currentSize' => $currentSize,
+                        'kb' => $this->kb,
+                        'p' => $p,
+                        'count' => count($this->queues[$streamId]['queues'] ?? []),
+                    ]);
                     if ($p < $size) {
                         static::getLogger()->debug('runStream:continue', [
                             'class' => __CLASS__,
                             'streamId' => $streamId,
                             'stream_ids' => array_keys($this->queues),
                             'size' => $this->size,
-                            'buffer' => $buffer,
-                            'content' => $content,
                             'p' => $p,
                             'count' => count($this->queues[$streamId]['queues'] ?? []),
                         ]);
