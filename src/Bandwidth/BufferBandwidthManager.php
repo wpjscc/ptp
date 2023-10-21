@@ -67,6 +67,7 @@ class BufferBandwidthManager implements \Wpjscc\PTP\Log\LogManagerInterface
    
         $this->activeTime = time();
         $this->queues[$streamId]['queues'][] = [
+            'stream' => $stream,
             'deferred' => $deferred,
             'buffer' => $buffer,
             'size' => strlen($buffer),
@@ -185,10 +186,10 @@ class BufferBandwidthManager implements \Wpjscc\PTP\Log\LogManagerInterface
                 $buffer = $stream['buffer'];
                 $size = $stream['size'];
                 $currentSize = $size - $p;
-                $writeable = $this->queues[$streamId]['stream'];
+                $writeable = $stream['stream'];
 
                 if (!$writeable->isReadable()) {
-                    static::getLogger()->error('runStream:isReadable:not', [
+                    static::getLogger()->debug('runStream:isReadable:not', [
                         'class' => __CLASS__,
                         'streamId' => $streamId,
                     'stream_ids' => array_keys($this->queues),

@@ -151,7 +151,7 @@ class ProxyConnection extends AbstractConnectionLimit implements \Wpjscc\PTP\Log
                 $userConnection->end();
             });
 
-            $userConnection->on('close', function () use ($clientConnection, &$fnclose, $uuid, $userAsyncThroughStream) {
+            $userConnection->on('close', function () use ($clientConnection, &$fnclose, $uuid, $userAsyncThroughStream, $clientAsyncThroughStream) {
                 unset($this->connections[$uuid]);
                 static::getLogger()->notice("user connection close", [
                     'class' => __CLASS__,
@@ -169,6 +169,17 @@ class ProxyConnection extends AbstractConnectionLimit implements \Wpjscc\PTP\Log
                         'stream_id' => spl_object_id($userAsyncThroughStream),
                     ]);
                     $userAsyncThroughStream->end();
+                }
+
+                if (BufferBandwidthManager::instance($this->uri)->hasStream(spl_object_id($clientAsyncThroughStream))) {
+                    BufferBandwidthManager::instance($this->uri)->removeStream(spl_object_id($clientAsyncThroughStream));
+                } else {
+                    static::getLogger()->warning("clientAsyncThroughStream close but not in BufferBandwidthManager", [
+                        'class' => __CLASS__,
+                        'uuid' => $uuid,
+                        'stream_id' => spl_object_id($clientAsyncThroughStream),
+                    ]);
+                    $clientAsyncThroughStream->end();
                 }
 
             });

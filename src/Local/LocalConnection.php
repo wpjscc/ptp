@@ -104,7 +104,7 @@ class LocalConnection extends AbstractConnectionLimit implements \Wpjscc\PTP\Log
                 $connection->end();
             });
 
-            $connection->on('close', function () use ($localConnection, $asyncThroughStream) {
+            $connection->on('close', function () use ($localConnection, $asyncThroughStream, $localAsyncThroughStream) {
                 $localConnection->end();
                 if (BufferBandwidthManager::instance($this->uri)->hasStream(spl_object_id($asyncThroughStream))) {
                     BufferBandwidthManager::instance($this->uri)->removeStream(spl_object_id($asyncThroughStream));
@@ -115,6 +115,17 @@ class LocalConnection extends AbstractConnectionLimit implements \Wpjscc\PTP\Log
                         'asyncThroughStream' => spl_object_id($asyncThroughStream),
                     ]);
                     $asyncThroughStream->end();
+                }
+
+                if (BufferBandwidthManager::instance($this->uri)->hasStream(spl_object_id($localAsyncThroughStream))) {
+                    BufferBandwidthManager::instance($this->uri)->removeStream(spl_object_id($localAsyncThroughStream));
+                } else {
+                    static::getLogger()->warning('local connection close but not in BufferBandwidthManager', [
+                        'class' => __CLASS__,
+                        'uri' => $this->uri,
+                        'localAsyncThroughStream' => spl_object_id($localAsyncThroughStream),
+                    ]);
+                    $localAsyncThroughStream->end();
                 }
             });
 
