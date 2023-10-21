@@ -65,29 +65,27 @@ class BufferBandwidthManager implements \Wpjscc\PTP\Log\LogManagerInterface
         //     $this->removeStream($streamId);
         // });
    
-        \React\EventLoop\Loop::addTimer(0.001, function () use ($deferred, $stream, $buffer, $streamId) {
-            $this->activeTime = time();
-            $this->queues[$streamId]['queues'][] = [
-                'deferred' => $deferred,
-                'buffer' => $buffer,
-                'size' => strlen($buffer),
-                'position' => 0,
-            ];
-    
-            if (!isset($this->queues[$streamId]['running'])){
-                $this->queues[$streamId]['running'] = false;
-            }
-            $this->queues[$streamId]['stream'] = $stream;
+        $this->activeTime = time();
+        $this->queues[$streamId]['queues'][] = [
+            'deferred' => $deferred,
+            'buffer' => $buffer,
+            'size' => strlen($buffer),
+            'position' => 0,
+        ];
 
-            static::getLogger()->debug('addBuffer', [
-                'class' => __CLASS__,
-                'streamId' => $streamId,
-                'stream_ids' => array_keys($this->queues),
-                'size' => $this->size,
-                'count' => count($this->queues[$streamId]['queues']),
-            ]);
-            $this->startConsume($streamId);
-        });
+        if (!isset($this->queues[$streamId]['running'])){
+            $this->queues[$streamId]['running'] = false;
+        }
+        $this->queues[$streamId]['stream'] = $stream;
+
+        static::getLogger()->debug('addBuffer', [
+            'class' => __CLASS__,
+            'streamId' => $streamId,
+            'stream_ids' => array_keys($this->queues),
+            'size' => $this->size,
+            'count' => count($this->queues[$streamId]['queues']),
+        ]);
+        $this->startConsume($streamId);
 
         return  $deferred->promise();
     }
