@@ -45,6 +45,7 @@ class ServerManager implements \Wpjscc\PTP\Log\LogManagerInterface
         HttpManager::instance('server')->run();
         TcpManager::instance('server')->run();
         UdpManager::instance('server')->run();
+        TcpProxyManager::instance('server')->run();
 
         // 服务端带宽设置(默认1M, 最大5M)
         FileBandwidthManager::instance('dashboard')->setBandwidth(
@@ -63,8 +64,12 @@ class ServerManager implements \Wpjscc\PTP\Log\LogManagerInterface
 
     protected function runCommon()
     {
+        if (!isset($this->configs['common'])) {
+            return;
+        }
+
         $tunnel = new Tunnel(
-            $this->configs['common'],
+            $this->configs['common'] ?? [],
             $this->configs['cert'] ?? []
         );
         $tunnel->run();

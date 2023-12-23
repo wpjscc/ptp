@@ -21,6 +21,7 @@ trait RunPort
         foreach ($this->ports as $port) {
            $this->runPort($port);
         }
+        $this->running = true;
 
     }
     
