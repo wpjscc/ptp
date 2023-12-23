@@ -75,4 +75,9 @@ domain = x.x.x.x:32123 或 www.domain.com:32123
 能正常访问 x.x.x.x:32123 说明部署没问题
 
 
-## 正在快速开发中...
+
+# 打包
+
+```
+php bin/build.php v1.1.0 
+```
